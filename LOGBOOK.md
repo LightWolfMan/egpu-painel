@@ -69,3 +69,40 @@ WMI BatteryStatus, só com janela aberta), `bench.rs`, `tray.rs` (Win32 puro, Ge
 
 **Pendente:** UI egui (topologia animada, cards do dock, gráficos, linha do tempo), verificação na
 tela, medição de RAM/CPU (aberto e na bandeja), README.
+
+## 2026-11-15 (tarde) — UI completa, temas, dois processos, fonte
+
+**Feito**
+- UI egui com abas (Visão geral / Cabo e energia / Desempenho / Histórico / Opções). Topologia animada
+  com ilustrações vetoriais (notebook, dock com LED, placa com fans girando pela RPM, portas USB-A/C).
+- 5 temas: claro/escuro manuais; AMD/NVIDIA/Intel automáticos pelo Vendor ID da GPU do dock. AMD no
+  molde do Adrenalin (barra com bloco vermelho, abas grandes, cartões retos com faixa preta); NVIDIA e
+  Intel com menu lateral. Logotipos oficiais (SVG do Wikimedia Commons em `assets/logos`, resvg na
+  escala nativa). Fonte Segoe UI Variable, quebra de linha global, DPI + zoom em Opções.
+- Revisão por 2 agentes de "psicologia de UI": veredito no topo com causa provável, vermelho só para
+  problema (cor de dados separada da marca), D3 = "Em repouso" neutro, menos jargão, mais contraste.
+- Coletor otimizado por agente: topologia completa só por evento PnP ou a cada 30 s, WMI a cada 5 s;
+  ~9 → ~2 ms CPU/s. Modo `--perfil`.
+- Bandeja e painel em processos separados: bandeja 3,7 MB WS / 2,2 MB privados / 0% CPU, única que
+  grava `historico.jsonl`; painel `--painel` lê por tail (1×/s) e morre ao fechar. Linha do JSONL
+  escrita com um `write_all` só (dois processos acrescentam).
+- Fonte do dock: modelo digitado → busca (curl.exe, DuckDuckGo/Bing + até 4 páginas de resultado) →
+  W, +12 V (aceito só se A×12 ∈ [0,88; 1,02]×W), 80 PLUS (≥2 citações ou no nome). Carga ao vivo =
+  TBP medido + PD/dock/portas estimados; pico transitório 1,6×190 W; consumo na tomada pela eficiência
+  do selo. Modo `--fonte "MODELO"`. Testado: RM650x 650 W Gold; SF750 750 W 62,5 A Platinum.
+- Bug achado: o egui guarda estilos separados para claro/escuro e seguia o tema do Windows (claro),
+  deixando campos/botões brancos no tema escuro. Corrigido com `ctx.set_theme` em `apply_theme`.
+- Capturas: `shot.ps1` usa PrintWindow (PW_RENDERFULLCONTENT) — funciona com a janela coberta.
+  Cliques via PostMessage NÃO chegam ao egui; por isso existem `EGPU_TEMA` e `EGPU_ABA`.
+
+**Pendente / não verificado**
+- Tail do histórico no painel não foi exercitado com um evento real ao vivo (só o caminho de leitura).
+- +12 V não aparece em muitas fontes (fica vazio, pede a etiqueta). Busca na web é frágil por natureza.
+- Aviso "ADLX terminated with outstanding objects" ao encerrar continua (inofensivo).
+- E-mail do git não é noreply: trocar antes de tornar o repositório público.
+- Ideia mapeada (do usuário): página de métricas no estilo "Desempenho → Métricas" do Adrenalin
+  (anel + número grande + sparkline por linha).
+
+**Próximo**
+- Trocar o cabo por um TB3/TB4 40 Gb/s certificado e ver se a chave 20 vai a 0x4 e a banda a ~2,5 GB/s.
+- Informar o modelo real da fonte do dock e conferir se os picos explicam as quedas com PD caindo junto.
