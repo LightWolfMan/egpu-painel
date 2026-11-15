@@ -19,6 +19,7 @@ mod collect;
 mod config;
 mod history;
 mod pnp;
+mod psu;
 mod tray;
 mod ui;
 mod util;
@@ -143,6 +144,18 @@ fn main() {
         attach_console();
         let n = args.iter().skip_while(|a| *a != "--perfil").nth(1).and_then(|x| x.parse().ok()).unwrap_or(20);
         collect::profile(n);
+        return;
+    }
+    if has("--fonte") {
+        attach_console();
+        let model = args.iter().skip_while(|a| *a != "--fonte").nth(1).cloned().unwrap_or_default();
+        match psu::lookup(&model) {
+            Ok(f) => println!(
+                "{model}: {:?} W ({}x) | +12 V {:?} A ({}x) | 80 PLUS {:?} ({}x) via {}",
+                f.watts, f.hits.0, f.rail12_a, f.hits.1, f.rating, f.hits.2, f.engine
+            ),
+            Err(e) => println!("{model}: falhou: {e}"),
+        }
         return;
     }
     if has("--bench") {

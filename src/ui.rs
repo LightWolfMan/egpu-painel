@@ -259,6 +259,9 @@ pub struct App {
     vendor: Option<Th>,
     hist_limit: usize,
     logo_tex: Option<(Th, bool, u32, egui::TextureHandle)>,
+    psu: crate::psu::Psu,
+    psu_job: Option<Arc<Mutex<Option<Result<crate::psu::Found, String>>>>>,
+    psu_msg: Option<(bool, String)>,
 }
 
 impl App {
@@ -300,6 +303,9 @@ impl App {
             vendor: vendor_of(&pnp::read_topology()),
             hist_limit: 30,
             logo_tex: None,
+            psu: crate::psu::load(),
+            psu_job: None,
+            psu_msg: None,
         }
     }
 
@@ -445,6 +451,8 @@ fn apply_theme(ctx: &egui::Context, th: Th) {
     v.selection.stroke = Stroke::new(1.0, pal::cyan());
     v.hyperlink_color = pal::cyan();
     v.window_corner_radius = CornerRadius::same(pal::radius());
+    // o egui guarda estilos separados para claro/escuro e segue o tema do Windows; fixa o nosso
+    ctx.set_theme(if th.is_light() { egui::Theme::Light } else { egui::Theme::Dark });
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
         use egui::{FontFamily as F, TextStyle::*};
@@ -1253,6 +1261,8 @@ impl eframe::App for App {
                             c[si].add_space(if cols == 3 { 0.0 } else { 10.0 });
                             self.card_stability(&mut c[si], &topo);
                         });
+                        ui.add_space(pal::gap());
+                        self.card_psu(ui, &topo, &samples);
                     }
                     Tab::Fluxo => {
                         ui.spacing_mut().item_spacing.x = pal::gap();
@@ -1365,6 +1375,132 @@ impl App {
             ui.add_space(12.0);
             self.header_status(ui, &topo, t);
         });
+    }
+
+    /// Fonte do dock: modelo digitado, specs buscadas na web, carga estimada em tempo real.
+    fn card_psu(&mut self, ui: &mut Ui, topo: &Topology, samples: &[Sample]) {
+        use crate::psu;
+        // resultado da busca em segundo plano
+        if let Some(job) = &self.psu_job {
+            let done = job.lock().unwrap().take();
+            if let Some(r) = done {
+                self.psu_job = None;
+                match r {
+                    Ok(f) => {
+                        let mut got = vec![];
+                        if let Some(w) = f.watts {
+                            self.psu.watts = w;
+                            got.push(format!("{w} W"));
+                        }
+                        if let Some(a) = f.rail12_a {
+                            self.psu.rail12_a = a;
+                            got.push(format!("+12 V {a:.0} A"));
+                        }
+                        if let Some(r) = &f.rating {
+                            self.psu.rating = r.clone();
+                            got.push(format!("80 PLUS {r}"));
+                        }
+                        self.psu.origin = "web".into();
+                        psu::save(&self.psu);
+                        self.psu_msg = Some((true, format!("Achei no {}: {}. Confira na etiqueta da fonte e corrija se precisar.", f.engine, got.join(" · "))));
+                    }
+                    Err(e) => self.psu_msg = Some((false, format!("Não achei as specs ({e}). Preencha à mão, a etiqueta da fonte tem tudo."))),
+                }
+            }
+        }
+        let last = samples.last().copied().unwrap_or_default();
+        let inp = psu::Inputs {
+            gpu_w: last.gpu.and_then(|g| g.tbp).unwrap_or(0.0) as f32,
+            pd_on: last.power.map(|p| p.online).unwrap_or(false),
+            batt_w: last.power.map(|p| p.charge_mw as f32 / 1000.0).unwrap_or(0.0),
+            usb_devices: topo.usb_a.len(),
+            tb_in_use: topo.ports.iter().any(|d| d.role == PortRole::TbExtra && d.child.is_some()),
+        };
+        let before = self.psu.clone();
+        card(ui, "🔌  Fonte do dock", pal::bolt(), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new("Modelo").color(pal::dim()));
+                let te = ui.add(egui::TextEdit::singleline(&mut self.psu.model).hint_text("ex.: Corsair RM650x, MSI MAG A650BN").desired_width(320.0));
+                let busy = self.psu_job.is_some();
+                let go = ui.add_enabled(!busy && self.psu.model.trim().len() >= 3, egui::Button::new(if busy { "Buscando…" } else { "🔍 Buscar specs na internet" }));
+                if busy {
+                    ui.spinner();
+                }
+                if go.clicked() || (te.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !busy && self.psu.model.trim().len() >= 3) {
+                    let slot = Arc::new(Mutex::new(None));
+                    let s2 = slot.clone();
+                    let model = self.psu.model.trim().to_string();
+                    let ctx = ui.ctx().clone();
+                    std::thread::spawn(move || {
+                        let r = psu::lookup(&model);
+                        *s2.lock().unwrap() = Some(r);
+                        ctx.request_repaint();
+                    });
+                    self.psu_job = Some(slot);
+                    self.psu_msg = None;
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new("Potência").color(pal::dim()));
+                ui.add(egui::DragValue::new(&mut self.psu.watts).range(0..=2000).suffix(" W").speed(5));
+                ui.add_space(10.0);
+                ui.label(egui::RichText::new("+12 V").color(pal::dim()));
+                ui.add(egui::DragValue::new(&mut self.psu.rail12_a).range(0.0..=170.0).suffix(" A").speed(0.5));
+                ui.add_space(10.0);
+                ui.label(egui::RichText::new("80 PLUS").color(pal::dim()));
+                egui::ComboBox::from_id_salt("psu-rating")
+                    .selected_text(if self.psu.rating.is_empty() { "sem selo / não sei" } else { self.psu.rating.as_str() })
+                    .show_ui(ui, |ui| {
+                        for r in psu::RATINGS {
+                            ui.selectable_value(&mut self.psu.rating, r.to_string(), if r.is_empty() { "sem selo / não sei" } else { r });
+                        }
+                    });
+            });
+            if let Some((ok, m)) = &self.psu_msg {
+                ui.label(egui::RichText::new(m).color(if *ok { pal::green() } else { pal::amber() }).size(13.5));
+            }
+            if self.psu.watts == 0 {
+                ui.label(egui::RichText::new("Informe o modelo (ou a potência) para ver a carga da fonte em tempo real.").color(pal::dim()));
+                return;
+            }
+            let l = psu::compute(&self.psu, &inp);
+            let w = self.psu.watts as f32;
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                let gw = 100.0;
+                let free = ui.available_width() - 5.0 * gw;
+                ui.spacing_mut().item_spacing.x = (free / 5.0).clamp(14.0, 160.0);
+                let lc = |f: f32| if f > 0.8 { pal::red() } else if f > 0.6 { pal::amber() } else { pal::green() };
+                gauge(ui, "⚡", l.now, w, "W", "Carga agora", lc(l.frac)).on_hover_text(format!(
+                    "Placa {:.0} W (medido) + notebook pelo PD ~{:.0} W + dock ~{:.0} W + portas ~{:.0} W (estimados)",
+                    l.gpu, l.pd, l.dock, l.usb
+                ));
+                gauge(ui, "%", l.frac * 100.0, 100.0, "%", "Da fonte", lc(l.frac));
+                gauge(ui, "▲", l.spike, w, "W", "Pico possível", lc(l.spike / w)).on_hover_text(format!(
+                    "A placa pode puxar picos de ~1,6× o limite ({:.0} W) por milissegundos, somados ao resto. Fonte fraca desarma nesses picos.",
+                    psu::GPU_TBP_MAX
+                ));
+                gauge(ui, "🔌", l.wall, w * 1.2, "W", "Na tomada", pal::data()).on_hover_text(format!("Eficiência estimada {:.0}% ({})", l.eff * 100.0, if self.psu.rating.is_empty() { "sem selo" } else { &self.psu.rating }));
+                if self.psu.rail12_a > 0.0 {
+                    gauge(ui, "⎓", l.amps12, self.psu.rail12_a, "A", "Linha +12 V", lc(l.amps12 / self.psu.rail12_a));
+                }
+            });
+            let (col, msg) = if l.spike > w {
+                (pal::red(), format!("Os picos da placa (~{:.0} W) podem passar dos {:.0} W da fonte: isso desliga o dock inteiro, PD junto. Combina com quedas em que a energia caiu.", l.spike, w))
+            } else if l.worst > w * 0.85 {
+                (pal::amber(), format!("No pior caso (jogo pesado + notebook carregando) a fonte chega a ~{:.0}% da capacidade. Funciona, com pouca folga.", l.worst / w * 100.0))
+            } else {
+                (pal::green(), format!("Folga boa: mesmo no pior caso a fonte fica em ~{:.0}% da capacidade.", l.worst / w * 100.0))
+            };
+            ui.label(egui::RichText::new(msg).color(col).size(14.5));
+            ui.label(egui::RichText::new("A potência da placa é medida; notebook, dock e portas são estimados (a fonte não manda dados para o computador).").color(pal::faint()).size(12.5));
+        });
+        if self.psu != before {
+            if self.psu.model != before.model {
+                self.psu.origin = "manual".into();
+            }
+            crate::psu::save(&self.psu);
+        }
     }
 
     /// Veredito em uma frase: está bem, instável ou caído — e a causa provável.
