@@ -17,7 +17,7 @@ use std::time::Duration;
 /// Cinco paletas: claro e escuro (manuais) e AMD / NVIDIA / Intel (automáticas, pela placa
 /// detectada no dock). `cyan()` é a cor de destaque do tema (dados, seleção, pulsos).
 mod pal {
-    use eframe::egui::Color32;
+    use eframe::egui::{Color32, Shadow};
     use std::sync::atomic::{AtomicU8, Ordering};
 
     #[derive(Clone, Copy, PartialEq, Debug)]
@@ -120,9 +120,94 @@ mod pal {
     /// Cor de dados (tráfego, gráficos). No tema AMD não é o vermelho da marca,
     /// para vermelho continuar significando só problema.
     pub fn data() -> Color32 { at(19) }
+
+    // --- elevação: a luz vem de cima; fundo < cartão < nó/bloco < selecionado
+    /// Cor-base das sombras (no claro, um azul-ardósia; no Intel, um marinho).
+    pub fn shade_base() -> (u8, u8, u8) {
+        match current() {
+            Th::Light => (30, 45, 70),
+            Th::Intel => (0, 8, 20),
+            _ => (0, 0, 0),
+        }
+    }
+    /// Realce de 1 px na borda de cima dos cartões.
+    pub fn hi() -> Color32 {
+        match current() {
+            Th::Light => Color32::TRANSPARENT,
+            Th::Amd => Color32::from_white_alpha(10),
+            Th::Intel => Color32::from_rgba_unmultiplied(150, 200, 255, 14),
+            _ => Color32::from_white_alpha(12),
+        }
+    }
+    /// Cor da seleção. No AMD brilha em neutro: vermelho fica só para problema.
+    pub fn sel() -> Color32 {
+        if current() == Th::Amd { c(235, 235, 240) } else { cyan() }
+    }
+    /// Sombra de elevação: nível 1 = cartão, 2 = nó/bloco. `lift` (0..1) = hover.
+    pub fn elev(level: u8, lift: f32) -> Shadow {
+        let th = current();
+        let (b, dy, a): (f32, f32, f32) = match (th, level >= 2) {
+            (Th::Light, false) => (14.0, 3.0, 22.0),
+            (Th::Light, true) => (8.0, 2.0, 18.0),
+            (Th::Dark, false) => (16.0, 4.0, 90.0),
+            (Th::Dark, true) => (10.0, 3.0, 80.0),
+            (Th::Amd, false) => (20.0, 6.0, 120.0),
+            (Th::Amd, true) => (12.0, 4.0, 110.0),
+            (Th::Nvidia, false) => (14.0, 4.0, 100.0),
+            (Th::Nvidia, true) => (9.0, 3.0, 90.0),
+            (Th::Intel, false) => (18.0, 5.0, 130.0),
+            (Th::Intel, true) => (11.0, 3.0, 110.0),
+        };
+        let l = lift.clamp(0.0, 1.0);
+        let da = if th.is_light() { 16.0 } else { 40.0 };
+        let (r, g, bb) = shade_base();
+        Shadow {
+            offset: [0, (dy + 4.0 * l).round() as i8],
+            blur: (b + 10.0 * l).round() as u8,
+            spread: 0,
+            color: Color32::from_rgba_unmultiplied(r, g, bb, (a + da * l).round().min(255.0) as u8),
+        }
+    }
+    /// Topo do gradiente do corpo dos cartões (a base é `card()`).
+    pub fn card_top() -> Color32 {
+        match current() {
+            Th::Light => Color32::WHITE,
+            Th::Dark => c(28, 33, 41),
+            Th::Nvidia => c(40, 40, 40),
+            Th::Intel => c(20, 33, 54),
+            Th::Amd => c(42, 42, 44),
+        }
+    }
+    /// Base do gradiente do corpo dos cartões.
+    pub fn card_bot() -> Color32 {
+        if current().is_light() { c(249, 250, 252) } else { card() }
+    }
 }
 
 use pal::Th;
+
+/// Cor de brilho: no escuro sai aditiva (alfa 0 soma luz); no claro, só translúcida.
+fn glow(c: Color32, k: f32) -> Color32 {
+    if pal::current().is_light() {
+        c.gamma_multiply(k)
+    } else {
+        let [r, g, b, _] = c.to_array();
+        Color32::from_rgba_premultiplied((r as f32 * k) as u8, (g as f32 * k) as u8, (b as f32 * k) as u8, 0)
+    }
+}
+
+/// Retângulo arredondado com gradiente vertical (topo → base), com bordas suavizadas.
+fn vgrad(p: &egui::Painter, r: Rect, cr: u8, top: Color32, bot: Color32) -> egui::Shape {
+    let mut m = egui::Mesh::default();
+    let mut t = egui::epaint::Tessellator::new(p.ctx().pixels_per_point(), Default::default(), [1, 1], vec![]);
+    t.tessellate_rect(&egui::epaint::RectShape::filled(r, CornerRadius::same(cr), Color32::WHITE), &mut m);
+    let h = r.height().max(1.0);
+    for v in &mut m.vertices {
+        let k = ((v.pos.y - r.top()) / h).clamp(0.0, 1.0);
+        v.color = top.lerp_to_gamma(bot, k).gamma_multiply(v.color.a() as f32 / 255.0);
+    }
+    egui::Shape::mesh(m)
+}
 
 fn cat_color(c: Cat) -> Color32 {
     match c {
