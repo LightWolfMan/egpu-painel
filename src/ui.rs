@@ -14,44 +14,98 @@ use std::time::Duration;
 // Paleta
 
 
-/// Paleta com tema claro/escuro. As cores de destaque escurecem no tema claro para manter contraste.
+/// Cinco paletas: claro e escuro (manuais) e AMD / NVIDIA / Intel (automáticas, pela placa
+/// detectada no dock). `cyan()` é a cor de destaque do tema (dados, seleção, pulsos).
 mod pal {
     use eframe::egui::Color32;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    pub static LIGHT: AtomicBool = AtomicBool::new(false);
-    fn l() -> bool {
-        LIGHT.load(Ordering::Relaxed)
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    #[derive(Clone, Copy, PartialEq, Debug)]
+    pub enum Th {
+        Light = 0,
+        Dark = 1,
+        Amd = 2,
+        Nvidia = 3,
+        Intel = 4,
     }
+
+    impl Th {
+        pub fn is_light(self) -> bool {
+            self == Th::Light
+        }
+        /// NVIDIA e Intel usam menu lateral; AMD (como o Adrenalin), claro e escuro usam abas no topo.
+        pub fn nav_left(self) -> bool {
+            matches!(self, Th::Nvidia | Th::Intel)
+        }
+        pub fn name(self) -> &'static str {
+            match self {
+                Th::Light => "Claro",
+                Th::Dark => "Escuro",
+                Th::Amd => "AMD",
+                Th::Nvidia => "NVIDIA",
+                Th::Intel => "Intel",
+            }
+        }
+    }
+
+    static CUR: AtomicU8 = AtomicU8::new(1);
+
+    pub fn current() -> Th {
+        match CUR.load(Ordering::Relaxed) {
+            0 => Th::Light,
+            2 => Th::Amd,
+            3 => Th::Nvidia,
+            4 => Th::Intel,
+            _ => Th::Dark,
+        }
+    }
+    pub fn set(t: Th) {
+        CUR.store(t as u8, Ordering::Relaxed);
+    }
+
     const fn c(r: u8, g: u8, b: u8) -> Color32 {
         Color32::from_rgb(r, g, b)
     }
-    macro_rules! tone {
-        ($name:ident, $light:expr, $dark:expr) => {
-            pub fn $name() -> Color32 {
-                if l() { $light } else { $dark }
-            }
-        };
+
+    // ordem: bg card card2 card3 well grid border fg dim faint accent green amber red violet amd intel bolt pcie
+    const P: [[Color32; 19]; 5] = [
+        // claro
+        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(181, 136, 0), c(100, 125, 160)],
+        // escuro
+        [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(139, 148, 158), c(88, 96, 105), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(245, 196, 0), c(120, 150, 190)],
+        // AMD: preto profundo + vermelho
+        [c(10, 10, 12), c(21, 21, 24), c(31, 31, 35), c(42, 18, 21), c(14, 14, 16), c(40, 40, 45), c(46, 46, 52), c(242, 242, 244), c(160, 160, 168), c(96, 96, 104), c(237, 28, 36), c(46, 204, 113), c(255, 153, 0), c(255, 92, 92), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(255, 196, 0), c(150, 150, 162)],
+        // NVIDIA: grafite + verde
+        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(168, 168, 168), c(106, 106, 106), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(240, 200, 0), c(135, 155, 120)],
+        // Intel: azul-marinho + ciano
+        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(140, 160, 186), c(84, 104, 130), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(250, 200, 0), c(110, 150, 200)],
+    ];
+
+    fn at(i: usize) -> Color32 {
+        P[current() as usize][i]
     }
-    tone!(bg, c(242, 244, 247), c(13, 17, 23));
-    tone!(card, c(255, 255, 255), c(22, 27, 34));
-    tone!(card2, c(244, 246, 249), c(30, 36, 45));
-    tone!(card3, c(235, 242, 252), c(26, 33, 44));
-    tone!(well, c(246, 248, 251), c(16, 20, 26));
-    tone!(grid, c(226, 230, 236), c(33, 39, 47));
-    tone!(border, c(214, 220, 227), c(48, 54, 61));
-    tone!(fg, c(28, 33, 40), c(230, 237, 243));
-    tone!(dim, c(90, 99, 110), c(139, 148, 158));
-    tone!(faint, c(150, 158, 168), c(88, 96, 105));
-    tone!(cyan, c(2, 132, 199), c(56, 189, 248));
-    tone!(green, c(26, 127, 55), c(63, 185, 80));
-    tone!(amber, c(176, 112, 0), c(210, 153, 34));
-    tone!(red, c(207, 34, 46), c(248, 81, 73));
-    tone!(violet, c(130, 80, 223), c(163, 113, 247));
-    tone!(amd, c(200, 30, 40), c(237, 70, 70));
-    tone!(intel, c(0, 104, 181), c(64, 140, 230));
-    tone!(bolt, c(181, 136, 0), c(245, 196, 0));
-    tone!(pcie, c(100, 125, 160), c(120, 150, 190));
+    pub fn bg() -> Color32 { at(0) }
+    pub fn card() -> Color32 { at(1) }
+    pub fn card2() -> Color32 { at(2) }
+    pub fn card3() -> Color32 { at(3) }
+    pub fn well() -> Color32 { at(4) }
+    pub fn grid() -> Color32 { at(5) }
+    pub fn border() -> Color32 { at(6) }
+    pub fn fg() -> Color32 { at(7) }
+    pub fn dim() -> Color32 { at(8) }
+    pub fn faint() -> Color32 { at(9) }
+    pub fn cyan() -> Color32 { at(10) }
+    pub fn green() -> Color32 { at(11) }
+    pub fn amber() -> Color32 { at(12) }
+    pub fn red() -> Color32 { at(13) }
+    pub fn violet() -> Color32 { at(14) }
+    pub fn amd() -> Color32 { at(15) }
+    pub fn intel() -> Color32 { at(16) }
+    pub fn bolt() -> Color32 { at(17) }
+    pub fn pcie() -> Color32 { at(18) }
 }
+
+use pal::Th;
 
 fn cat_color(c: Cat) -> Color32 {
     match c {
@@ -96,7 +150,7 @@ pub fn request_close() {
 }
 
 pub fn run() {
-    let icon = egui::IconData { rgba: crate::tray::icon_rgba(64, crate::tray::DOCK_ON.load(std::sync::atomic::Ordering::SeqCst)), width: 64, height: 64 };
+    let icon = egui::IconData { rgba: crate::tray::icon_rgba(256, crate::tray::DOCK_ON.load(std::sync::atomic::Ordering::SeqCst)), width: 256, height: 256 };
     let opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("eGPU Painel")
@@ -184,13 +238,17 @@ pub struct App {
     open_inc: Option<i64>,
     only_problems: bool,
     flash: Option<String>,
+    tab: Tab,
+    vendor: Option<Th>,
+    hist_limit: usize,
 }
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let ctx = cc.egui_ctx.clone();
         *UI_CTX.lock().unwrap() = Some(ctx.clone());
-        style(&ctx);
+        fonts(&ctx);
+        apply_theme(&ctx, resolve_theme(crate::config::get().theme, vendor_of(&pnp::read_topology())));
         history::scan_overwatch();
         let last_bench = history::get()
             .snapshot()
@@ -219,6 +277,10 @@ impl App {
             open_inc: None,
             only_problems: false,
             flash: None,
+            // EGPU_ABA=1..4 abre direto numa aba (usado para capturas e testes)
+            tab: std::env::var("EGPU_ABA").ok().and_then(|v| v.parse::<usize>().ok()).and_then(|i| Tab::ALL.get(i).copied()).unwrap_or(Tab::Geral),
+            vendor: vendor_of(&pnp::read_topology()),
+            hist_limit: 30,
         }
     }
 
@@ -334,12 +396,12 @@ fn fonts(ctx: &egui::Context) {
 
 fn style(ctx: &egui::Context) {
     fonts(ctx);
-    apply_theme(ctx, pal::LIGHT.load(std::sync::atomic::Ordering::Relaxed));
+    apply_theme(ctx, pal::current());
 }
 
-fn apply_theme(ctx: &egui::Context, light: bool) {
-    pal::LIGHT.store(light, std::sync::atomic::Ordering::Relaxed);
-    let mut v = if light { egui::Visuals::light() } else { egui::Visuals::dark() };
+fn apply_theme(ctx: &egui::Context, th: Th) {
+    pal::set(th);
+    let mut v = if th.is_light() { egui::Visuals::light() } else { egui::Visuals::dark() };
     v.panel_fill = pal::bg();
     v.window_fill = pal::card();
     v.extreme_bg_color = pal::well();
@@ -348,7 +410,11 @@ fn apply_theme(ctx: &egui::Context, light: bool) {
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, pal::border());
     v.widgets.inactive.bg_fill = pal::card2();
     v.widgets.inactive.weak_bg_fill = pal::card2();
+    v.widgets.hovered.weak_bg_fill = pal::card3();
+    v.selection.bg_fill = pal::cyan().gamma_multiply(0.45);
+    v.selection.stroke = Stroke::new(1.0, pal::cyan());
     v.hyperlink_color = pal::cyan();
+    v.window_corner_radius = CornerRadius::same(10);
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
         s.spacing.item_spacing = vec2(8.0, 6.0);
@@ -356,12 +422,64 @@ fn apply_theme(ctx: &egui::Context, light: bool) {
     });
 }
 
-/// Tema: config (0 = segue o Windows, 1 = claro, 2 = escuro).
-fn want_light(ctx: &egui::Context) -> bool {
-    match crate::config::get().theme {
-        1 => true,
-        2 => false,
-        _ => ctx.system_theme().map(|t| t == egui::Theme::Light).unwrap_or(false),
+/// Fabricante da GPU no dock, pelo Vendor ID do PCI.
+fn vendor_of(t: &Topology) -> Option<Th> {
+    let id = t.gpu.as_ref()?.id.to_uppercase();
+    if id.contains("VEN_1002") {
+        Some(Th::Amd)
+    } else if id.contains("VEN_10DE") {
+        Some(Th::Nvidia)
+    } else if id.contains("VEN_8086") {
+        Some(Th::Intel)
+    } else {
+        None
+    }
+}
+
+/// config.theme: 0 = automático pela placa, 1 = claro, 2 = escuro.
+fn resolve_theme(cfg: u8, vendor: Option<Th>) -> Th {
+    // EGPU_TEMA=amd|nvidia|intel simula outra placa (para testar os temas automáticos)
+    let vendor = match std::env::var("EGPU_TEMA").ok().as_deref() {
+        Some("amd") => Some(Th::Amd),
+        Some("nvidia") => Some(Th::Nvidia),
+        Some("intel") => Some(Th::Intel),
+        _ => vendor,
+    };
+    match cfg {
+        1 => Th::Light,
+        2 => Th::Dark,
+        _ => vendor.unwrap_or(Th::Dark),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Tab {
+    Geral,
+    Enlace,
+    Fluxo,
+    Historico,
+    Opcoes,
+}
+
+impl Tab {
+    const ALL: [Tab; 5] = [Tab::Geral, Tab::Enlace, Tab::Fluxo, Tab::Historico, Tab::Opcoes];
+    fn icon(self) -> &'static str {
+        match self {
+            Tab::Geral => "🏠",
+            Tab::Enlace => "⚡",
+            Tab::Fluxo => "📶",
+            Tab::Historico => "🕓",
+            Tab::Opcoes => "⚙",
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            Tab::Geral => "Visão geral",
+            Tab::Enlace => "Enlace & energia",
+            Tab::Fluxo => "Fluxo & GPU",
+            Tab::Historico => "Histórico",
+            Tab::Opcoes => "Opções",
+        }
     }
 }
 
@@ -751,45 +869,44 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
 impl eframe::App for App {
     fn ui(&mut self, root: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
-        let wl = want_light(&ctx);
-        if wl != pal::LIGHT.load(std::sync::atomic::Ordering::Relaxed) {
-            apply_theme(&ctx, wl);
+        let cfg = crate::config::get();
+        if (ctx.zoom_factor() - cfg.zoom).abs() > 0.001 {
+            ctx.set_zoom_factor(cfg.zoom);
         }
         self.refresh_history();
         let (topo, samples, gpu_static, notes) = collect::with_live(|l| (l.topo.clone(), l.samples.iter().copied().collect::<Vec<Sample>>(), l.gpu_static.clone(), l.notes.clone()))
             .unwrap_or_default();
         let topo = topo.unwrap_or_default();
+        if topo.read_ms != 0 {
+            if let Some(v) = vendor_of(&topo) {
+                self.vendor = Some(v);
+            }
+        }
+        let th = resolve_theme(cfg.theme, self.vendor);
+        if th != pal::current() {
+            apply_theme(&ctx, th);
+        }
         let last = samples.last().copied().unwrap_or_default();
         let flow = Flow { copy: last.copy, d3: last.d3, pd_on: last.power.map(|p| p.online).unwrap_or(true), gpu: last.gpu };
         let bench = self.bench.lock().unwrap().clone();
         let bench_done = if let BenchState::Done(r) = &bench { Some(r.clone()) } else { None };
+        let t = ctx.input(|i| i.time);
 
         // ---------------- cabeçalho
-        egui::Panel::top("top").frame(egui::Frame::new().fill(pal::bg()).inner_margin(egui::Margin::symmetric(16, 10))).show_inside(root, |ui| {
+        egui::Panel::top("top").frame(egui::Frame::new().fill(if th.nav_left() { pal::well() } else { pal::bg() }).inner_margin(egui::Margin::symmetric(16, 10))).show_inside(root, |ui| {
             ui.horizontal(|ui| {
                 logo(ui, topo.dock_router.is_some());
                 ui.label(egui::RichText::new("eGPU Painel").size(20.0).strong().color(pal::fg()));
-                ui.label(egui::RichText::new("WKG-L19 · JHL7440").color(pal::faint()));
+                if cfg.theme == 0 && self.vendor.is_some() {
+                    pill(ui, th.name(), pal::cyan());
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    self.settings_menu(ui);
-                    let mut cfg = crate::config::get();
-                    let (icon, tip) = match cfg.theme {
-                        1 => ("☀", "tema claro"),
-                        2 => ("🌙", "tema escuro"),
-                        _ => ("◐", "tema do Windows"),
-                    };
-                    if ui.add(egui::Button::new(egui::RichText::new(icon).size(16.0)).frame(false)).on_hover_text(format!("{tip} — clique para trocar")).clicked() {
-                        cfg.theme = (cfg.theme + 1) % 3;
-                        crate::config::set(cfg);
-                    }
-                    ui.add_space(6.0);
-                    ui.label(egui::RichText::new(format!("RAM {:.0} MB · CPU {:.1}%", last.ws_mb, last.cpu_pct)).color(pal::faint()).size(11.5))
-                        .on_hover_text("Consumo do próprio painel (working set e CPU). Fechando a janela ele volta para a bandeja e para de coletar.");
+                    ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(pal::faint()).size(11.0))
+                        .on_hover_text("Consumo do próprio painel (RAM e CPU). Fechando a janela, ele volta para a bandeja e para de coletar.");
                     ui.add_space(10.0);
-                    let t = ui.input(|i| i.time);
                     match &topo.dock_router {
                         Some(n) => {
-                            if status_pill(ui, &format!("dock conectado · {}", n.last_arrival.map(|a| fmt_ago(a).replace("há ", "")).unwrap_or_default()), pal::green(), t, false).clicked() {
+                            if status_pill(ui, &format!("dock · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
                                 self.sel = Some(Sel::Dock);
                             }
                         }
@@ -804,7 +921,20 @@ impl eframe::App for App {
             });
         });
 
-        // ---------------- painel lateral (detalhes / explicações / opções)
+        // ---------------- navegação: abas no topo (AMD/claro/escuro) ou menu lateral (NVIDIA/Intel)
+        if th.nav_left() {
+            egui::Panel::left("nav")
+                .resizable(false)
+                .exact_size(210.0)
+                .frame(egui::Frame::new().fill(pal::well()).inner_margin(egui::Margin::symmetric(10, 12)))
+                .show_inside(root, |ui| self.nav_left(ui));
+        } else {
+            egui::Panel::top("tabs")
+                .frame(egui::Frame::new().fill(pal::bg()).inner_margin(egui::Margin { left: 16, right: 16, top: 0, bottom: 0 }))
+                .show_inside(root, |ui| self.nav_top(ui, th));
+        }
+
+        // ---------------- painel lateral (detalhes / explicações)
         if self.sel.is_some() {
             egui::Panel::right("detalhes")
                 .resizable(true)
@@ -817,32 +947,45 @@ impl eframe::App for App {
                 });
         }
 
-        egui::CentralPanel::default().frame(egui::Frame::new().fill(pal::bg()).inner_margin(egui::Margin::symmetric(16, 4))).show_inside(root, |ui| {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                card(ui, "🔗  Topologia", pal::cyan(), |ui| {
-                    let mut sel = self.sel;
-                    topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref());
-                    if sel != self.sel {
-                        self.sel = sel;
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(pal::bg()).inner_margin(egui::Margin::symmetric(16, 8))).show_inside(root, |ui| {
+            // troca de aba com fade-in suave
+            let a = ctx.animate_bool_with_time(egui::Id::new(("tab-fade", self.tab as u8)), true, 0.25);
+            ui.set_opacity(a);
+            egui::ScrollArea::vertical().id_salt(("scroll", self.tab as u8)).auto_shrink([false, false]).show(ui, |ui| {
+                match self.tab {
+                    Tab::Geral => {
+                        card(ui, "🔗  Topologia", pal::cyan(), |ui| {
+                            let mut sel = self.sel;
+                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref());
+                            if sel != self.sel {
+                                self.sel = sel;
+                            }
+                            hidden_strip(ui, &mut self.sel);
+                        });
+                        ui.add_space(10.0);
+                        self.overview_rings(ui, &topo, &samples, bench_done.as_ref());
+                        ui.add_space(10.0);
+                        self.card_timeline(ui, true);
                     }
-                    hidden_strip(ui, &mut self.sel);
-                });
-                ui.add_space(10.0);
-                let cols = if ui.available_width() > 1150.0 { 3 } else { 2 };
-                ui.columns(cols, |c| {
-                    self.card_link(&mut c[0], &topo, bench_done.as_ref());
-                    let (pi, si) = if cols == 3 { (1, 2) } else { (1, 1) };
-                    self.card_power(&mut c[pi], &samples);
-                    c[si].add_space(if cols == 3 { 0.0 } else { 10.0 });
-                    self.card_stability(&mut c[si], &topo);
-                });
-                ui.add_space(10.0);
-                ui.columns(2, |c| {
-                    self.card_flow(&mut c[0], &samples, &bench, &ctx);
-                    self.card_gpu(&mut c[1], &samples, gpu_static.as_ref());
-                });
-                ui.add_space(10.0);
-                self.card_timeline(ui);
+                    Tab::Enlace => {
+                        let cols = if ui.available_width() > 1150.0 { 3 } else { 2 };
+                        ui.columns(cols, |c| {
+                            self.card_link(&mut c[0], &topo, bench_done.as_ref());
+                            let (pi, si) = if cols == 3 { (1, 2) } else { (1, 1) };
+                            self.card_power(&mut c[pi], &samples);
+                            c[si].add_space(if cols == 3 { 0.0 } else { 10.0 });
+                            self.card_stability(&mut c[si], &topo);
+                        });
+                    }
+                    Tab::Fluxo => {
+                        ui.columns(2, |c| {
+                            self.card_flow(&mut c[0], &samples, &bench, &ctx);
+                            self.card_gpu(&mut c[1], &samples, gpu_static.as_ref());
+                        });
+                    }
+                    Tab::Historico => self.card_timeline(ui, false),
+                    Tab::Opcoes => self.page_options(ui, &ctx, th),
+                }
                 for n in &notes {
                     ui.label(egui::RichText::new(format!("⚠ {n}")).color(pal::amber()).size(11.5));
                 }
@@ -851,14 +994,223 @@ impl eframe::App for App {
         });
 
         let busy = flow.copy > 2.0 || flow.d3 > 5.0 || matches!(bench, BenchState::Running(_));
-        let eco = crate::config::get().eco;
-        let ms = match (eco, busy) {
+        let ms = match (cfg.eco, busy) {
             (true, _) => 200,
             (false, true) => 33,
             (false, false) => 66,
         };
         ctx.request_repaint_after(Duration::from_millis(ms));
     }
+}
+
+impl App {
+    /// Abas no topo, no estilo do Adrenalin: rótulos em caixa alta e sublinhado deslizante.
+    fn nav_top(&mut self, ui: &mut Ui, th: Th) {
+        let mut active_rect = None;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 22.0;
+            for tab in Tab::ALL {
+                let on = self.tab == tab;
+                let txt = if th == Th::Amd { tab.label().to_uppercase() } else { tab.label().to_string() };
+                let r = ui.add(
+                    egui::Label::new(egui::RichText::new(format!("{}  {}", tab.icon(), txt)).size(13.5).strong().color(if on { pal::fg() } else { pal::dim() }))
+                        .sense(Sense::click()),
+                );
+                if r.hovered() && !on {
+                    ui.painter().line_segment([r.rect.left_bottom() + vec2(0.0, 7.0), r.rect.right_bottom() + vec2(0.0, 7.0)], Stroke::new(2.0, pal::border()));
+                }
+                let rr = r.rect;
+                if r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                    self.tab = tab;
+                }
+                if on {
+                    active_rect = Some(rr);
+                }
+            }
+        });
+        ui.add_space(8.0);
+        // sublinhado animado da aba ativa
+        if let Some(r) = active_rect {
+            let x0 = ui.ctx().animate_value_with_time(egui::Id::new("tab-x0"), r.left(), 0.2);
+            let x1 = ui.ctx().animate_value_with_time(egui::Id::new("tab-x1"), r.right(), 0.2);
+            let y = ui.min_rect().bottom() - 1.0;
+            ui.painter().line_segment([pos2(ui.max_rect().left(), y), pos2(ui.max_rect().right(), y)], Stroke::new(1.0, pal::border()));
+            ui.painter().line_segment([pos2(x0, y), pos2(x1, y)], Stroke::new(3.0, pal::cyan()));
+        }
+    }
+
+    /// Menu lateral (NVIDIA/Intel): ícone + rótulo, item ativo com barra de destaque.
+    fn nav_left(&mut self, ui: &mut Ui) {
+        ui.add_space(4.0);
+        for tab in Tab::ALL {
+            let on = self.tab == tab;
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+            let hov = ui.ctx().animate_bool_with_time(resp.id, resp.hovered() || on, 0.15);
+            if hov > 0.0 {
+                ui.painter().rect_filled(rect, CornerRadius::same(6), pal::card2().gamma_multiply(hov));
+            }
+            if on {
+                ui.painter().rect_filled(Rect::from_min_size(rect.min + vec2(0.0, 8.0), vec2(3.0, rect.height() - 16.0)), CornerRadius::same(2), pal::cyan());
+            }
+            ui.painter().text(rect.left_center() + vec2(16.0, 0.0), egui::Align2::LEFT_CENTER, tab.icon(), FontId::proportional(17.0), if on { pal::cyan() } else { pal::dim() });
+            ui.painter().text(rect.left_center() + vec2(44.0, 0.0), egui::Align2::LEFT_CENTER, tab.label(), FontId::proportional(14.0), if on { pal::fg() } else { pal::dim() });
+            if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                self.tab = tab;
+            }
+            ui.add_space(2.0);
+        }
+    }
+
+    /// Visão geral: anéis com o essencial; cada um leva à aba correspondente.
+    fn overview_rings(&mut self, ui: &mut Ui, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>) {
+        let last = samples.last().copied().unwrap_or_default();
+        let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
+        let lanes = topo.dock_usb4.iter().find(|p| p.pid == 21).and_then(|p| p.val.as_u32()).unwrap_or(2) as f32;
+        let gbps = match speed {
+            Some(8) => 10.0 * lanes,
+            Some(4) => 20.0 * lanes,
+            Some(2) => 40.0 * lanes,
+            _ => 0.0,
+        };
+        let now = now_ms();
+        let drops24 = self.incidents.iter().filter(|i| i.is_drop && now - i.start <= 86_400_000).count() as f32;
+        let pw = last.power;
+        let pct = pw.map(|p| if p.full_mwh > 0 { p.rem_mwh as f32 / p.full_mwh as f32 * 100.0 } else { 0.0 }).unwrap_or(0.0);
+        let temp = last.gpu.and_then(|g| g.temp).unwrap_or(0.0) as f32;
+        egui::Frame::new()
+            .fill(pal::card())
+            .stroke(Stroke::new(1.0, pal::border()))
+            .corner_radius(CornerRadius::same(10))
+            .inner_margin(egui::Margin::symmetric(14, 10))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 14.0;
+                    let link_col = if gbps >= 40.0 { pal::green() } else if gbps > 0.0 { pal::amber() } else { pal::red() };
+                    if gauge(ui, "⚡", gbps, 40.0, "Gb/s", "enlace", link_col).on_hover_text("Velocidade do enlace TB (chaves USB4 20 e 21)").clicked() {
+                        self.tab = Tab::Enlace;
+                    }
+                    let up = bench.map(|b| b.h2d_gbs as f32).unwrap_or(0.0);
+                    if gauge(ui, "⇅", up, 2.8, "GB/s", "túnel", if up >= 2.4 { pal::green() } else { pal::amber() }).on_hover_text("Banda host→GPU medida no último teste (esperado TB3: 2,5–2,8 GB/s)").clicked() {
+                        self.tab = Tab::Fluxo;
+                    }
+                    let pd_col = if pw.map(|p| p.online).unwrap_or(false) { pal::green() } else { pal::amber() };
+                    if gauge(ui, "🔌", pct, 100.0, "%", if pw.map(|p| p.online).unwrap_or(false) { "PD" } else { "bateria" }, pd_col).on_hover_text("Bateria do note; verde = recebendo energia PD do dock").clicked() {
+                        self.tab = Tab::Enlace;
+                    }
+                    if gauge(ui, "💥", drops24, 10.0, "24 h", "quedas", if drops24 > 0.0 { pal::red() } else { pal::green() }).on_hover_text("Quedas do dock/GPU nas últimas 24 h").clicked() {
+                        self.tab = Tab::Historico;
+                    }
+                    let heat = if temp > 85.0 { pal::red() } else if temp > 70.0 { pal::amber() } else { pal::green() };
+                    if gauge(ui, "🌡", temp, 100.0, "°C", "GPU", heat).clicked() {
+                        self.tab = Tab::Fluxo;
+                    }
+                    if gauge(ui, "⇄", last.copy, 100.0, "%", "Copy", pal::cyan()).on_hover_text("Motor Copy da GPU: proxy do tráfego no túnel").clicked() {
+                        self.tab = Tab::Fluxo;
+                    }
+                });
+            });
+    }
+
+    fn page_options(&mut self, ui: &mut Ui, ctx: &egui::Context, th: Th) {
+        let mut cfg = crate::config::get();
+        let before = cfg;
+        card(ui, "🎨  Tema", pal::cyan(), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                let auto_name = match self.vendor {
+                    Some(v) => format!("🔍 Automático · {}", v.name()),
+                    None => "🔍 Automático (pela placa)".into(),
+                };
+                for (val, name, preview) in [(0u8, auto_name, self.vendor.unwrap_or(Th::Dark)), (1, "☀ Claro".into(), Th::Light), (2, "🌙 Escuro".into(), Th::Dark)] {
+                    if theme_card(ui, &name, preview, cfg.theme == val).clicked() {
+                        cfg.theme = val;
+                    }
+                }
+            });
+            ui.label(egui::RichText::new("O automático detecta a GPU do dock (AMD, NVIDIA ou Intel) e aplica a paleta do fabricante. AMD usa abas no topo; NVIDIA e Intel, menu à esquerda.").color(pal::dim()).size(12.0));
+        });
+        ui.add_space(10.0);
+        card(ui, "🖥  Tela", pal::cyan(), |ui| {
+            let ppp = ctx.native_pixels_per_point().unwrap_or(1.0);
+            ui.horizontal(|ui| {
+                pill(ui, &format!("escala do Windows {:.0}% · {:.0} DPI", ppp * 100.0, ppp * 96.0), pal::cyan());
+                pill(ui, &format!("tema ativo: {}", th.name()), pal::dim());
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label("🔎 Tamanho da interface");
+                ui.add(egui::Slider::new(&mut cfg.zoom, 0.8..=1.6).step_by(0.05).custom_formatter(|v, _| format!("{:.0}%", v * 100.0)));
+                if ui.small_button("100%").clicked() {
+                    cfg.zoom = 1.0;
+                }
+            });
+        });
+        ui.add_space(10.0);
+        card(ui, "🔔  Comportamento", pal::cyan(), |ui| {
+            let mut auto = crate::config::autostart_enabled();
+            if ui.checkbox(&mut auto, "🚀 Iniciar com o Windows (direto na bandeja)").changed() {
+                if let Err(e) = crate::config::set_autostart(auto) {
+                    self.flash = Some(format!("Não consegui alterar a inicialização: {e}"));
+                }
+            }
+            ui.checkbox(&mut cfg.notify, "🔔 Avisar na bandeja quando o dock cair");
+            ui.checkbox(&mut cfg.eco, "🍃 Animação econômica (5 qps)");
+        });
+        ui.add_space(10.0);
+        card(ui, "🧰  Ferramentas", pal::cyan(), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("📏 Teste de banda").clicked() {
+                    self.start_bench(ctx);
+                    self.tab = Tab::Fluxo;
+                }
+                if ui.button("📄 Exportar histórico (CSV)").clicked() {
+                    match crate::config::export_csv() {
+                        Ok(p) => {
+                            crate::config::open_folder(p.parent().unwrap_or(&p));
+                            self.flash = Some(format!("Exportado: {}", p.display()));
+                        }
+                        Err(e) => self.flash = Some(format!("Falha ao exportar: {e}")),
+                    }
+                }
+                if ui.button("📂 Pasta de dados").clicked() {
+                    crate::config::open_folder(&crate::util::data_dir());
+                }
+            });
+            if let Some(f) = &self.flash {
+                ui.label(egui::RichText::new(f).color(pal::cyan()).size(12.0));
+            }
+        });
+        if cfg != before {
+            crate::config::set(cfg);
+        }
+    }
+}
+
+/// Miniatura clicável de um tema (pré-visualização com as cores dele).
+fn theme_card(ui: &mut Ui, name: &str, th: Th, selected: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(170.0, 104.0), Sense::click());
+    let saved = pal::current();
+    pal::set(th);
+    let (bg, card, accent, fg, dim) = (pal::bg(), pal::card(), pal::cyan(), pal::fg(), pal::dim());
+    pal::set(saved);
+    let p = ui.painter_at(rect);
+    p.rect_filled(rect, CornerRadius::same(10), bg);
+    if th.nav_left() {
+        p.rect_filled(Rect::from_min_size(rect.min + vec2(6.0, 6.0), vec2(30.0, 62.0)), CornerRadius::same(4), card);
+        p.rect_filled(Rect::from_min_size(rect.min + vec2(6.0, 14.0), vec2(3.0, 10.0)), CornerRadius::same(1), accent);
+        p.rect_filled(Rect::from_min_size(rect.min + vec2(42.0, 6.0), vec2(122.0, 62.0)), CornerRadius::same(4), card);
+    } else {
+        p.rect_filled(Rect::from_min_size(rect.min + vec2(6.0, 6.0), vec2(158.0, 10.0)), CornerRadius::same(3), card);
+        p.rect_filled(Rect::from_min_size(rect.min + vec2(10.0, 14.0), vec2(26.0, 2.0)), CornerRadius::ZERO, accent);
+        p.rect_filled(Rect::from_min_size(rect.min + vec2(6.0, 22.0), vec2(158.0, 46.0)), CornerRadius::same(4), card);
+    }
+    p.circle_filled(rect.min + vec2(70.0, 44.0), 9.0, accent.gamma_multiply(0.8));
+    p.line_segment([rect.min + vec2(80.0, 44.0), rect.min + vec2(140.0, 44.0)], Stroke::new(2.0, accent));
+    p.text(rect.left_bottom() + vec2(10.0, -12.0), egui::Align2::LEFT_CENTER, name, FontId::proportional(12.5), fg);
+    let _ = dim;
+    let k = ui.ctx().animate_bool_with_time(resp.id, selected || resp.hovered(), 0.15);
+    p.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0 + 1.5 * k, if selected { accent } else { pal::border() }), StrokeKind::Inside);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 // ---------------------------------------------------------------------------
@@ -1147,45 +1499,6 @@ fn chip(ui: &mut Ui, on: bool, text: &str, color: Color32) -> bool {
 // Cards
 
 impl App {
-    fn settings_menu(&mut self, ui: &mut Ui) {
-        ui.menu_button(egui::RichText::new("⚙").size(16.0), |ui| {
-            ui.set_min_width(260.0);
-            ui.label(egui::RichText::new("Opções").strong());
-            let mut cfg = crate::config::get();
-            let mut auto = crate::config::autostart_enabled();
-            if ui.checkbox(&mut auto, "🚀 Iniciar com o Windows (na bandeja)").changed() {
-                if let Err(e) = crate::config::set_autostart(auto) {
-                    self.flash = Some(format!("Não consegui alterar a inicialização: {e}"));
-                }
-            }
-            let before = cfg;
-            ui.checkbox(&mut cfg.notify, "🔔 Avisar na bandeja quando o dock cair");
-            ui.checkbox(&mut cfg.eco, "🍃 Animação econômica (5 qps)");
-            if cfg != before {
-                crate::config::set(cfg);
-            }
-            ui.separator();
-            if ui.button("📄 Exportar linha do tempo (CSV)").clicked() {
-                match crate::config::export_csv() {
-                    Ok(p) => {
-                        crate::config::open_folder(p.parent().unwrap_or(&p));
-                        self.flash = Some(format!("Exportado: {}", p.display()));
-                    }
-                    Err(e) => self.flash = Some(format!("Falha ao exportar: {e}")),
-                }
-                ui.close();
-            }
-            if ui.button("📂 Abrir pasta de dados").clicked() {
-                crate::config::open_folder(&crate::util::data_dir());
-                ui.close();
-            }
-            if ui.button("📏 Rodar teste de banda").clicked() {
-                self.start_bench(ui.ctx());
-                ui.close();
-            }
-        });
-    }
-
     fn card_link(&mut self, ui: &mut Ui, topo: &Topology, bench: Option<&BenchResult>) {
         let mut sel = self.sel;
         card_i(ui, "⚡  Enlace Thunderbolt", pal::bolt(), &mut sel, Topic::Link, "Como a velocidade foi decodificada", |ui, sel| {
@@ -1385,158 +1698,109 @@ impl App {
         self.sel = sel;
     }
 
-    fn card_timeline(&mut self, ui: &mut Ui) {
+    fn card_timeline(&mut self, ui: &mut Ui, compact: bool) {
         let now = now_ms();
         let mut sel = self.sel;
-        card_i(ui, "🕓  Linha do tempo", pal::red(), &mut sel, Topic::Stability, "Fontes: Event Log, PnP ao vivo, Overwatch", |ui, _sel| {
-            ui.horizontal_wrapped(|ui| {
-                for r in [Range::H24, Range::D7, Range::D30, Range::All] {
-                    if chip(ui, self.range == r, r.label(), pal::cyan()) {
-                        self.range = r;
-                    }
-                }
-                ui.add_space(8.0);
-                for (c, on) in self.cats.iter_mut() {
-                    let name = match c {
-                        Cat::Dock => "🔗 dock",
-                        Cat::Energia => "⚡ energia",
-                        Cat::Pcie => "⚠ PCIe/WHEA",
-                        Cat::Tdr => "❄ TDR",
-                        Cat::Gpu => "🎮 GPU",
-                        Cat::UsbA => "🖴 USB-A",
-                        Cat::Sistema => "🌙 sistema",
-                        Cat::App => "ℹ painel",
-                    };
-                    if chip(ui, *on, name, cat_color(*c)) {
-                        *on = !*on;
-                    }
-                }
-                ui.add_space(8.0);
-                if chip(ui, self.only_problems, "❗ só problemas", pal::red()) {
-                    self.only_problems = !self.only_problems;
-                }
-            });
-            ui.add_space(4.0);
+        let mut go_all = false;
+        let title = if compact { "🕓  Últimos incidentes" } else { "🕓  Linha do tempo" };
+        card_i(ui, title, pal::red(), &mut sel, Topic::Stability, "Fontes: Event Log, PnP ao vivo, Overwatch", |ui, _sel| {
             let enabled: Vec<Cat> = self.cats.iter().filter(|c| c.1).map(|c| c.0).collect();
-            let range = self.range.ms();
-            let w = ui.available_width();
-            let (rect, resp) = ui.allocate_exact_size(vec2(w, 46.0), Sense::hover());
-            let p = ui.painter_at(rect);
-            p.rect_filled(rect, CornerRadius::same(6), pal::well());
-            let t0 = if self.range == Range::All { self.events.first().map(|e| e.ts).unwrap_or(now - 86_400_000) } else { now - range };
-            let x_of = |ts: i64| rect.left() + 8.0 + (rect.width() - 16.0) * ((ts - t0) as f32 / (now - t0).max(1) as f32);
-            for e in self.events.iter().filter(|e| e.ts >= t0 && enabled.contains(&e.kind.cat())) {
-                let x = x_of(e.ts);
-                let (y0, y1) = match e.kind.severity() {
-                    2 => (rect.top() + 6.0, rect.bottom() - 14.0),
-                    1 => (rect.top() + 12.0, rect.bottom() - 16.0),
-                    _ => (rect.top() + 18.0, rect.bottom() - 18.0),
-                };
-                p.line_segment([pos2(x, y0), pos2(x, y1)], Stroke::new(if e.kind.severity() == 2 { 2.0 } else { 1.0 }, cat_color(e.kind.cat())));
+            let t0 = if compact {
+                now - 30 * 86_400_000
+            } else if self.range == Range::All {
+                self.events.first().map(|e| e.ts).unwrap_or(now - 86_400_000)
+            } else {
+                now - self.range.ms()
+            };
+            if !compact {
+                ui.horizontal_wrapped(|ui| {
+                    for r in [Range::H24, Range::D7, Range::D30, Range::All] {
+                        if chip(ui, self.range == r, r.label(), pal::cyan()) {
+                            self.range = r;
+                        }
+                    }
+                    ui.add_space(8.0);
+                    for (c, on) in self.cats.iter_mut() {
+                        let name = match c {
+                            Cat::Dock => "🔗",
+                            Cat::Energia => "⚡",
+                            Cat::Pcie => "⚠",
+                            Cat::Tdr => "❄",
+                            Cat::Gpu => "🎮",
+                            Cat::UsbA => "🖴",
+                            Cat::Sistema => "🌙",
+                            Cat::App => "ℹ",
+                        };
+                        if chip(ui, *on, name, cat_color(*c)) {
+                            *on = !*on;
+                        }
+                    }
+                    ui.add_space(8.0);
+                    if chip(ui, self.only_problems, "❗", pal::red()) {
+                        self.only_problems = !self.only_problems;
+                    }
+                });
+                ui.add_space(4.0);
+                // faixa temporal
+                let w = ui.available_width();
+                let (rect, resp) = ui.allocate_exact_size(vec2(w, 46.0), Sense::hover());
+                let p = ui.painter_at(rect);
+                p.rect_filled(rect, CornerRadius::same(6), pal::well());
+                let x_of = |ts: i64| rect.left() + 8.0 + (rect.width() - 16.0) * ((ts - t0) as f32 / (now - t0).max(1) as f32);
+                for e in self.events.iter().filter(|e| e.ts >= t0 && enabled.contains(&e.kind.cat())) {
+                    let x = x_of(e.ts);
+                    let (y0, y1) = match e.kind.severity() {
+                        2 => (rect.top() + 6.0, rect.bottom() - 14.0),
+                        1 => (rect.top() + 12.0, rect.bottom() - 16.0),
+                        _ => (rect.top() + 18.0, rect.bottom() - 18.0),
+                    };
+                    p.line_segment([pos2(x, y0), pos2(x, y1)], Stroke::new(if e.kind.severity() == 2 { 2.0 } else { 1.0 }, cat_color(e.kind.cat())));
+                }
+                p.text(rect.left_bottom() + vec2(8.0, -2.0), egui::Align2::LEFT_BOTTOM, fmt_local(t0, false), FontId::proportional(10.0), pal::faint());
+                p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, "agora", FontId::proportional(10.0), pal::faint());
+                if let Some(pos) = resp.hover_pos() {
+                    let ts = t0 + (((pos.x - rect.left() - 8.0) / (rect.width() - 16.0)) as f64 * (now - t0) as f64) as i64;
+                    p.line_segment([pos2(pos.x, rect.top()), pos2(pos.x, rect.bottom())], Stroke::new(1.0, pal::dim().gamma_multiply(0.5)));
+                    p.text(pos2(pos.x + 4.0, rect.top() + 2.0), egui::Align2::LEFT_TOP, fmt_local(ts, false), FontId::proportional(10.0), pal::dim());
+                }
+                ui.add_space(6.0);
             }
-            p.text(rect.left_bottom() + vec2(8.0, -2.0), egui::Align2::LEFT_BOTTOM, fmt_local(t0, false), FontId::proportional(10.0), pal::faint());
-            p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, "agora", FontId::proportional(10.0), pal::faint());
-            if let Some(pos) = resp.hover_pos() {
-                let ts = t0 + (((pos.x - rect.left() - 8.0) / (rect.width() - 16.0)) as f64 * (now - t0) as f64) as i64;
-                p.line_segment([pos2(pos.x, rect.top()), pos2(pos.x, rect.bottom())], Stroke::new(1.0, pal::dim().gamma_multiply(0.5)));
-                p.text(pos2(pos.x + 4.0, rect.top() + 2.0), egui::Align2::LEFT_TOP, fmt_local(ts, false), FontId::proportional(10.0), pal::dim());
-            }
-            ui.add_space(6.0);
 
-            let mut open = self.open_inc;
-            let incs: Vec<&Incident> = self
+            let limit = if compact { 6 } else { self.hist_limit };
+            let all: Vec<&Incident> = self
                 .incidents
                 .iter()
                 .rev()
                 .filter(|i| i.start >= t0)
-                .filter(|i| i.events.iter().any(|e| enabled.contains(&e.kind.cat())))
-                .filter(|i| !self.only_problems || i.sev >= 1)
-                .take(150)
+                .filter(|i| compact || i.events.iter().any(|e| enabled.contains(&e.kind.cat())))
+                .filter(|i| if compact { i.sev >= 1 } else { !self.only_problems || i.sev >= 1 })
                 .collect();
-            if incs.is_empty() {
-                ui.label(egui::RichText::new("✔ nada neste período").color(pal::green()));
+            let total = all.len();
+            if total == 0 {
+                ui.label(egui::RichText::new(if compact { "✔ nenhum problema em 30 dias" } else { "✔ nada neste período" }).color(pal::green()));
             }
-            for inc in incs {
-                let head = inc.events.iter().max_by_key(|e| (e.kind.severity(), e.kind.is_drop() as u8)).unwrap();
-                let color = if inc.is_drop { pal::red() } else { sev_color(inc.sev) };
-                let is_open = open == Some(inc.start);
-                egui::Frame::new()
-                    .fill(if is_open { pal::card2() } else { Color32::TRANSPARENT })
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(egui::Margin::symmetric(8, 3))
-                    .show(ui, |ui| {
-                        let r = ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(kind_icon(head.kind)).color(color).size(15.0));
-                            ui.label(egui::RichText::new(fmt_local(inc.start, true)).monospace().color(pal::dim()).size(12.0));
-                            ui.label(egui::RichText::new(head.kind.label()).color(color).strong());
-                            // ícones dos outros eventos do incidente
-                            let mut seen = vec![head.kind];
-                            for e in &inc.events {
-                                if !seen.contains(&e.kind) {
-                                    seen.push(e.kind);
-                                    ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())).size(13.0)).on_hover_text(e.kind.label());
-                                }
-                            }
-                            if inc.is_drop && inc.events.iter().any(|e| e.kind.cat() == Cat::Dock) {
-                                if inc.pd_lost {
-                                    ui.label(egui::RichText::new("🔋").color(pal::amber()).size(14.0)).on_hover_text("PD caiu junto: o dock inteiro apagou");
-                                } else {
-                                    ui.label(egui::RichText::new("⛓").color(pal::violet()).size(14.0)).on_hover_text("Só o enlace caiu; o PD continuou");
-                                }
-                            }
-                            if inc.events.len() > 1 {
-                                ui.label(egui::RichText::new(format!("×{}", inc.events.len())).color(pal::faint()).size(11.0));
-                            }
-                        });
-                        let click = ui.interact(r.response.rect, ui.id().with(("inc", inc.start)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
-                        if click.clicked() {
-                            open = if is_open { None } else { Some(inc.start) };
-                        }
-                        if is_open {
-                            for e in &inc.events {
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.add_space(22.0);
-                                    ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
-                                    ui.label(egui::RichText::new(fmt_local(e.ts, true)).monospace().size(11.5).color(pal::faint()));
-                                    ui.label(egui::RichText::new(&e.msg).size(12.0)).on_hover_text(format!("fonte: {}\n{}", e.src, e.dev.clone().unwrap_or_default()));
-                                });
-                                if let Some(s) = &e.snap {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.add_space(40.0);
-                                        ui.label(egui::RichText::new(format!("📸 {s}")).size(11.5).color(pal::cyan()));
-                                    });
-                                }
-                            }
-                            if inc.is_drop {
-                                let before = history::get().before(inc.start, 120_000);
-                                ui.horizontal(|ui| {
-                                    ui.add_space(22.0);
-                                    ui.label(egui::RichText::new(format!("⏪ 2 min antes: {}", if before.is_empty() { "nada no Event Log (queda sem aviso)".to_string() } else { format!("{} evento(s)", before.len()) })).strong().color(pal::amber()).size(12.0));
-                                });
-                                for e in before.iter().rev().take(20) {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.add_space(40.0);
-                                        ui.label(egui::RichText::new(format!("−{:.1} s", (inc.start - e.ts) as f64 / 1000.0)).monospace().size(11.5).color(pal::faint()));
-                                        ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
-                                        ui.label(egui::RichText::new(&e.msg).size(11.5).color(pal::dim()));
-                                    });
-                                }
-                            }
-                            ui.add_space(3.0);
-                        }
-                    });
+            let mut open = self.open_inc;
+            for inc in all.into_iter().take(limit) {
+                incident_row(ui, inc, &mut open);
             }
             self.open_inc = open;
-            ui.label(egui::RichText::new(format!("{} eventos no histórico", self.events.len())).color(pal::faint()).size(11.0));
-        });
-        self.sel = sel;
-        if let Some(f) = self.flash.clone() {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(&f).color(pal::cyan()).size(12.0));
-                if ui.small_button("✕").clicked() {
-                    self.flash = None;
+                if compact {
+                    if total > limit && ui.add(egui::Button::new(egui::RichText::new(format!("ver tudo ({total}) →")).color(pal::cyan())).frame(false)).clicked() {
+                        go_all = true;
+                    } else if total <= limit && ui.add(egui::Button::new(egui::RichText::new("histórico completo →").color(pal::cyan())).frame(false)).clicked() {
+                        go_all = true;
+                    }
+                } else if total > limit {
+                    if ui.button(format!("mostrar mais ({} restantes)", total - limit)).clicked() {
+                        self.hist_limit += 30;
+                    }
                 }
             });
+        });
+        self.sel = sel;
+        if go_all {
+            self.tab = Tab::Historico;
         }
     }
 
@@ -1661,6 +1925,76 @@ impl App {
             }
         }
     }
+}
+
+fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
+    let head = inc.events.iter().max_by_key(|e| (e.kind.severity(), e.kind.is_drop() as u8)).unwrap();
+    let color = if inc.is_drop { pal::red() } else { sev_color(inc.sev) };
+    let is_open = *open == Some(inc.start);
+    egui::Frame::new()
+        .fill(if is_open { pal::card2() } else { Color32::TRANSPARENT })
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(egui::Margin::symmetric(8, 3))
+        .show(ui, |ui| {
+            let r = ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(kind_icon(head.kind)).color(color).size(15.0));
+                ui.label(egui::RichText::new(fmt_local(inc.start, true)).monospace().color(pal::dim()).size(12.0));
+                ui.label(egui::RichText::new(head.kind.label()).color(color).strong());
+                let mut seen = vec![head.kind];
+                for e in &inc.events {
+                    if !seen.contains(&e.kind) {
+                        seen.push(e.kind);
+                        ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())).size(13.0)).on_hover_text(e.kind.label());
+                    }
+                }
+                if inc.is_drop && inc.events.iter().any(|e| e.kind.cat() == Cat::Dock) {
+                    if inc.pd_lost {
+                        ui.label(egui::RichText::new("🔋").color(pal::amber()).size(14.0)).on_hover_text("PD caiu junto: o dock inteiro apagou");
+                    } else {
+                        ui.label(egui::RichText::new("⛓").color(pal::violet()).size(14.0)).on_hover_text("Só o enlace caiu; o PD continuou");
+                    }
+                }
+                if inc.events.len() > 1 {
+                    ui.label(egui::RichText::new(format!("×{}", inc.events.len())).color(pal::faint()).size(11.0));
+                }
+            });
+            let click = ui.interact(r.response.rect, ui.id().with(("inc", inc.start)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+            if click.clicked() {
+                *open = if is_open { None } else { Some(inc.start) };
+            }
+            if is_open {
+                for e in &inc.events {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.add_space(22.0);
+                        ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
+                        ui.label(egui::RichText::new(fmt_local(e.ts, true)).monospace().size(11.5).color(pal::faint()));
+                        ui.label(egui::RichText::new(&e.msg).size(12.0)).on_hover_text(format!("fonte: {}\n{}", e.src, e.dev.clone().unwrap_or_default()));
+                    });
+                    if let Some(s) = &e.snap {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.add_space(40.0);
+                            ui.label(egui::RichText::new(format!("📸 {s}")).size(11.5).color(pal::cyan()));
+                        });
+                    }
+                }
+                if inc.is_drop {
+                    let before = history::get().before(inc.start, 120_000);
+                    ui.horizontal(|ui| {
+                        ui.add_space(22.0);
+                        ui.label(egui::RichText::new(format!("⏪ 2 min antes: {}", if before.is_empty() { "nada no Event Log (queda sem aviso)".to_string() } else { format!("{} evento(s)", before.len()) })).strong().color(pal::amber()).size(12.0));
+                    });
+                    for e in before.iter().rev().take(20) {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.add_space(40.0);
+                            ui.label(egui::RichText::new(format!("−{:.1} s", (inc.start - e.ts) as f64 / 1000.0)).monospace().size(11.5).color(pal::faint()));
+                            ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
+                            ui.label(egui::RichText::new(&e.msg).size(11.5).color(pal::dim()));
+                        });
+                    }
+                }
+                ui.add_space(3.0);
+            }
+        });
 }
 
 fn self_open_timeline(sel: &mut Option<Sel>) {

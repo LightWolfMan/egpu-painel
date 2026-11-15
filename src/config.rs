@@ -9,14 +9,21 @@ pub struct Config {
     pub notify: bool,
     /// Animação econômica (menos quadros por segundo).
     pub eco: bool,
-    /// 0 = segue o Windows, 1 = claro, 2 = escuro
+    /// 0 = automático pela placa do dock, 1 = claro, 2 = escuro
     #[serde(default)]
     pub theme: u8,
+    /// Fator de tamanho da interface (sobre a escala de DPI do Windows).
+    #[serde(default = "one")]
+    pub zoom: f32,
+}
+
+fn one() -> f32 {
+    1.0
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { notify: true, eco: false, theme: 0 }
+        Self { notify: true, eco: false, theme: 0, zoom: 1.0 }
     }
 }
 
