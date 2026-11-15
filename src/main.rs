@@ -6,6 +6,7 @@
 //!   (sem args)   abre o painel e fica na bandeja ao fechar
 //!   --bandeja    inicia só na bandeja
 //!   --bench      roda o teste de banda D3D12 e imprime no console
+//!   --perfil [N] mede o custo de cada parte do coletor (N voltas, padrão 20), sem janela
 //!   --dump       imprime topologia + chaves USB4 decodificadas
 
 mod bench;
@@ -84,6 +85,12 @@ fn main() {
     if has("--dump") {
         attach_console();
         dump();
+        return;
+    }
+    if has("--perfil") {
+        attach_console();
+        let n = args.iter().skip_while(|a| *a != "--perfil").nth(1).and_then(|x| x.parse().ok()).unwrap_or(20);
+        collect::profile(n);
         return;
     }
     if has("--bench") {

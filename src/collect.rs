@@ -154,78 +154,300 @@ fn note(msg: String) {
 
 // ---------------------------------------------------------------------------
 
-fn run() {
-    let t0 = Instant::now();
-    let luid = crate::bench::amd_adapter_luid();
-    let mut adlx = Adlx::new().map_err(|e| note(format!("ADLX indisponível: {e}"))).ok();
-    if let Some(a) = &adlx {
-        let mut st = a.stat.clone();
-        st.luid = luid.clone();
-        if let Some(l) = LIVE.lock().unwrap().as_mut() {
-            l.gpu_static = Some(st);
+/// Partes medidas pelo modo `--perfil`.
+pub const PARTS: [&str; 7] = ["ADLX read", "PDH collect", "PDH parse", "WMI bateria", "process_usage", "read_topology", "topo estado"];
+
+#[derive(Default, Clone, Copy)]
+pub struct Part {
+    pub wall_ms: f64,
+    pub cpu_ms: f64,
+    pub calls: u32,
+}
+
+/// Cronômetro opcional: tempo de parede + CPU da thread (GetThreadTimes) por parte.
+#[derive(Default)]
+pub struct Timer {
+    pub on: bool,
+    pub parts: [Part; 7],
+}
+
+fn thread_cpu_ms() -> f64 {
+    use windows::Win32::Foundation::FILETIME;
+    use windows::Win32::System::Threading::{GetCurrentThread, GetThreadTimes};
+    unsafe {
+        let (mut c, mut e, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
+        let _ = GetThreadTimes(GetCurrentThread(), &mut c, &mut e, &mut k, &mut u);
+        let ft = |f: FILETIME| ((f.dwHighDateTime as u64) << 32 | f.dwLowDateTime as u64) as f64 / 10_000.0;
+        ft(k) + ft(u)
+    }
+}
+
+impl Timer {
+    fn time<R>(&mut self, part: usize, f: impl FnOnce() -> R) -> R {
+        if !self.on {
+            return f();
+        }
+        let (w0, c0) = (Instant::now(), thread_cpu_ms());
+        let r = f();
+        let p = &mut self.parts[part];
+        p.wall_ms += w0.elapsed().as_secs_f64() * 1000.0;
+        p.cpu_ms += thread_cpu_ms() - c0;
+        p.calls += 1;
+        r
+    }
+}
+
+struct Collector {
+    t0: Instant,
+    adlx: Option<Adlx>,
+    pdh: Option<Pdh>,
+    wmi: Option<wmi::WMIConnection>,
+    last_cpu: f64,
+    last_t: Instant,
+    tick: u64,
+    topo: Option<Topology>,
+    /// Última leitura de bateria (WMI só a cada POWER_EVERY voltas; entre elas reaproveita).
+    power: Option<PowerM>,
+    full_mwh: Option<i64>,
+}
+
+/// Cadências (em voltas de 1 s). A topologia completa custa ~20-50 ms de CPU: só relê sob evento PnP
+/// (DIRTY) ou a cada TOPO_FULL_EVERY; entre elas só atualiza o estado barato (D0/D3, enlace PCIe, presença).
+const TOPO_FULL_EVERY: u64 = 30;
+const TOPO_STATE_EVERY: u64 = 5;
+const POWER_EVERY: u64 = 5;
+
+/// Atualiza só o que muda sem evento: presença, estado D0/D3 e enlace PCIe atual. Devolve `true` se algum nó
+/// sumiu/mudou de presença (aí vale a leitura completa).
+fn refresh_states(t: &mut Topology) -> bool {
+    use windows::Win32::Devices::Properties::DEVPKEY_Device_PowerData;
+    let mut changed = false;
+    let mut visit = |n: &mut pnp::Node| {
+        let Some(dn) = pnp::locate(&n.id) else {
+            changed = true;
+            return;
+        };
+        let (st, problem) = pnp::status(dn);
+        let present = st & 0x8 != 0 || st & 0x2 != 0;
+        if present != n.present || problem != n.problem {
+            changed = true;
+        }
+        n.present = present;
+        n.problem = problem;
+        n.dstate = match pnp::prop(dn, &DEVPKEY_Device_PowerData) {
+            Some(pnp::PVal::Bin(b)) if b.len() >= 8 => Some(u32::from_le_bytes(b[4..8].try_into().unwrap())),
+            _ => None,
+        };
+        if let Some(p) = n.pcie.as_mut() {
+            if let (Some(ns), Some(nw)) = (
+                pnp::prop(dn, &pnp::PCI_CUR_SPEED).and_then(|v| v.as_u32()),
+                pnp::prop(dn, &pnp::PCI_CUR_WIDTH).and_then(|v| v.as_u32()),
+            ) {
+                p.0 = ns;
+                p.1 = nw;
+            }
+        }
+    };
+    for n in [&mut t.host_ctrl, &mut t.host_router, &mut t.dock_router, &mut t.root_port, &mut t.dock_switch, &mut t.gpu] {
+        if let Some(n) = n.as_mut() {
+            visit(n);
         }
     }
-    let mut pdh = Pdh::new(luid.clone());
-    if luid.is_none() {
-        note("Adaptador AMD não encontrado via DXGI: contadores do motor Copy indisponíveis".into());
+    for n in t.gpu_chain.iter_mut().chain(t.usb_a.iter_mut()) {
+        visit(n);
     }
-    let wmi = wmi::WMIConnection::with_namespace_path("root\\wmi")
-        .map_err(|e| note(format!("WMI root\\wmi indisponível: {e}")))
-        .ok();
-    let mut last_cpu = crate::util::process_usage().2;
-    let mut last_t = Instant::now();
-    let mut tick = 0u64;
-    while RUNNING.load(Ordering::SeqCst) {
-        let start = Instant::now();
-        if DIRTY.swap(false, Ordering::SeqCst) || tick % 5 == 0 {
-            // Releitura do PnP: barata (cfgmgr32 em memória), a cada 5 s ou quando houve evento.
-            let topo = pnp::read_topology();
-            if tick == 0 || DIRTY.load(Ordering::SeqCst) {
+    for p in t.ports.iter_mut() {
+        visit(&mut p.node);
+        if let Some(c) = p.child.as_mut() {
+            visit(c);
+        }
+    }
+    changed
+}
+
+impl Collector {
+    fn new() -> Self {
+        let luid = crate::bench::amd_adapter_luid();
+        let adlx = Adlx::new().map_err(|e| note(format!("ADLX indisponível: {e}"))).ok();
+        if let Some(a) = &adlx {
+            let mut st = a.stat.clone();
+            st.luid = luid.clone();
+            if let Some(l) = LIVE.lock().unwrap().as_mut() {
+                l.gpu_static = Some(st);
+            }
+        }
+        let pdh = Pdh::new(luid.clone());
+        if luid.is_none() {
+            note("Adaptador AMD não encontrado via DXGI: contadores do motor Copy indisponíveis".into());
+        }
+        let wmi = wmi::WMIConnection::with_namespace_path("root\\wmi")
+            .map_err(|e| note(format!("WMI root\\wmi indisponível: {e}")))
+            .ok();
+        Self { t0: Instant::now(), adlx, pdh, wmi, last_cpu: crate::util::process_usage().2, last_t: Instant::now(), tick: 0, topo: None, power: None, full_mwh: None }
+    }
+
+    /// Uma volta de coleta. `live`: publica em LIVE/repaint (falso no modo --perfil).
+    fn step(&mut self, tm: &mut Timer, live: bool) -> Sample {
+        let tick = self.tick;
+        let mut full = DIRTY.swap(false, Ordering::SeqCst) || self.topo.is_none() || tick % TOPO_FULL_EVERY == 0;
+        let mut publish = false;
+        if !full && tick % TOPO_STATE_EVERY == 0 {
+            if let Some(t) = self.topo.as_mut() {
+                full = tm.time(6, || refresh_states(t));
+                publish = true;
+            }
+        }
+        if full {
+            let topo = tm.time(5, pnp::read_topology);
+            if live && tick == 0 {
                 crate::history::record_arrivals(&topo);
             }
+            self.topo = Some(topo);
+            publish = true;
+        }
+        if publish {
             if let Some(l) = LIVE.lock().unwrap().as_mut() {
-                l.topo = Some(topo);
+                l.topo = self.topo.clone();
             }
         }
-        let mut s = Sample { t: t0.elapsed().as_secs_f64(), ..Default::default() };
-        if let Some(a) = adlx.as_mut() {
-            match a.read() {
+        let mut s = Sample { t: self.t0.elapsed().as_secs_f64(), ..Default::default() };
+        if let Some(a) = self.adlx.as_mut() {
+            match tm.time(0, || a.read()) {
                 Ok(g) => s.gpu = Some(g),
                 Err(_) => {
                     // GPU sumiu (dock caiu?) — reabre na próxima volta
-                    adlx = None;
+                    self.adlx = None;
                 }
             }
         } else if tick % 5 == 0 {
-            adlx = Adlx::new().ok();
+            self.adlx = Adlx::new().ok();
         }
-        if let Some(p) = pdh.as_mut() {
-            p.sample(&mut s);
+        if let Some(p) = self.pdh.as_mut() {
+            p.sample(&mut s, tm);
         }
-        if let Some(w) = &wmi {
-            s.power = read_power(w);
-        }
-        let (ws, _, cpu) = crate::util::process_usage();
-        let dt = last_t.elapsed().as_secs_f64() * 1000.0;
-        s.cpu_pct = (((cpu - last_cpu) / dt) * 100.0 / num_cpus()) as f32;
-        s.ws_mb = ws;
-        last_cpu = cpu;
-        last_t = Instant::now();
-        if let Some(l) = LIVE.lock().unwrap().as_mut() {
-            l.samples.push_back(s);
-            while l.samples.len() > HISTORY {
-                l.samples.pop_front();
+        if let Some(w) = &self.wmi {
+            if tick % POWER_EVERY == 0 {
+                let full = self.full_mwh;
+                self.power = tm.time(3, || read_power(w, full));
+                if let Some(p) = &self.power {
+                    // capacidade de carga plena: lida uma vez (só muda em escala de meses)
+                    self.full_mwh = (p.full_mwh > 0).then_some(p.full_mwh);
+                }
             }
-            l.last = Some(s);
+            s.power = self.power;
         }
-        repaint();
-        tick += 1;
+        let (ws, _, cpu) = tm.time(4, crate::util::process_usage);
+        let dt = self.last_t.elapsed().as_secs_f64() * 1000.0;
+        s.cpu_pct = (((cpu - self.last_cpu) / dt) * 100.0 / num_cpus()) as f32;
+        s.ws_mb = ws;
+        self.last_cpu = cpu;
+        self.last_t = Instant::now();
+        if live {
+            if let Some(l) = LIVE.lock().unwrap().as_mut() {
+                l.samples.push_back(s);
+                while l.samples.len() > HISTORY {
+                    l.samples.pop_front();
+                }
+                l.last = Some(s);
+            }
+            repaint();
+        }
+        self.tick += 1;
+        s
+    }
+}
+
+fn run() {
+    let mut c = Collector::new();
+    let mut tm = Timer::default();
+    while RUNNING.load(Ordering::SeqCst) {
+        let start = Instant::now();
+        c.step(&mut tm, true);
         // dorme em fatias curtas para fechar rápido
         let target = Duration::from_millis(1000);
         while start.elapsed() < target && RUNNING.load(Ordering::SeqCst) && !DIRTY.load(Ordering::SeqCst) {
             std::thread::sleep(Duration::from_millis(50));
         }
     }
+}
+
+/// Modo `--perfil`: roda o trabalho do coletor `n` vezes (1 s entre voltas), sem UI, e imprime tempos por parte.
+pub fn profile(n: u32) {
+    use windows::Win32::Foundation::FILETIME;
+    use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+    let proc_ms = || unsafe {
+        let (mut c, mut e, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
+        let _ = GetProcessTimes(GetCurrentProcess(), &mut c, &mut e, &mut k, &mut u);
+        let ft = |f: FILETIME| ((f.dwHighDateTime as u64) << 32 | f.dwLowDateTime as u64) as f64 / 10_000.0;
+        ft(k) + ft(u)
+    };
+    let mut c = Collector::new();
+    let mut tm = Timer::default();
+    // volta de aquecimento (primeira leitura PDH/WMI é atípica) fora da medição
+    c.step(&mut tm, false);
+    std::thread::sleep(Duration::from_millis(1000));
+    tm.on = true;
+    let (p0, th0, w0) = (proc_ms(), thread_cpu_ms(), Instant::now());
+    let mut last = Sample::default();
+    for _ in 0..n {
+        let start = Instant::now();
+        last = c.step(&mut tm, false);
+        if let Some(d) = Duration::from_millis(1000).checked_sub(start.elapsed()) {
+            std::thread::sleep(d);
+        }
+    }
+    let secs = w0.elapsed().as_secs_f64();
+    let (p1, th1) = (proc_ms(), thread_cpu_ms());
+    println!("{n} voltas em {secs:.1} s (cadência real do coletor; aquecimento descartado)");
+    println!("{:<14} {:>8} {:>12} {:>12} {:>14}", "parte", "chamadas", "parede ms/ch", "CPU ms/ch", "CPU ms por s");
+    let mut tot = 0.0;
+    for (i, name) in PARTS.iter().enumerate() {
+        let p = tm.parts[i];
+        let k = p.calls.max(1) as f64;
+        tot += p.cpu_ms;
+        println!("{:<14} {:>8} {:>12.2} {:>12.2} {:>14.2}", name, p.calls, p.wall_ms / k, p.cpu_ms / k, p.cpu_ms / secs);
+    }
+    println!("soma das partes (CPU da thread): {:.2} ms/s", tot / secs);
+    println!("thread inteira (GetThreadTimes): {:.2} ms/s | processo inteiro (GetProcessTimes): {:.2} ms/s", (th1 - th0) / secs, (p1 - p0) / secs);
+    println!("(GetThreadTimes tem granularidade de tick ~15,6 ms: valores por chamada sao medias estatisticas)");
+    // Microbench: cada parte em lote (ms de CPU por chamada com resolução sub-tick, pois somam-se K chamadas).
+    println!("
+Lotes (K chamadas seguidas; CPU = GetThreadTimes do lote / K):");
+    let mut lote = |name: &str, k: u32, f: &mut dyn FnMut()| {
+        let (w, cpu) = (Instant::now(), thread_cpu_ms());
+        for _ in 0..k {
+            f();
+        }
+        let (w, cpu) = (w.elapsed().as_secs_f64() * 1000.0, thread_cpu_ms() - cpu);
+        println!("{:<14} K={:<5} parede {:>8.3} ms/ch   CPU {:>8.3} ms/ch", name, k, w / k as f64, cpu / k as f64);
+    };
+    let mut sm = Sample::default();
+    if let Some(a) = c.adlx.as_mut() {
+        lote("ADLX read", 300, &mut || {
+            let _ = a.read();
+        });
+    }
+    if let Some(p) = c.pdh.as_mut() {
+        lote("PDH collect", 100, &mut || p.bench_collect());
+        lote("PDH parse", 100, &mut || p.bench_parse(&mut sm));
+    }
+    if let Some(w) = &c.wmi {
+        lote("WMI bateria", 30, &mut || {
+            let _ = read_power(w, None);
+        });
+    }
+    lote("process_usage", 3000, &mut || {
+        let _ = crate::util::process_usage();
+    });
+    lote("read_topology", 10, &mut || {
+        let _ = pnp::read_topology();
+    });
+    if let Some(mut t) = c.topo.clone() {
+        lote("topo estado", 100, &mut || {
+            let _ = refresh_states(&mut t);
+        });
+    }
+    println!("ultima amostra: copy {:.1}% 3d {:.1}% ded {:.0} MB shared {:.0} MB gpu {} power {}", last.copy, last.d3, last.ded_mb, last.shared_mb, last.gpu.is_some(), last.power.is_some());
 }
 
 fn num_cpus() -> f64 {
@@ -255,10 +477,10 @@ struct BatteryFull {
     full_charged_capacity: Option<i64>,
 }
 
-fn read_power(w: &wmi::WMIConnection) -> Option<PowerM> {
+fn read_power(w: &wmi::WMIConnection, known_full: Option<i64>) -> Option<PowerM> {
     let b: Vec<BatteryStatus> = w.query().ok()?;
     let b = b.into_iter().next()?;
-    let full: Vec<BatteryFull> = w.query().unwrap_or_default();
+    let full: Vec<BatteryFull> = if known_full.is_some() { vec![] } else { w.query().unwrap_or_default() };
     Some(PowerM {
         online: b.power_online.unwrap_or(false),
         charging: b.charging.unwrap_or(false),
@@ -267,7 +489,7 @@ fn read_power(w: &wmi::WMIConnection) -> Option<PowerM> {
         discharge_mw: b.discharge_rate.unwrap_or(0),
         mv: b.voltage.unwrap_or(0),
         rem_mwh: b.remaining_capacity.unwrap_or(0),
-        full_mwh: full.first().and_then(|f| f.full_charged_capacity).unwrap_or(0),
+        full_mwh: known_full.or_else(|| full.first().and_then(|f| f.full_charged_capacity)).unwrap_or(0),
     })
 }
 
@@ -403,10 +625,24 @@ impl Pdh {
         }
     }
 
-    fn sample(&mut self, s: &mut Sample) {
+    fn sample(&mut self, s: &mut Sample, tm: &mut Timer) {
+        tm.time(1, || unsafe {
+            PdhCollectQueryData(self.q);
+        });
+        tm.time(2, || self.parse(s));
+    }
+
+    fn bench_collect(&mut self) {
         unsafe {
             PdhCollectQueryData(self.q);
         }
+    }
+
+    fn bench_parse(&mut self, s: &mut Sample) {
+        self.parse(s);
+    }
+
+    fn parse(&mut self, s: &mut Sample) {
         // Soma por motor (eng_N) entre processos; tipo = maior motor daquele tipo (como o Gerenciador de Tarefas).
         let mut per_eng: std::collections::HashMap<(String, String), f64> = Default::default();
         for (name, v) in self.array(self.eng) {
