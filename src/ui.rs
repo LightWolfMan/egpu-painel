@@ -67,18 +67,18 @@ mod pal {
         Color32::from_rgb(r, g, b)
     }
 
-    // ordem: bg card card2 card3 well grid border fg dim faint accent green amber red violet amd intel bolt pcie
-    const P: [[Color32; 19]; 5] = [
+    // ordem: bg card card2 card3 well grid border fg dim faint accent green amber red violet amd intel bolt pcie data
+    const P: [[Color32; 20]; 5] = [
         // claro
-        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(181, 136, 0), c(100, 125, 160)],
+        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(181, 136, 0), c(100, 125, 160), c(2, 120, 190)],
         // escuro
-        [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(139, 148, 158), c(88, 96, 105), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(245, 196, 0), c(120, 150, 190)],
+        [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(150, 160, 170), c(118, 126, 136), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(245, 196, 0), c(120, 150, 190), c(56, 189, 248)],
         // AMD (Adrenalin): fundo #111, cartões #262626 com faixa de título preta, vermelho #E4002B
-        [c(17, 17, 18), c(38, 38, 40), c(48, 48, 50), c(62, 24, 30), c(12, 12, 13), c(52, 52, 55), c(38, 38, 40), c(242, 242, 244), c(170, 170, 176), c(108, 108, 114), c(228, 0, 43), c(46, 204, 113), c(255, 153, 0), c(255, 92, 92), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(255, 196, 0), c(150, 150, 162)],
+        [c(17, 17, 18), c(38, 38, 40), c(48, 48, 50), c(54, 54, 58), c(12, 12, 13), c(52, 52, 55), c(38, 38, 40), c(242, 242, 244), c(190, 190, 196), c(140, 140, 148), c(228, 0, 43), c(46, 204, 113), c(255, 170, 30), c(255, 99, 120), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(255, 196, 0), c(150, 150, 162), c(110, 185, 235)],
         // NVIDIA: grafite + verde
-        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(168, 168, 168), c(106, 106, 106), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(240, 200, 0), c(135, 155, 120)],
+        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(240, 200, 0), c(135, 155, 120), c(140, 200, 60)],
         // Intel: azul-marinho + ciano
-        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(140, 160, 186), c(84, 104, 130), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(250, 200, 0), c(110, 150, 200)],
+        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(250, 200, 0), c(110, 150, 200), c(0, 199, 253)],
     ];
 
     /// Raio dos cantos: o Adrenalin é todo reto; NVIDIA quase reto.
@@ -117,6 +117,9 @@ mod pal {
     pub fn intel() -> Color32 { at(16) }
     pub fn bolt() -> Color32 { at(17) }
     pub fn pcie() -> Color32 { at(18) }
+    /// Cor de dados (tráfego, gráficos). No tema AMD não é o vermelho da marca,
+    /// para vermelho continuar significando só problema.
+    pub fn data() -> Color32 { at(19) }
 }
 
 use pal::Th;
@@ -432,6 +435,8 @@ fn apply_theme(ctx: &egui::Context, th: Th) {
     v.extreme_bg_color = pal::well();
     v.faint_bg_color = pal::card2();
     v.override_text_color = Some(pal::fg());
+    v.widgets.inactive.fg_stroke.color = pal::fg();
+    v.widgets.noninteractive.fg_stroke.color = pal::fg();
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, pal::border());
     v.widgets.inactive.bg_fill = pal::card2();
     v.widgets.inactive.weak_bg_fill = pal::card2();
@@ -518,8 +523,8 @@ impl Tab {
     fn label(self) -> &'static str {
         match self {
             Tab::Geral => "Visão geral",
-            Tab::Enlace => "Enlace & energia",
-            Tab::Fluxo => "Fluxo & GPU",
+            Tab::Enlace => "Cabo e energia",
+            Tab::Fluxo => "Desempenho",
             Tab::Historico => "Histórico",
             Tab::Opcoes => "Opções",
         }
@@ -714,7 +719,7 @@ fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent
     // ilustração à esquerda; o texto começa depois dela
     let tx = match art {
         Some(f) => {
-            let aw = if focus { 96.0 } else { 74.0 };
+            let aw: f32 = if focus { 96.0 } else { (rect.width() * 0.3).clamp(44.0, 74.0) };
             let ar = Rect::from_min_size(rect.min + vec2(12.0, 8.0), vec2(aw, rect.height() - 16.0));
             f(p, ar);
             aw + 22.0
@@ -944,7 +949,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let gpu_ok = topo.gpu.is_some();
 
     // geometria
-    let host_w = (w * 0.17).clamp(170.0, 230.0);
+    let host_w = (w * 0.18).clamp(200.0, 240.0);
     let bw = (w * 0.24).clamp(200.0, 300.0);
     let host = Rect::from_min_size(pos2(rect.left() + 4.0, rect.center().y - 40.0), vec2(host_w, 80.0));
     let bx = rect.right() - bw - 4.0;
@@ -966,7 +971,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let pts = [a + vec2(0.0, off), b + vec2(0.0, off)];
         link(&p, &pts, dock_ok, 3.0, pal::bolt());
         if dock_ok {
-            pulses(&p, &pts, t + l as f64 * 0.37, intensity, pal::cyan(), false);
+            pulses(&p, &pts, t + l as f64 * 0.37, intensity, pal::data(), false);
         }
     }
     // PD: energia do dock para o note (sentido inverso)
@@ -1016,9 +1021,9 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let gpu_pts = branch(gpu_r, 0.0);
     link(&p, &gpu_pts, gpu_ok && switch_ok, 2.5, pal::pcie());
     if gpu_ok && switch_ok {
-        pulses(&p, &gpu_pts, t, intensity, pal::cyan(), false);
+        pulses(&p, &gpu_pts, t, intensity, pal::data(), false);
         if flow.d3 > 1.0 {
-            pulses(&p, &gpu_pts, t + 0.5, (flow.d3 / 100.0) * 0.4, pal::amd(), true);
+            pulses(&p, &gpu_pts, t + 0.5, (flow.d3 / 100.0) * 0.4, pal::violet(), true);
         }
     }
     let usb_alive = ports.iter().any(|(d, _)| d.role == PortRole::UsbA);
@@ -1090,7 +1095,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     };
     let gm = flow.gpu.unwrap_or_default();
     let spin = gm.fan.map(|f| f as f32 / 3200.0).unwrap_or(gm.usage.unwrap_or(0.0) as f32 / 100.0);
-    node_box(&p, gpu_r, "Radeon RX 7600 XT", &gl, pal::amd(), if gpu_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Gpu), false, Some(&|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, gpu_ok, t)));
+    node_box(&p, gpu_r, "Radeon RX 7600 XT", &gl, pal::data(), if gpu_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Gpu), false, Some(&|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, gpu_ok, t)));
     if ui.interact(gpu_r, ui.id().with("gpu"), Sense::click()).clicked() {
         *sel = Some(Sel::Gpu);
     }
@@ -1179,19 +1184,7 @@ impl eframe::App for App {
                     ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(pal::faint()).size(12.5))
                         .on_hover_text("Consumo do próprio painel (RAM e CPU). Fechando a janela, ele volta para a bandeja e para de coletar.");
                     ui.add_space(pal::gap());
-                    match &topo.dock_router {
-                        Some(n) => {
-                            if status_pill(ui, &format!("Dock conectado · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
-                                self.sel = Some(Sel::Dock);
-                            }
-                        }
-                        None if topo.read_ms == 0 => {
-                            status_pill(ui, "Procurando o dock…", pal::dim(), t, false);
-                        }
-                        None => {
-                            status_pill(ui, "Dock desconectado", pal::red(), t, true);
-                        }
-                    }
+                    self.header_status(ui, &topo, t);
                 });
             });
         });
@@ -1235,6 +1228,8 @@ impl eframe::App for App {
                         if let Some(v) = self.vendor {
                             brand(ui, v, &mut self.logo_tex);
                         }
+                        self.verdict_banner(ui, &topo);
+                        ui.add_space(pal::gap());
                         card(ui, "🔗  Topologia", pal::cyan(), |ui| {
                             let mut sel = self.sel;
                             topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref());
@@ -1277,7 +1272,8 @@ impl eframe::App for App {
         });
 
         let busy = flow.copy > 2.0 || flow.d3 > 5.0 || matches!(bench, BenchState::Running(_));
-        let ms = match (cfg.eco, busy) {
+        let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
+        let ms = match (cfg.eco || !focused, busy) {
             (true, _) => 200,
             (false, true) => 33,
             (false, false) => 66,
@@ -1367,20 +1363,90 @@ impl App {
             ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(Color32::from_gray(130)).size(12.5))
                 .on_hover_text("Consumo do próprio painel (RAM e CPU).");
             ui.add_space(12.0);
-            match &topo.dock_router {
-                Some(n) => {
-                    if status_pill(ui, &format!("Dock conectado · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
-                        self.sel = Some(Sel::Dock);
-                    }
-                }
-                None if topo.read_ms == 0 => {
-                    status_pill(ui, "Procurando o dock…", pal::dim(), t, false);
-                }
-                None => {
-                    status_pill(ui, "Dock desconectado", pal::red(), t, true);
-                }
-            }
+            self.header_status(ui, &topo, t);
         });
+    }
+
+    /// Veredito em uma frase: está bem, instável ou caído — e a causa provável.
+    fn verdict(&self, topo: &Topology) -> (u8, String, String) {
+        let now = now_ms();
+        if topo.read_ms == 0 {
+            return (0, "Lendo o estado do dock…".into(), String::new());
+        }
+        let drops: Vec<&Incident> = self.incidents.iter().filter(|i| i.is_drop).collect();
+        let last = drops.last();
+        if topo.dock_router.is_none() {
+            return (2, "O dock está desconectado".into(), "Confira o cabo e se a fonte do dock está ligada na tomada.".into());
+        }
+        let d24 = drops.iter().filter(|i| now - i.start <= 86_400_000).count();
+        if d24 > 0 {
+            let cause = match last {
+                Some(i) if i.pd_lost => "Na última queda a energia do dock caiu junto: suspeite da fonte ou da tomada.",
+                Some(_) => "Na última queda só a conexão caiu, a energia continuou: suspeite do cabo.",
+                None => "",
+            };
+            let lvl = if d24 >= 3 { 2 } else { 1 };
+            let vezes = if d24 == 1 { "1 vez".to_string() } else { format!("{d24} vezes") };
+            return (lvl, format!("Instável: o dock caiu {vezes} nas últimas 24 h"), cause.into());
+        }
+        let sub = match last {
+            Some(i) => format!("Sem quedas há {}.", fmt_dur(now - i.start)),
+            None => "Nenhuma queda registrada.".into(),
+        };
+        (0, "Tudo certo com o dock".into(), sub)
+    }
+
+    fn verdict_banner(&mut self, ui: &mut Ui, topo: &Topology) {
+        let (lvl, title, sub) = self.verdict(topo);
+        let (col, icon) = match lvl {
+            0 => (pal::green(), "✔"),
+            1 => (pal::amber(), "▲"),
+            _ => (pal::red(), "✖"),
+        };
+        let r = egui::Frame::new()
+            .fill(col.gamma_multiply(0.10))
+            .stroke(Stroke::new(1.0, col.gamma_multiply(0.55)))
+            .corner_radius(CornerRadius::same(pal::radius()))
+            .inner_margin(egui::Margin::symmetric(20, 14))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(icon).size(30.0).color(col));
+                    ui.add_space(6.0);
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new(&title).size(20.0).color(pal::fg()));
+                        if !sub.is_empty() {
+                            ui.label(egui::RichText::new(&sub).size(14.5).color(pal::dim()));
+                        }
+                    });
+                    if lvl > 0 {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new("Ver o que aconteceu ›").size(14.0).color(col));
+                        });
+                    }
+                });
+            })
+            .response;
+        let c = ui.interact(r.rect, ui.id().with("veredito"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        if c.clicked() {
+            self.tab = if lvl > 0 { Tab::Historico } else { Tab::Enlace };
+        }
+    }
+
+    /// Pílula do cabeçalho: segue o veredito (verde / âmbar / vermelho), com ícone além da cor.
+    fn header_status(&mut self, ui: &mut Ui, topo: &Topology, t: f64) {
+        let (lvl, _, _) = self.verdict(topo);
+        let now = now_ms();
+        let d24 = self.incidents.iter().filter(|i| i.is_drop && now - i.start <= 86_400_000).count();
+        let (txt, col, pulse) = match (&topo.dock_router, lvl) {
+            (None, _) if topo.read_ms == 0 => ("Procurando o dock…".to_string(), pal::dim(), false),
+            (None, _) => ("✖ Dock desconectado".to_string(), pal::red(), true),
+            (Some(n), 0) => (format!("✔ Dock conectado · {}", n.last_arrival.map(|a| fmt_dur(now - a)).unwrap_or_default()), pal::green(), false),
+            (Some(_), l) => (format!("▲ Instável · {d24} queda{} em 24 h", if d24 == 1 { "" } else { "s" }), if l >= 2 { pal::red() } else { pal::amber() }, false),
+        };
+        if status_pill(ui, &txt, col, t, pulse).clicked() {
+            self.tab = if lvl > 0 { Tab::Historico } else { Tab::Geral };
+        }
     }
 
     /// Menu lateral (NVIDIA/Intel): ícone + rótulo, item ativo com barra de destaque.
@@ -1446,14 +1512,14 @@ impl App {
                     if gauge(ui, "🔌", pct, 100.0, "%", if pw.map(|p| p.online).unwrap_or(false) { "Carregando" } else { "Bateria" }, pd_col).on_hover_text("Bateria do note; verde = recebendo energia PD do dock").clicked() {
                         self.tab = Tab::Enlace;
                     }
-                    if gauge(ui, "💥", drops24, 10.0, "24 h", "Quedas", if drops24 > 0.0 { pal::red() } else { pal::green() }).on_hover_text("Quedas do dock/GPU nas últimas 24 h").clicked() {
+                    if gauge(ui, "💥", drops24, 10.0, "24 h", "Quedas", if drops24 >= 3.0 { pal::red() } else if drops24 > 0.0 { pal::amber() } else { pal::green() }).on_hover_text("Quedas do dock/GPU nas últimas 24 h").clicked() {
                         self.tab = Tab::Historico;
                     }
                     let heat = if temp > 85.0 { pal::red() } else if temp > 70.0 { pal::amber() } else { pal::green() };
                     if gauge(ui, "🌡", temp, 100.0, "°C", "Temperatura", heat).clicked() {
                         self.tab = Tab::Fluxo;
                     }
-                    if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::cyan()).on_hover_text("Motor Copy da GPU: proxy do tráfego no túnel").clicked() {
+                    if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::data()).on_hover_text("Motor Copy da GPU: proxy do tráfego no túnel").clicked() {
                         self.tab = Tab::Fluxo;
                     }
                 });
@@ -1481,14 +1547,14 @@ impl App {
         card(ui, "🖥  Tela", pal::cyan(), |ui| {
             let ppp = ctx.native_pixels_per_point().unwrap_or(1.0);
             ui.horizontal(|ui| {
-                pill(ui, &format!("escala do Windows {:.0}% · {:.0} DPI", ppp * 100.0, ppp * 96.0), pal::cyan());
+                pill(ui, &format!("Escala do Windows {:.0}% · {:.0} DPI", ppp * 100.0, ppp * 96.0), pal::dim());
                 pill(ui, &format!("tema ativo: {}", th.name()), pal::dim());
             });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label("🔎 Tamanho da interface");
                 ui.add(egui::Slider::new(&mut cfg.zoom, 0.8..=1.6).step_by(0.05).custom_formatter(|v, _| format!("{:.0}%", v * 100.0)));
-                if ui.small_button("100%").clicked() {
+                if ui.small_button("↺ padrão").clicked() {
                     cfg.zoom = 1.0;
                 }
             });
@@ -1601,7 +1667,7 @@ fn render_logo(v: Th, height_px: u32, dark: bool) -> Option<egui::ColorImage> {
 
 /// Logotipo do fabricante centralizado no topo da visão geral.
 fn brand(ui: &mut Ui, v: Th, cache: &mut Option<(Th, bool, u32, egui::TextureHandle)>) {
-    let h_pt = 34.0;
+    let h_pt = 26.0;
     let ppp = ui.ctx().pixels_per_point();
     let h_px = (h_pt * ppp).round() as u32;
     let dark = !pal::current().is_light();
@@ -1696,7 +1762,7 @@ const HIDDEN: [(&str, &str, &str); 6] = [
 fn hidden_strip(ui: &mut Ui, sel: &mut Option<Sel>) {
     ui.add_space(4.0);
     ui.horizontal_wrapped(|ui| {
-        ui.label(egui::RichText::new("🚫").color(pal::faint()).size(13.5)).on_hover_text("Invisível ao Windows — passe o mouse em cada ícone");
+        ui.label(egui::RichText::new("Não dá para medir:").color(pal::dim()).size(13.0)).on_hover_text("Coisas do dock que o Windows não enxerga. Passe o mouse em cada ícone.");
         for (icon, name, why) in HIDDEN {
             let r = egui::Frame::new()
                 .fill(pal::well())
@@ -1729,7 +1795,7 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::R
         let y = rect.top() + 4.0 + l as f32 * 18.0;
         let track = Rect::from_min_max(pos2(x0, y), pos2(x1, y + 11.0));
         p.rect_filled(track, CornerRadius::same(5), pal::well());
-        p.text(pos2(rect.left(), y + 5.5), egui::Align2::LEFT_CENTER, format!("faixa {}", l + 1), FontId::proportional(12.5), pal::dim());
+        p.text(pos2(rect.left(), y + 5.5), egui::Align2::LEFT_CENTER, format!("Canal {}", l + 1), FontId::proportional(12.5), pal::dim());
         if let Some(v) = per_lane {
             let frac = (v / 20.0).clamp(0.0, 1.0);
             let fill = Rect::from_min_max(track.min, pos2(x0 + (x1 - x0) * frac, track.bottom()));
@@ -1743,7 +1809,7 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::R
     }
     let total = per_lane.map(|v| v * lanes as f32);
     if let Some(t) = total {
-        p.text(pos2(x1 + 8.0, rect.bottom() - 2.0), egui::Align2::LEFT_BOTTOM, format!("Σ {t:.0}/40"), FontId::proportional(12.5), pal::dim());
+        p.text(pos2(x1 + 8.0, rect.bottom() - 2.0), egui::Align2::LEFT_BOTTOM, format!("Total {t:.0} de 40 Gb/s"), FontId::proportional(12.5), pal::dim());
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -1907,22 +1973,27 @@ impl App {
             }
             if speed == Some(8) {
                 let low = bench.map(|b| b.h2d_gbs < 2.2).unwrap_or(false);
-                let txt = if low { "⚠ metade da velocidade" } else { "⚠ metade da velocidade?" };
-                if chip(ui, true, txt, pal::amber()) {
+                let txt = if low { "ℹ O cabo está na metade da velocidade" } else { "ℹ O cabo parece estar na metade da velocidade" };
+                if ui.add(egui::Label::new(egui::RichText::new(txt).color(pal::amber()).size(14.0)).sense(Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                     *sel = Some(Sel::Info(Topic::Link));
                 }
             }
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
-                if tile(ui, "💾", dr.firmware.clone().unwrap_or("?".into()), "", "firmware", pal::fg()).on_hover_text("Firmware do roteador Titan Ridge do dock").clicked() {
+                if tile(ui, "💾", dr.firmware.clone().unwrap_or("?".into()), "", "Firmware", pal::fg()).on_hover_text("Firmware do roteador Titan Ridge do dock").clicked() {
                     *sel = Some(Sel::Dock);
                 }
                 if let Some(ts) = dr.last_arrival {
-                    if tile(ui, "🕒", fmt_dur(now_ms() - ts), "", "conectado há", pal::green()).on_hover_text(format!("desde {}", fmt_local(ts, false))).clicked() {
+                    if tile(ui, "🕒", fmt_dur(now_ms() - ts), "", "Conectado há", pal::green()).on_hover_text(format!("desde {}", fmt_local(ts, false))).clicked() {
                         *sel = Some(Sel::Info(Topic::Stability));
                     }
                 }
-                if tile(ui, "🔀", dname(dr).split(' ').next().unwrap_or("?").to_string(), "", "estado", pal::cyan())
+                let (st, stc) = match dr.dstate {
+                    Some(1) => ("Ativo", pal::green()),
+                    Some(4) => ("☾ Em repouso", pal::dim()),
+                    _ => ("?", pal::dim()),
+                };
+                if tile(ui, "🔀", st.to_string(), "", "Estado", stc)
                     .on_hover_text("Estado de energia do roteador do dock (D0 ativo, D3 economia — o USB4 dorme quando ocioso)")
                     .clicked()
                 {
@@ -1952,18 +2023,18 @@ impl App {
             ui.horizontal_wrapped(|ui| {
                 let w = if pw.charge_mw > 0 { pw.charge_mw as f64 / 1000.0 } else { -(pw.discharge_mw as f64) / 1000.0 };
                 let wtxt = if w.abs() < 0.05 { "0".into() } else { format!("{w:+.1}") };
-                if tile(ui, "🔋", wtxt, "W", "carga", if w >= 0.0 { pal::bolt() } else { pal::amber() }).on_hover_text("Taxa de carga (+) ou descarga (−) da bateria — WMI root\\wmi BatteryStatus").clicked() {
+                if tile(ui, "🔋", wtxt, "W", "Carga da bateria", if w >= 0.0 { pal::bolt() } else { pal::amber() }).on_hover_text("Taxa de carga (+) ou descarga (−) da bateria — WMI root\\wmi BatteryStatus").clicked() {
                     *sel = Some(Sel::Info(Topic::Power));
                 }
-                if tile(ui, "〰", format!("{:.2}", pw.mv as f64 / 1000.0), "V", "tensão", pal::fg()).on_hover_text("Tensão da bateria (não é a tensão do PD)").clicked() {
+                if tile(ui, "〰", format!("{:.2}", pw.mv as f64 / 1000.0), "V", "Tensão da bateria", pal::fg()).on_hover_text("Tensão da bateria (não é a tensão do PD)").clicked() {
                     *sel = Some(Sel::Info(Topic::Power));
                 }
-                if tile(ui, "⚡", "85".into(), "W", "PD anunciado", pal::faint()).on_hover_text("Valor do DROM do dock (\"Module 2 PD 85W\"). O contrato negociado não é exposto.").clicked() {
+                if tile(ui, "⚡", "85".into(), "W", "Carregador oferece", pal::dim()).on_hover_text("Valor do DROM do dock (\"Module 2 PD 85W\"). O contrato negociado não é exposto.").clicked() {
                     *sel = Some(Sel::Info(Topic::Power));
                 }
             });
             let series: Vec<f32> = samples.iter().filter_map(|s| s.power).map(|p| (p.charge_mw - p.discharge_mw) as f32 / 1000.0).collect();
-            chart(ui, "carga/descarga (W)", &[(pal::bolt(), "W", series)], 10.0, " W", 58.0);
+            chart(ui, "Carga da bateria (W)", &[(pal::bolt(), "agora", series)], 10.0, " W", 64.0);
         });
         self.sel = sel;
     }
@@ -2008,15 +2079,15 @@ impl App {
         card_i(ui, "📶  Fluxo de dados no túnel", pal::cyan(), &mut sel, Topic::Flow, "Por que o motor Copy é o proxy do tráfego", |ui, sel| {
             let last = samples.last().copied().unwrap_or_default();
             ui.horizontal(|ui| {
-                if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::cyan()).on_hover_text("Motor Copy: cópias DMA host↔GPU — o que mais passa pelo túnel").clicked() {
+                if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::data()).on_hover_text("Motor Copy: cópias DMA host↔GPU — o que mais passa pelo túnel").clicked() {
                     *sel = Some(Sel::Info(Topic::Flow));
                 }
-                if gauge(ui, "△", last.d3, 100.0, "%", "3D", pal::amd()).clicked() {
+                if gauge(ui, "△", last.d3, 100.0, "%", "Gráficos 3D", pal::violet()).clicked() {
                     *sel = Some(Sel::Info(Topic::Flow));
                 }
                 ui.vertical(|ui| {
                     ui.add_space(14.0);
-                    meter_bar(ui, last.ded_mb as f32 / 16368.0, &format!("Memória da placa (VRAM) · {:.0} MB", last.ded_mb), pal::amd())
+                    meter_bar(ui, last.ded_mb as f32 / 16368.0, &format!("Memória da placa (VRAM) · {:.0} MB", last.ded_mb), pal::data())
                         .on_hover_text("Memória dedicada da GPU em uso (PDH GPU Adapter Memory)");
                     ui.add_space(6.0);
                     meter_bar(ui, last.shared_mb as f32 / 8192.0, &format!("RAM do notebook usada pela placa · {:.0} MB", last.shared_mb), pal::violet())
@@ -2025,7 +2096,7 @@ impl App {
             });
             let copy: Vec<f32> = samples.iter().map(|s| s.copy).collect();
             let d3: Vec<f32> = samples.iter().map(|s| s.d3).collect();
-            chart(ui, "motores (5 min)", &[(pal::cyan(), "Copy", copy), (pal::amd(), "3D", d3)], 100.0, "%", 84.0);
+            chart(ui, "Uso da placa (5 min)", &[(pal::data(), "Cópia de dados", copy), (pal::violet(), "Gráficos 3D", d3)], 100.0, "%", 84.0);
             ui.horizontal(|ui| {
                 let running = matches!(bench, BenchState::Running(_));
                 if ui.add_enabled(!running, egui::Button::new("📏 Teste de banda")).on_hover_text("Cópias D3D12 de 1 GiB na fila COPY, host↔VRAM (~5 s).").clicked() {
@@ -2079,7 +2150,7 @@ impl App {
             if let Some(s) = st {
                 let vram = g.vram.unwrap_or(0) as f32;
                 let frac = if s.vram_total_mb > 0 { vram / s.vram_total_mb as f32 } else { 0.0 };
-                meter_bar(ui, frac, &format!("VRAM {} de {} MB", g.vram.unwrap_or(0), s.vram_total_mb), pal::amd());
+                meter_bar(ui, frac, &format!("VRAM {} de {} MB", g.vram.unwrap_or(0), s.vram_total_mb), pal::data());
             }
         });
         self.sel = sel;
@@ -2503,12 +2574,14 @@ fn bars(ui: &mut Ui, r: &BenchResult) {
     let (rect, _) = ui.allocate_exact_size(vec2(w, 74.0), Sense::hover());
     let p = ui.painter_at(rect);
     let max = 3.2f32;
-    let x_of = |v: f32| rect.left() + 110.0 + (rect.width() - 120.0) * (v / max).clamp(0.0, 1.0);
+    let x_of = |v: f32| rect.left() + 150.0 + (rect.width() - 230.0) * (v / max).clamp(0.0, 1.0);
     // faixa esperada TB3 40G
     let band = Rect::from_x_y_ranges(x_of(2.5)..=x_of(2.8), rect.top()..=rect.bottom() - 14.0);
-    p.rect_filled(band, CornerRadius::same(3), pal::green().gamma_multiply(0.12));
-    p.text(pos2(band.center().x, rect.bottom()), egui::Align2::CENTER_BOTTOM, "esperado TB3 40 Gb/s", FontId::proportional(11.5), pal::green().gamma_multiply(0.8));
-    for (i, (label, v, c)) in [("host → GPU", r.h2d_gbs, pal::cyan()), ("GPU → host", r.d2h_gbs, pal::violet())].iter().enumerate() {
+    for x in [band.left(), band.right()] {
+        p.extend(egui::Shape::dashed_line(&[pos2(x, band.top()), pos2(x, band.bottom())], Stroke::new(1.0, pal::green().gamma_multiply(0.7)), 4.0, 3.0));
+    }
+    p.text(pos2(band.center().x, rect.bottom()), egui::Align2::CENTER_BOTTOM, "normal com cabo de 40 Gb/s", FontId::proportional(12.5), pal::green());
+    for (i, (label, v, c)) in [("Notebook → placa", r.h2d_gbs, pal::data()), ("Placa → notebook", r.d2h_gbs, pal::violet())].iter().enumerate() {
         let y = rect.top() + 8.0 + i as f32 * 26.0;
         p.text(pos2(rect.left(), y + 8.0), egui::Align2::LEFT_CENTER, *label, FontId::proportional(13.5), pal::dim());
         let bar = Rect::from_min_max(pos2(x_of(0.0), y), pos2(x_of(*v as f32), y + 16.0));
