@@ -10,6 +10,7 @@
 
 mod bench;
 mod collect;
+mod config;
 mod history;
 mod pnp;
 mod tray;
@@ -31,7 +32,7 @@ pub fn on_new_event(ev: &history::Ev) {
         DockOff | DockFail => tray::set_dock(false),
         _ => {}
     }
-    if ev.kind.severity() >= 1 && ev.kind != PcieInfo {
+    if ev.kind.severity() >= 1 && ev.kind != PcieInfo && config::get().notify {
         tray::notify(
             format!("{} — {}", ev.kind.label(), util::fmt_local(ev.ts, true)),
             ev.msg.chars().take(200).collect(),

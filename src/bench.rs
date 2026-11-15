@@ -19,7 +19,6 @@ pub struct BenchResult {
     pub d2h_gbs: f64,
     pub h2d_runs: Vec<f64>,
     pub d2h_runs: Vec<f64>,
-    pub chunk_mb: u64,
     pub per_run_mb: u64,
 }
 
@@ -136,7 +135,6 @@ pub fn run(progress: impl Fn(&str)) -> Result<BenchResult, String> {
             d2h_gbs: best(&d2h),
             h2d_runs: h2d,
             d2h_runs: d2h,
-            chunk_mb: CHUNK >> 20,
             per_run_mb: (CHUNK * REPS_PER_RUN as u64) >> 20,
         })
     }
