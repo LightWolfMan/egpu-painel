@@ -387,11 +387,17 @@ fn fonts(ctx: &egui::Context) {
     let mut f = egui::FontDefinitions::default();
     let dir = std::path::Path::new(r"C:\Windows\Fonts");
     let mut front = vec![];
-    for (name, file) in [("segoe", "segoeui.ttf"), ("segoe_sym", "seguisym.ttf")] {
-        if let Ok(bytes) = std::fs::read(dir.join(file)) {
-            f.font_data.insert(name.into(), Arc::new(egui::FontData::from_owned(bytes)));
-            front.push(name.to_string());
-        }
+    // Segoe UI Variable (Windows 11) é mais macia; no Windows 10 cai na Segoe UI clássica
+    let main = std::fs::read(dir.join("SegUIVar.ttf")).or_else(|_| std::fs::read(dir.join("segoeui.ttf")));
+    if let Ok(bytes) = main {
+        f.font_data.insert("segoe".into(), Arc::new(egui::FontData::from_owned(bytes)));
+        front.push("segoe".to_string());
+    }
+    if let Ok(bytes) = std::fs::read(dir.join("seguisym.ttf")) {
+        // símbolos um pouco menores e alinhados ao centro do texto
+        let tweak = egui::FontTweak { scale: 0.92, y_offset_factor: 0.04, ..Default::default() };
+        f.font_data.insert("segoe_sym".into(), Arc::new(egui::FontData::from_owned(bytes).tweak(tweak)));
+        front.push("segoe_sym".to_string());
     }
     if let Some(fam) = f.families.get_mut(&egui::FontFamily::Proportional) {
         // Segoe UI na frente; símbolos depois dos padrões (fallback para setas/bolinhas)
@@ -433,8 +439,20 @@ fn apply_theme(ctx: &egui::Context, th: Th) {
     v.window_corner_radius = CornerRadius::same(pal::radius());
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
-        s.spacing.item_spacing = vec2(8.0, 6.0);
-        s.spacing.button_padding = vec2(10.0, 5.0);
+        use egui::{FontFamily as F, TextStyle::*};
+        // nada é cortado: textos, botões e painéis quebram a linha
+        s.wrap_mode = Some(egui::TextWrapMode::Wrap);
+        s.text_styles = [
+            (Heading, FontId::new(21.0, F::Proportional)),
+            (Body, FontId::new(15.0, F::Proportional)),
+            (Button, FontId::new(15.0, F::Proportional)),
+            (Small, FontId::new(12.5, F::Proportional)),
+            (Monospace, FontId::new(13.5, F::Monospace)),
+        ]
+        .into();
+        s.spacing.item_spacing = vec2(10.0, 8.0);
+        s.spacing.button_padding = vec2(12.0, 6.0);
+        s.spacing.interact_size.y = 26.0;
     });
 }
 
@@ -582,17 +600,17 @@ fn pill(ui: &mut Ui, text: &str, color: Color32) {
         .corner_radius(CornerRadius::same(pal::radius()))
         .inner_margin(egui::Margin::symmetric(8, 2))
         .show(ui, |ui| {
-            ui.add(egui::Label::new(egui::RichText::new(text).color(color).size(12.0)).extend());
+            ui.add(egui::Label::new(egui::RichText::new(text).color(color).size(13.5)).extend());
         });
 }
 
 fn big(ui: &mut Ui, value: String, unit: &str, label: &str, color: Color32) {
     ui.vertical(|ui| {
-        ui.label(egui::RichText::new(label).color(pal::dim()).size(11.5));
+        ui.label(egui::RichText::new(label).color(pal::dim()).size(13.0));
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 3.0;
             ui.label(egui::RichText::new(value).size(22.0).strong().color(color));
-            ui.label(egui::RichText::new(unit).size(12.0).color(pal::dim()));
+            ui.label(egui::RichText::new(unit).size(13.5).color(pal::dim()));
         });
     });
 }
@@ -603,7 +621,7 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
     let (rect, resp) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     let p = ui.painter_at(rect);
     p.rect_filled(rect, CornerRadius::same(6), pal::well());
-    let plot = rect.shrink2(vec2(6.0, 16.0)).translate(vec2(0.0, 6.0));
+    let plot = Rect::from_min_max(pos2(rect.left() + 8.0, rect.top() + 30.0), pos2(rect.right() - 8.0, rect.bottom() - 8.0));
     for i in 0..=3 {
         let y = plot.bottom() - plot.height() * i as f32 / 3.0;
         p.line_segment([pos2(plot.left(), y), pos2(plot.right(), y)], Stroke::new(1.0, pal::grid()));
@@ -613,10 +631,12 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
         .flat_map(|s| s.2.iter().cloned())
         .fold(max, f32::max)
         .max(1e-3);
-    p.text(rect.left_top() + vec2(8.0, 4.0), egui::Align2::LEFT_TOP, label, FontId::proportional(11.5), pal::dim());
-    p.text(rect.right_top() + vec2(-8.0, 4.0), egui::Align2::RIGHT_TOP, format!("máx {maxv:.0} {unit}"), FontId::proportional(10.5), pal::faint());
+    let lg = p.layout_no_wrap(label.to_string(), FontId::proportional(13.5), pal::dim());
+    let lw0 = lg.size().x;
+    p.galley(rect.left_top() + vec2(10.0, 6.0), lg, pal::dim());
+    p.text(rect.right_top() + vec2(-8.0, 4.0), egui::Align2::RIGHT_TOP, format!("máx {maxv:.0} {unit}"), FontId::proportional(12.0), pal::faint());
     let n = collect::HISTORY as f32;
-    let mut legend_x = rect.left() + 8.0;
+    let mut legend_x = rect.left() + 10.0 + lw0 + 18.0;
     for (color, name, data) in series {
         if data.len() >= 2 {
             let off = n - data.len() as f32;
@@ -640,16 +660,30 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
             p.add(egui::Shape::line(pts.clone(), Stroke::new(1.6, *color)));
             let last = data.last().copied().unwrap_or(0.0);
             let txt = format!("{name} {last:.0}{unit}");
-            let g = p.layout_no_wrap(txt, FontId::proportional(11.0), *color);
+            let g = p.layout_no_wrap(txt, FontId::proportional(12.5), *color);
             let lw = g.size().x;
-            p.galley(pos2(legend_x, rect.bottom() - 15.0), g, *color);
+            p.galley(pos2(legend_x, rect.top() + 6.0), g, *color);
             legend_x += lw + 14.0;
         }
     }
     if data_empty(series) {
-        p.text(rect.center(), egui::Align2::CENTER_CENTER, "aguardando amostras…", FontId::proportional(12.0), pal::faint());
+        p.text(rect.center(), egui::Align2::CENTER_CENTER, "aguardando amostras…", FontId::proportional(13.5), pal::faint());
     }
     let _ = resp;
+}
+
+/// Barra de ocupação com o texto por cima, nas cores do tema.
+fn meter_bar(ui: &mut Ui, frac: f32, text: &str, color: Color32) -> egui::Response {
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
+    let rad = CornerRadius::same(pal::radius().min(6));
+    let p = ui.painter();
+    p.rect_filled(r, rad, pal::well());
+    let f = ui.ctx().animate_value_with_time(resp.id, frac.clamp(0.0, 1.0), 0.4);
+    if f > 0.0 {
+        p.rect_filled(Rect::from_min_size(r.min, vec2((r.width() * f).max(4.0), r.height())), rad, color.gamma_multiply(0.75));
+    }
+    p.text(r.left_center() + vec2(10.0, 0.0), egui::Align2::LEFT_CENTER, text, FontId::proportional(13.5), pal::fg());
+    resp
 }
 
 fn data_empty(s: &[(Color32, &str, Vec<f32>)]) -> bool {
@@ -684,14 +718,29 @@ fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent
         }
         None => 12.0,
     };
-    p.text(rect.left_top() + vec2(tx, 8.0), egui::Align2::LEFT_TOP, title, FontId::proportional(if focus { 15.0 } else { 13.5 }), pal::fg());
-    let mut y = rect.top() + if focus { 29.0 } else { 27.0 };
+    let wrap = (rect.right() - 26.0 - (rect.left() + tx)).max(40.0);
+    let tg = p.layout(title.to_string(), FontId::proportional(if focus { 16.5 } else { 15.0 }), pal::fg(), wrap);
+    let reserve = if focus { 24.0 } else { 0.0 }; // no dock, a faixa das portas fica embaixo
+    let room = rect.height() - 14.0 - reserve;
+    let mut gs = vec![];
+    let mut block = tg.size().y;
     for l in lines {
-        if y > rect.bottom() - 12.0 {
+        let g = p.layout(l.clone(), FontId::proportional(12.5), pal::dim(), wrap);
+        if block + 2.0 + g.size().y > room {
             break;
         }
-        p.text(pos2(rect.left() + tx, y), egui::Align2::LEFT_TOP, l, FontId::proportional(11.0), pal::dim());
-        y += 15.0;
+        block += 2.0 + g.size().y;
+        gs.push(g);
+    }
+    let mut y = rect.top() + ((rect.height() - reserve - block) / 2.0).max(7.0);
+    let x = rect.left() + tx;
+    let th = tg.size().y;
+    p.galley(pos2(x, y), tg, pal::fg());
+    y += th + 2.0;
+    for g in gs {
+        let h = g.size().y;
+        p.galley(pos2(x, y), g, pal::dim());
+        y += h + 2.0;
     }
 }
 
@@ -926,16 +975,16 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let mid = pos2((a.x + b.x) / 2.0, a.y);
     let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
     let cable_txt = match speed {
-        Some(0x8) => format!("cabo TB3 · {lanes}×10 Gb/s?"),
-        Some(0x4) => format!("cabo TB3 · {lanes}×20 Gb/s"),
-        Some(x) => format!("cabo TB3 · código {x}"),
-        None if dock_ok => "cabo TB3".into(),
-        None => "sem enlace".into(),
+        Some(0x8) => format!("Cabo a {} Gb/s · o dock aceita 40", lanes * 10),
+        Some(0x4) => format!("Cabo a {} Gb/s", lanes * 20),
+        Some(x) => format!("Cabo conectado (código {x})"),
+        None if dock_ok => "Cabo conectado".into(),
+        None => "Sem conexão".into(),
     };
     let narrow = b.x - a.x < 190.0;
-    let cable_txt = if narrow { cable_txt.replace("cabo TB3 · ", "") } else { cable_txt };
-    p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, cable_txt, FontId::proportional(12.0), if dock_ok { pal::bolt() } else { pal::red() });
-    p.text(mid + vec2(0.0, 34.0), egui::Align2::CENTER_TOP, if flow.pd_on { if narrow { "PD 85 W" } else { "PD → note (85 W anunciado)" } } else { "PD: sem energia" }, FontId::proportional(11.0), if flow.pd_on { pal::bolt().gamma_multiply(0.8) } else { pal::amber() });
+    let cable_txt = if narrow { cable_txt.split(" · ").next().unwrap_or_default().to_string() } else { cable_txt };
+    p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, cable_txt, FontId::proportional(13.5), if dock_ok { pal::bolt() } else { pal::red() });
+    p.text(mid + vec2(0.0, 34.0), egui::Align2::CENTER_TOP, if flow.pd_on { if narrow { "Carregando" } else { "Carregando o notebook · até 85 W" } } else { "O dock não está carregando o notebook" }, FontId::proportional(12.5), if flow.pd_on { pal::bolt().gamma_multiply(0.8) } else { pal::amber() });
     let cable_hit = Rect::from_center_size(mid, vec2((b.x - a.x).max(10.0), 70.0));
     if ui.interact(cable_hit, ui.id().with("cabo"), Sense::click()).clicked() {
         *sel = Some(Sel::Cable);
@@ -980,7 +1029,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
 
     // --- nós
     let hostn = topo.host_router.as_ref();
-    let host_lines = vec![format!("USB4 A73E · fw {}", hostn.and_then(|n| n.firmware.clone()).unwrap_or("?".into()))];
+    let host_lines = vec!["Thunderbolt 4".to_string(), format!("Firmware {}", hostn.and_then(|n| n.firmware.clone()).unwrap_or("?".into()))];
     node_box(&p, host, "Notebook", &host_lines, pal::intel(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
     if ui.interact(host, ui.id().with("host"), Sense::click()).clicked() {
         *sel = Some(Sel::Host);
@@ -989,14 +1038,14 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let dr = topo.dock_router.as_ref();
     let fw = dr.and_then(|n| n.firmware.clone()).unwrap_or("—".into());
     let model = topo.dock_usb4.iter().find(|p| p.pid == 10).map(|p| p.val.show()).unwrap_or("—".into());
-    let mut dock_lines = vec![format!("JHL7440 · fw {fw}")];
+    let mut dock_lines = vec![format!("Thunderbolt 3 · firmware {fw}")];
     let _ = &model;
     match dr.and_then(|n| n.last_arrival) {
-        Some(ts) => dock_lines.push(format!("🕒 {}", fmt_dur(now_ms() - ts))),
-        None => dock_lines.push("⛔ não detectado".into()),
+        Some(ts) => dock_lines.push(format!("Conectado há {}", fmt_dur(now_ms() - ts))),
+        None => dock_lines.push("Não encontrado".into()),
     }
     if let Some(br) = bench {
-        dock_lines.push(format!("⇅ {:.2} / {:.2} GB/s", br.h2d_gbs, br.d2h_gbs));
+        dock_lines.push(format!("Banda medida: {:.1} GB/s", br.h2d_gbs.max(br.d2h_gbs)).replace('.', ","));
     }
     node_box(&p, dock, "Dock WKG-L19", &dock_lines, pal::cyan(), if dock_ok && switch_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Dock), true, Some(&|p: &egui::Painter, r: Rect| art::dock(p, r.with_max_y(r.bottom() - 26.0), dock_ok, t)));
     // bolinhas de estado das portas downstream (verde = D0 ativo, cinza = D3 dormindo)
@@ -1014,7 +1063,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
             PortRole::UsbA => "🖴",
             _ => "⚡",
         };
-        p.text(c + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, icon, FontId::proportional(10.0), pal::dim());
+        p.text(c + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, icon, FontId::proportional(11.5), pal::dim());
         let hit = Rect::from_center_size(c + vec2(6.0, 0.0), vec2(26.0, 18.0));
         ui.interact(hit, ui.id().with(("dport", i)), Sense::hover()).on_hover_text(format!("porta downstream {} · {}", i + 1, dname(&dp.node)));
     }
@@ -1027,14 +1076,14 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let gm = flow.gpu.unwrap_or_default();
         let _ = g;
         vec![
-            format!("🌡 {:.0} °C   ⚡ {:.0} W", gm.temp.unwrap_or(0.0), gm.tbp.unwrap_or(0.0)),
+            format!("{:.0} °C · {:.0} W", gm.temp.unwrap_or(0.0), gm.tbp.unwrap_or(0.0)),
             match gpu_static {
                 Some(s) => format!("{} x{}", s.bus, s.lanes),
                 None => "…".into(),
             },
         ]
     } else {
-        vec!["não detectada".into()]
+        vec!["Não encontrada".into()]
     };
     let gm = flow.gpu.unwrap_or_default();
     let spin = gm.fan.map(|f| f as f32 / 3200.0).unwrap_or(gm.usage.unwrap_or(0.0) as f32 / 100.0);
@@ -1052,17 +1101,17 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
                 let _ = x;
                 let mut l = vec![];
                 if topo.usb_a.is_empty() {
-                    l.push("vazia".into());
+                    l.push("Livre".into());
                 } else {
                     for d in topo.usb_a.iter().take(2) {
-                        l.push(format!("🖴 {}", d.name));
+                        l.push(d.name.clone());
                     }
                 }
                 ("USB-A 10 Gb/s", l, pal::green())
             }
             _ => (
                 "TB extra 15 W",
-                vec![if dp.child.is_some() { "em uso".into() } else { "vazia".into() }],
+                vec![if dp.child.is_some() { "Em uso".into() } else { "Livre".into() }],
                 pal::faint(),
             ),
         };
@@ -1124,20 +1173,20 @@ impl eframe::App for App {
                     pill(ui, th.name(), pal::cyan());
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(pal::faint()).size(11.0))
+                    ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(pal::faint()).size(12.5))
                         .on_hover_text("Consumo do próprio painel (RAM e CPU). Fechando a janela, ele volta para a bandeja e para de coletar.");
                     ui.add_space(pal::gap());
                     match &topo.dock_router {
                         Some(n) => {
-                            if status_pill(ui, &format!("dock · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
+                            if status_pill(ui, &format!("Dock conectado · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
                                 self.sel = Some(Sel::Dock);
                             }
                         }
                         None if topo.read_ms == 0 => {
-                            status_pill(ui, "lendo…", pal::dim(), t, false);
+                            status_pill(ui, "Procurando o dock…", pal::dim(), t, false);
                         }
                         None => {
-                            status_pill(ui, "dock DESCONECTADO", pal::red(), t, true);
+                            status_pill(ui, "Dock desconectado", pal::red(), t, true);
                         }
                     }
                 });
@@ -1198,6 +1247,7 @@ impl eframe::App for App {
                     }
                     Tab::Enlace => {
                         let cols = if ui.available_width() > 1150.0 { 3 } else { 2 };
+                        ui.spacing_mut().item_spacing.x = pal::gap();
                         ui.columns(cols, |c| {
                             self.card_link(&mut c[0], &topo, bench_done.as_ref());
                             let (pi, si) = if cols == 3 { (1, 2) } else { (1, 1) };
@@ -1207,6 +1257,7 @@ impl eframe::App for App {
                         });
                     }
                     Tab::Fluxo => {
+                        ui.spacing_mut().item_spacing.x = pal::gap();
                         ui.columns(2, |c| {
                             self.card_flow(&mut c[0], &samples, &bench, &ctx);
                             self.card_gpu(&mut c[1], &samples, gpu_static.as_ref());
@@ -1216,7 +1267,7 @@ impl eframe::App for App {
                     Tab::Opcoes => self.page_options(ui, &ctx, th),
                 }
                 for n in &notes {
-                    ui.label(egui::RichText::new(format!("⚠ {n}")).color(pal::amber()).size(11.5));
+                    ui.label(egui::RichText::new(format!("⚠ {n}")).color(pal::amber()).size(13.0));
                 }
                 ui.add_space(14.0);
             });
@@ -1310,20 +1361,20 @@ impl App {
         // direita: estado do dock e consumo do painel
         let right = Rect::from_min_max(pos2(x + 10.0, full.top()), full.max - vec2(16.0, 0.0));
         ui.scope_builder(egui::UiBuilder::new().max_rect(right).layout(egui::Layout::right_to_left(egui::Align::Center)), |ui| {
-            ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(Color32::from_gray(130)).size(11.0))
+            ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(Color32::from_gray(130)).size(12.5))
                 .on_hover_text("Consumo do próprio painel (RAM e CPU).");
             ui.add_space(12.0);
             match &topo.dock_router {
                 Some(n) => {
-                    if status_pill(ui, &format!("dock · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
+                    if status_pill(ui, &format!("Dock conectado · {}", n.last_arrival.map(|a| fmt_dur(now_ms() - a)).unwrap_or_default()), pal::green(), t, false).clicked() {
                         self.sel = Some(Sel::Dock);
                     }
                 }
                 None if topo.read_ms == 0 => {
-                    status_pill(ui, "lendo…", pal::dim(), t, false);
+                    status_pill(ui, "Procurando o dock…", pal::dim(), t, false);
                 }
                 None => {
-                    status_pill(ui, "dock DESCONECTADO", pal::red(), t, true);
+                    status_pill(ui, "Dock desconectado", pal::red(), t, true);
                 }
             }
         });
@@ -1375,27 +1426,31 @@ impl App {
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing.x = 14.0;
+                    // seis medidores espalhados por igual na largura do cartão
+                    let gw = 100.0;
+                    let free = ui.available_width() - 6.0 * gw;
+                    ui.spacing_mut().item_spacing.x = (free / 6.0).clamp(14.0, 160.0);
+                    ui.add_space((free / 12.0).clamp(0.0, 80.0));
                     let link_col = if gbps >= 40.0 { pal::green() } else if gbps > 0.0 { pal::amber() } else { pal::red() };
-                    if gauge(ui, "⚡", gbps, 40.0, "Gb/s", "enlace", link_col).on_hover_text("Velocidade do enlace TB (chaves USB4 20 e 21)").clicked() {
+                    if gauge(ui, "⚡", gbps, 40.0, "Gb/s", "Conexão", link_col).on_hover_text("Velocidade do enlace TB (chaves USB4 20 e 21)").clicked() {
                         self.tab = Tab::Enlace;
                     }
                     let up = bench.map(|b| b.h2d_gbs as f32).unwrap_or(0.0);
-                    if gauge(ui, "⇅", up, 2.8, "GB/s", "túnel", if up >= 2.4 { pal::green() } else { pal::amber() }).on_hover_text("Banda host→GPU medida no último teste (esperado TB3: 2,5–2,8 GB/s)").clicked() {
+                    if gauge(ui, "⇅", up, 2.8, "GB/s", "Banda", if up >= 2.4 { pal::green() } else { pal::amber() }).on_hover_text("Banda host→GPU medida no último teste (esperado TB3: 2,5–2,8 GB/s)").clicked() {
                         self.tab = Tab::Fluxo;
                     }
                     let pd_col = if pw.map(|p| p.online).unwrap_or(false) { pal::green() } else { pal::amber() };
-                    if gauge(ui, "🔌", pct, 100.0, "%", if pw.map(|p| p.online).unwrap_or(false) { "PD" } else { "bateria" }, pd_col).on_hover_text("Bateria do note; verde = recebendo energia PD do dock").clicked() {
+                    if gauge(ui, "🔌", pct, 100.0, "%", if pw.map(|p| p.online).unwrap_or(false) { "Carregando" } else { "Bateria" }, pd_col).on_hover_text("Bateria do note; verde = recebendo energia PD do dock").clicked() {
                         self.tab = Tab::Enlace;
                     }
-                    if gauge(ui, "💥", drops24, 10.0, "24 h", "quedas", if drops24 > 0.0 { pal::red() } else { pal::green() }).on_hover_text("Quedas do dock/GPU nas últimas 24 h").clicked() {
+                    if gauge(ui, "💥", drops24, 10.0, "24 h", "Quedas", if drops24 > 0.0 { pal::red() } else { pal::green() }).on_hover_text("Quedas do dock/GPU nas últimas 24 h").clicked() {
                         self.tab = Tab::Historico;
                     }
                     let heat = if temp > 85.0 { pal::red() } else if temp > 70.0 { pal::amber() } else { pal::green() };
-                    if gauge(ui, "🌡", temp, 100.0, "°C", "GPU", heat).clicked() {
+                    if gauge(ui, "🌡", temp, 100.0, "°C", "Temperatura", heat).clicked() {
                         self.tab = Tab::Fluxo;
                     }
-                    if gauge(ui, "⇄", last.copy, 100.0, "%", "Copy", pal::cyan()).on_hover_text("Motor Copy da GPU: proxy do tráfego no túnel").clicked() {
+                    if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::cyan()).on_hover_text("Motor Copy da GPU: proxy do tráfego no túnel").clicked() {
                         self.tab = Tab::Fluxo;
                     }
                 });
@@ -1417,7 +1472,7 @@ impl App {
                     }
                 }
             });
-            ui.label(egui::RichText::new("O automático detecta a GPU do dock (AMD, NVIDIA ou Intel) e aplica a paleta do fabricante. AMD usa abas no topo; NVIDIA e Intel, menu à esquerda.").color(pal::dim()).size(12.0));
+            ui.label(egui::RichText::new("O automático detecta a GPU do dock (AMD, NVIDIA ou Intel) e aplica a paleta do fabricante. AMD usa abas no topo; NVIDIA e Intel, menu à esquerda.").color(pal::dim()).size(13.5));
         });
         ui.add_space(pal::gap());
         card(ui, "🖥  Tela", pal::cyan(), |ui| {
@@ -1467,7 +1522,7 @@ impl App {
                 }
             });
             if let Some(f) = &self.flash {
-                ui.label(egui::RichText::new(f).color(pal::cyan()).size(12.0));
+                ui.label(egui::RichText::new(f).color(pal::cyan()).size(13.5));
             }
         });
         if cfg != before {
@@ -1496,7 +1551,7 @@ fn theme_card(ui: &mut Ui, name: &str, th: Th, selected: bool) -> egui::Response
     }
     p.circle_filled(rect.min + vec2(70.0, 44.0), 9.0, accent.gamma_multiply(0.8));
     p.line_segment([rect.min + vec2(80.0, 44.0), rect.min + vec2(140.0, 44.0)], Stroke::new(2.0, accent));
-    p.text(rect.left_bottom() + vec2(10.0, -12.0), egui::Align2::LEFT_CENTER, name, FontId::proportional(12.5), fg);
+    p.text(rect.left_bottom() + vec2(10.0, -12.0), egui::Align2::LEFT_CENTER, name, FontId::proportional(14.0), fg);
     let _ = dim;
     let k = ui.ctx().animate_bool_with_time(resp.id, selected || resp.hovered(), 0.15);
     p.rect_stroke(rect, CornerRadius::same(pal::radius()), Stroke::new(1.0 + 1.5 * k, if selected { accent } else { pal::border() }), StrokeKind::Inside);
@@ -1584,7 +1639,7 @@ fn status_pill(ui: &mut Ui, text: &str, color: Color32, t: f64, pulse: bool) -> 
                 let k = if pulse { (t * 3.0).sin() as f32 * 0.5 + 0.5 } else { (t * 1.2).sin() as f32 * 0.25 + 0.75 };
                 ui.painter().circle_filled(d.center(), 6.0 * k, color.gamma_multiply(0.25));
                 ui.painter().circle_filled(d.center(), 3.5, color);
-                ui.label(egui::RichText::new(text).color(color).size(12.5));
+                ui.label(egui::RichText::new(text).color(color).size(14.0));
             });
         })
         .response;
@@ -1599,11 +1654,11 @@ fn tile(ui: &mut Ui, icon: &str, value: String, unit: &str, label: &str, color: 
         .inner_margin(egui::Margin::symmetric(10, 6))
         .show(ui, |ui| {
             ui.vertical(|ui| {
-                ui.label(egui::RichText::new(format!("{icon} {label}")).color(pal::dim()).size(11.0));
+                ui.label(egui::RichText::new(format!("{icon} {label}")).color(pal::dim()).size(12.5));
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
                     ui.label(egui::RichText::new(value).size(21.0).strong().color(color));
-                    ui.label(egui::RichText::new(unit).size(11.5).color(pal::dim()));
+                    ui.label(egui::RichText::new(unit).size(13.0).color(pal::dim()));
                 });
             });
         })
@@ -1638,7 +1693,7 @@ const HIDDEN: [(&str, &str, &str); 6] = [
 fn hidden_strip(ui: &mut Ui, sel: &mut Option<Sel>) {
     ui.add_space(4.0);
     ui.horizontal_wrapped(|ui| {
-        ui.label(egui::RichText::new("🚫").color(pal::faint()).size(12.0)).on_hover_text("Invisível ao Windows — passe o mouse em cada ícone");
+        ui.label(egui::RichText::new("🚫").color(pal::faint()).size(13.5)).on_hover_text("Invisível ao Windows — passe o mouse em cada ícone");
         for (icon, name, why) in HIDDEN {
             let r = egui::Frame::new()
                 .fill(pal::well())
@@ -1671,7 +1726,7 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::R
         let y = rect.top() + 4.0 + l as f32 * 18.0;
         let track = Rect::from_min_max(pos2(x0, y), pos2(x1, y + 11.0));
         p.rect_filled(track, CornerRadius::same(5), pal::well());
-        p.text(pos2(rect.left(), y + 5.5), egui::Align2::LEFT_CENTER, format!("faixa {}", l + 1), FontId::proportional(11.0), pal::dim());
+        p.text(pos2(rect.left(), y + 5.5), egui::Align2::LEFT_CENTER, format!("faixa {}", l + 1), FontId::proportional(12.5), pal::dim());
         if let Some(v) = per_lane {
             let frac = (v / 20.0).clamp(0.0, 1.0);
             let fill = Rect::from_min_max(track.min, pos2(x0 + (x1 - x0) * frac, track.bottom()));
@@ -1680,12 +1735,12 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::R
             // brilho correndo dentro da faixa
             let sx = fill.left() + ((t as f32 * 60.0 + l as f32 * 37.0) % fill.width().max(1.0));
             p.rect_filled(Rect::from_center_size(pos2(sx, fill.center().y), vec2(14.0, 9.0)), CornerRadius::same(4), Color32::WHITE.gamma_multiply(0.18));
-            p.text(pos2(x1 + 8.0, y + 5.5), egui::Align2::LEFT_CENTER, format!("{v:.0}/20 Gb/s"), FontId::proportional(11.5), col);
+            p.text(pos2(x1 + 8.0, y + 5.5), egui::Align2::LEFT_CENTER, format!("{v:.0}/20 Gb/s"), FontId::proportional(13.0), col);
         }
     }
     let total = per_lane.map(|v| v * lanes as f32);
     if let Some(t) = total {
-        p.text(pos2(x1 + 8.0, rect.bottom() - 2.0), egui::Align2::LEFT_BOTTOM, format!("Σ {t:.0}/40"), FontId::proportional(11.0), pal::dim());
+        p.text(pos2(x1 + 8.0, rect.bottom() - 2.0), egui::Align2::LEFT_BOTTOM, format!("Σ {t:.0}/40"), FontId::proportional(12.5), pal::dim());
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -1743,7 +1798,7 @@ fn drops_chart(ui: &mut Ui, incidents: &[&Incident]) -> egui::Response {
             p.rect_filled(Rect::from_min_max(pos2(x + 2.0, base - h1 - h2), pos2(x + bw - 2.0, base - h1)), CornerRadius::same(2), pal::red());
         }
         if link + pd > 0 {
-            p.text(pos2(x + bw / 2.0, base - h1 - h2 - 1.0), egui::Align2::CENTER_BOTTOM, format!("{}", link + pd), FontId::proportional(10.0), pal::dim());
+            p.text(pos2(x + bw / 2.0, base - h1 - h2 - 1.0), egui::Align2::CENTER_BOTTOM, format!("{}", link + pd), FontId::proportional(11.5), pal::dim());
         }
     }
     p.text(rect.left_bottom(), egui::Align2::LEFT_BOTTOM, "14 dias atrás", FontId::proportional(9.5), pal::faint());
@@ -1777,8 +1832,8 @@ fn gauge(ui: &mut Ui, icon: &str, value: f32, max: f32, unit: &str, label: &str,
         p.circle_filled(c + vec2(a.cos(), a.sin()) * r, 4.5, color);
     }
     p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, format!("{v:.0}"), FontId::proportional(19.0), pal::fg());
-    p.text(c + vec2(0.0, 14.0), egui::Align2::CENTER_CENTER, unit, FontId::proportional(10.5), pal::dim());
-    p.text(pos2(c.x, rect.bottom() - 1.0), egui::Align2::CENTER_BOTTOM, format!("{icon} {label}"), FontId::proportional(11.0), pal::dim());
+    p.text(c + vec2(0.0, 14.0), egui::Align2::CENTER_CENTER, unit, FontId::proportional(12.0), pal::dim());
+    p.text(pos2(c.x, rect.bottom() - 1.0), egui::Align2::CENTER_BOTTOM, format!("{icon} {label}"), FontId::proportional(12.5), pal::dim());
     if resp.hovered() {
         p.circle_stroke(c, r + 7.0, Stroke::new(1.0, color.gamma_multiply(0.4)));
     }
@@ -1819,7 +1874,7 @@ fn chip(ui: &mut Ui, on: bool, text: &str, color: Color32) -> bool {
         .stroke(Stroke::new(1.0, stroke))
         .corner_radius(CornerRadius::same(pal::radius()))
         .inner_margin(egui::Margin::symmetric(8, 2))
-        .show(ui, |ui| ui.add(egui::Label::new(egui::RichText::new(text).color(tc).size(12.0)).extend()))
+        .show(ui, |ui| ui.add(egui::Label::new(egui::RichText::new(text).color(tc).size(13.5)).extend()))
         .response;
     ui.interact(r.rect, ui.id().with(("chip", text)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
 }
@@ -1950,7 +2005,7 @@ impl App {
         card_i(ui, "📶  Fluxo de dados no túnel", pal::cyan(), &mut sel, Topic::Flow, "Por que o motor Copy é o proxy do tráfego", |ui, sel| {
             let last = samples.last().copied().unwrap_or_default();
             ui.horizontal(|ui| {
-                if gauge(ui, "⇄", last.copy, 100.0, "%", "Copy", pal::cyan()).on_hover_text("Motor Copy: cópias DMA host↔GPU — o que mais passa pelo túnel").clicked() {
+                if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::cyan()).on_hover_text("Motor Copy: cópias DMA host↔GPU — o que mais passa pelo túnel").clicked() {
                     *sel = Some(Sel::Info(Topic::Flow));
                 }
                 if gauge(ui, "△", last.d3, 100.0, "%", "3D", pal::amd()).clicked() {
@@ -1958,10 +2013,10 @@ impl App {
                 }
                 ui.vertical(|ui| {
                     ui.add_space(14.0);
-                    ui.add(egui::ProgressBar::new((last.ded_mb as f32 / 16368.0).clamp(0.0, 1.0)).desired_width(ui.available_width()).text(format!("🗃 VRAM {:.0} MB", last.ded_mb)).fill(pal::amd().gamma_multiply(0.7)))
+                    meter_bar(ui, last.ded_mb as f32 / 16368.0, &format!("Memória da placa (VRAM) · {:.0} MB", last.ded_mb), pal::amd())
                         .on_hover_text("Memória dedicada da GPU em uso (PDH GPU Adapter Memory)");
                     ui.add_space(6.0);
-                    ui.add(egui::ProgressBar::new((last.shared_mb as f32 / 8192.0).clamp(0.0, 1.0)).desired_width(ui.available_width()).text(format!("🔁 compartilhada {:.0} MB", last.shared_mb)).fill(pal::cyan().gamma_multiply(0.7)))
+                    meter_bar(ui, last.shared_mb as f32 / 8192.0, &format!("RAM do notebook usada pela placa · {:.0} MB", last.shared_mb), pal::violet())
                         .on_hover_text("RAM do note mapeada pela GPU — cada acesso atravessa o túnel TB");
                 });
             });
@@ -1976,10 +2031,10 @@ impl App {
                 match bench {
                     BenchState::Running(s) => {
                         ui.spinner();
-                        ui.label(egui::RichText::new(s).color(pal::dim()).size(12.0));
+                        ui.label(egui::RichText::new(s).color(pal::dim()).size(13.5));
                     }
                     BenchState::Failed(e) => {
-                        ui.label(egui::RichText::new(e).color(pal::red()).size(12.0));
+                        ui.label(egui::RichText::new(e).color(pal::red()).size(13.5));
                     }
                     _ => {}
                 }
@@ -2021,7 +2076,7 @@ impl App {
             if let Some(s) = st {
                 let vram = g.vram.unwrap_or(0) as f32;
                 let frac = if s.vram_total_mb > 0 { vram / s.vram_total_mb as f32 } else { 0.0 };
-                ui.add(egui::ProgressBar::new(frac).text(format!("VRAM {} / {} MB", g.vram.unwrap_or(0), s.vram_total_mb)).fill(pal::amd().gamma_multiply(0.6)));
+                meter_bar(ui, frac, &format!("VRAM {} de {} MB", g.vram.unwrap_or(0), s.vram_total_mb), pal::amd());
             }
         });
         self.sel = sel;
@@ -2031,7 +2086,7 @@ impl App {
         let now = now_ms();
         let mut sel = self.sel;
         let mut go_all = false;
-        let title = if compact { "🕓  Últimos incidentes" } else { "🕓  Linha do tempo" };
+        let title = if compact { "🕓  O que aconteceu" } else { "🕓  Linha do tempo" };
         card_i(ui, title, pal::red(), &mut sel, Topic::Stability, "Fontes: Event Log, PnP ao vivo, Overwatch", |ui, _sel| {
             let enabled: Vec<Cat> = self.cats.iter().filter(|c| c.1).map(|c| c.0).collect();
             let t0 = if compact {
@@ -2085,12 +2140,12 @@ impl App {
                     };
                     p.line_segment([pos2(x, y0), pos2(x, y1)], Stroke::new(if e.kind.severity() == 2 { 2.0 } else { 1.0 }, cat_color(e.kind.cat())));
                 }
-                p.text(rect.left_bottom() + vec2(8.0, -2.0), egui::Align2::LEFT_BOTTOM, fmt_local(t0, false), FontId::proportional(10.0), pal::faint());
-                p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, "agora", FontId::proportional(10.0), pal::faint());
+                p.text(rect.left_bottom() + vec2(8.0, -2.0), egui::Align2::LEFT_BOTTOM, fmt_local(t0, false), FontId::proportional(11.5), pal::faint());
+                p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, "agora", FontId::proportional(11.5), pal::faint());
                 if let Some(pos) = resp.hover_pos() {
                     let ts = t0 + (((pos.x - rect.left() - 8.0) / (rect.width() - 16.0)) as f64 * (now - t0) as f64) as i64;
                     p.line_segment([pos2(pos.x, rect.top()), pos2(pos.x, rect.bottom())], Stroke::new(1.0, pal::dim().gamma_multiply(0.5)));
-                    p.text(pos2(pos.x + 4.0, rect.top() + 2.0), egui::Align2::LEFT_TOP, fmt_local(ts, false), FontId::proportional(10.0), pal::dim());
+                    p.text(pos2(pos.x + 4.0, rect.top() + 2.0), egui::Align2::LEFT_TOP, fmt_local(ts, false), FontId::proportional(11.5), pal::dim());
                 }
                 ui.add_space(6.0);
             }
@@ -2115,9 +2170,9 @@ impl App {
             self.open_inc = open;
             ui.horizontal(|ui| {
                 if compact {
-                    if total > limit && ui.add(egui::Button::new(egui::RichText::new(format!("ver tudo ({total}) →")).color(pal::cyan())).frame(false)).clicked() {
+                    if total > limit && ui.add(egui::Button::new(egui::RichText::new(format!("Ver histórico completo ({total}) →")).color(pal::cyan())).frame(false)).clicked() {
                         go_all = true;
-                    } else if total <= limit && ui.add(egui::Button::new(egui::RichText::new("histórico completo →").color(pal::cyan())).frame(false)).clicked() {
+                    } else if total <= limit && ui.add(egui::Button::new(egui::RichText::new("Ver histórico completo →").color(pal::cyan())).frame(false)).clicked() {
                         go_all = true;
                     }
                 } else if total > limit {
@@ -2196,7 +2251,7 @@ impl App {
 
     fn info(&mut self, ui: &mut Ui, t: Topic, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
         let para = |ui: &mut Ui, s: &str| {
-            ui.label(egui::RichText::new(s).size(12.5).color(pal::fg()));
+            ui.label(egui::RichText::new(s).size(14.0).color(pal::fg()));
             ui.add_space(4.0);
         };
         match t {
@@ -2256,6 +2311,21 @@ impl App {
     }
 }
 
+/// "hoje 01:46", "ontem 14:04" ou "12/11 03:27".
+fn friendly_time(ms: i64) -> String {
+    use chrono::TimeZone;
+    let Some(t) = chrono::Local.timestamp_millis_opt(ms).single() else { return String::new() };
+    let today = chrono::Local::now().date_naive();
+    let d = t.date_naive();
+    if d == today {
+        format!("hoje {}", t.format("%H:%M"))
+    } else if Some(d) == today.pred_opt() {
+        format!("ontem {}", t.format("%H:%M"))
+    } else {
+        t.format("%d/%m %H:%M").to_string()
+    }
+}
+
 fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
     let head = inc.events.iter().max_by_key(|e| (e.kind.severity(), e.kind.is_drop() as u8)).unwrap();
     let color = if inc.is_drop { pal::red() } else { sev_color(inc.sev) };
@@ -2266,8 +2336,8 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
         .inner_margin(egui::Margin::symmetric(8, 3))
         .show(ui, |ui| {
             let r = ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(kind_icon(head.kind)).color(color).size(15.0));
-                ui.label(egui::RichText::new(fmt_local(inc.start, true)).monospace().color(pal::dim()).size(12.0));
+                ui.add_sized([24.0, 20.0], egui::Label::new(egui::RichText::new(kind_icon(head.kind)).color(color).size(15.0)));
+                ui.add_sized([96.0, 18.0], egui::Label::new(egui::RichText::new(friendly_time(inc.start)).color(pal::dim()).size(14.0)));
                 ui.label(egui::RichText::new(head.kind.label()).color(color).strong());
                 let mut seen = vec![head.kind];
                 for e in &inc.events {
@@ -2284,7 +2354,7 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
                     }
                 }
                 if inc.events.len() > 1 {
-                    ui.label(egui::RichText::new(format!("×{}", inc.events.len())).color(pal::faint()).size(11.0));
+                    ui.label(egui::RichText::new(format!("×{}", inc.events.len())).color(pal::faint()).size(12.5));
                 }
             });
             let click = ui.interact(r.response.rect, ui.id().with(("inc", inc.start)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -2296,13 +2366,13 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
                     ui.horizontal_wrapped(|ui| {
                         ui.add_space(22.0);
                         ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
-                        ui.label(egui::RichText::new(fmt_local(e.ts, true)).monospace().size(11.5).color(pal::faint()));
-                        ui.label(egui::RichText::new(&e.msg).size(12.0)).on_hover_text(format!("fonte: {}\n{}", e.src, e.dev.clone().unwrap_or_default()));
+                        ui.label(egui::RichText::new(fmt_local(e.ts, false)).size(13.0).color(pal::faint()));
+                        ui.label(egui::RichText::new(&e.msg).size(13.5)).on_hover_text(format!("fonte: {}\n{}", e.src, e.dev.clone().unwrap_or_default()));
                     });
                     if let Some(s) = &e.snap {
                         ui.horizontal_wrapped(|ui| {
                             ui.add_space(40.0);
-                            ui.label(egui::RichText::new(format!("📸 {s}")).size(11.5).color(pal::cyan()));
+                            ui.label(egui::RichText::new(format!("📸 {s}")).size(13.0).color(pal::cyan()));
                         });
                     }
                 }
@@ -2310,14 +2380,14 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
                     let before = history::get().before(inc.start, 120_000);
                     ui.horizontal(|ui| {
                         ui.add_space(22.0);
-                        ui.label(egui::RichText::new(format!("⏪ 2 min antes: {}", if before.is_empty() { "nada no Event Log (queda sem aviso)".to_string() } else { format!("{} evento(s)", before.len()) })).strong().color(pal::amber()).size(12.0));
+                        ui.label(egui::RichText::new(format!("⏪ 2 min antes: {}", if before.is_empty() { "nada no Event Log (queda sem aviso)".to_string() } else { format!("{} evento(s)", before.len()) })).strong().color(pal::amber()).size(13.5));
                     });
                     for e in before.iter().rev().take(20) {
                         ui.horizontal_wrapped(|ui| {
                             ui.add_space(40.0);
-                            ui.label(egui::RichText::new(format!("−{:.1} s", (inc.start - e.ts) as f64 / 1000.0)).monospace().size(11.5).color(pal::faint()));
+                            ui.label(egui::RichText::new(format!("−{:.1} s", (inc.start - e.ts) as f64 / 1000.0)).monospace().size(13.0).color(pal::faint()));
                             ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
-                            ui.label(egui::RichText::new(&e.msg).size(11.5).color(pal::dim()));
+                            ui.label(egui::RichText::new(&e.msg).size(13.0).color(pal::dim()));
                         });
                     }
                 }
@@ -2362,8 +2432,8 @@ fn node_details(ui: &mut Ui, title: &str, n: Option<&Node>) {
     };
     egui::Grid::new(("nd", title, &n.id)).num_columns(2).spacing(vec2(10.0, 2.0)).striped(true).max_col_width(ui.available_width() * 0.62).show(ui, |ui| {
         let mut row = |k: &str, v: String| {
-            ui.label(egui::RichText::new(k).color(pal::dim()).size(11.5));
-            ui.label(egui::RichText::new(v).size(11.5));
+            ui.label(egui::RichText::new(k).color(pal::dim()).size(13.0));
+            ui.label(egui::RichText::new(v).size(13.0));
             ui.end_row();
         };
         row("nome", n.name.clone());
@@ -2406,20 +2476,20 @@ fn usb4_table(ui: &mut Ui, title: &str, props: &[crate::pnp::Usb4Prop]) {
     }
     egui::Grid::new(("u4", title)).num_columns(4).spacing(vec2(8.0, 2.0)).striped(true).max_col_width(ui.available_width() * 0.42).show(ui, |ui| {
         for h in ["pid", "valor bruto", "significado", "confiança"] {
-            ui.label(egui::RichText::new(h).color(pal::faint()).size(11.0));
+            ui.label(egui::RichText::new(h).color(pal::faint()).size(12.5));
         }
         ui.end_row();
         for p in props {
-            ui.label(egui::RichText::new(p.pid.to_string()).monospace().size(11.5));
-            ui.label(egui::RichText::new(format!("{} {}", p.val.type_name(), p.val.show())).monospace().size(11.0).color(pal::dim()));
-            ui.label(egui::RichText::new(format!("{}\n{}", p.meaning, p.decoded)).size(11.5));
+            ui.label(egui::RichText::new(p.pid.to_string()).monospace().size(13.0));
+            ui.label(egui::RichText::new(format!("{} {}", p.val.type_name(), p.val.show())).monospace().size(12.5).color(pal::dim()));
+            ui.label(egui::RichText::new(format!("{}\n{}", p.meaning, p.decoded)).size(13.0));
             let c = match p.confidence {
                 "certo" => pal::green(),
                 "forte" => pal::cyan(),
                 "hipótese" => pal::amber(),
                 _ => pal::faint(),
             };
-            ui.label(egui::RichText::new(p.confidence).color(c).size(11.5));
+            ui.label(egui::RichText::new(p.confidence).color(c).size(13.0));
             ui.end_row();
         }
     });
@@ -2434,13 +2504,13 @@ fn bars(ui: &mut Ui, r: &BenchResult) {
     // faixa esperada TB3 40G
     let band = Rect::from_x_y_ranges(x_of(2.5)..=x_of(2.8), rect.top()..=rect.bottom() - 14.0);
     p.rect_filled(band, CornerRadius::same(3), pal::green().gamma_multiply(0.12));
-    p.text(pos2(band.center().x, rect.bottom()), egui::Align2::CENTER_BOTTOM, "esperado TB3 40 Gb/s", FontId::proportional(10.0), pal::green().gamma_multiply(0.8));
+    p.text(pos2(band.center().x, rect.bottom()), egui::Align2::CENTER_BOTTOM, "esperado TB3 40 Gb/s", FontId::proportional(11.5), pal::green().gamma_multiply(0.8));
     for (i, (label, v, c)) in [("host → GPU", r.h2d_gbs, pal::cyan()), ("GPU → host", r.d2h_gbs, pal::violet())].iter().enumerate() {
         let y = rect.top() + 8.0 + i as f32 * 26.0;
-        p.text(pos2(rect.left(), y + 8.0), egui::Align2::LEFT_CENTER, *label, FontId::proportional(12.0), pal::dim());
+        p.text(pos2(rect.left(), y + 8.0), egui::Align2::LEFT_CENTER, *label, FontId::proportional(13.5), pal::dim());
         let bar = Rect::from_min_max(pos2(x_of(0.0), y), pos2(x_of(*v as f32), y + 16.0));
         p.rect_filled(bar, CornerRadius::same(3), *c);
-        p.text(pos2(bar.right() + 6.0, y + 8.0), egui::Align2::LEFT_CENTER, format!("{v:.2} GB/s"), FontId::proportional(12.5), pal::fg());
+        p.text(pos2(bar.right() + 6.0, y + 8.0), egui::Align2::LEFT_CENTER, format!("{v:.2} GB/s"), FontId::proportional(14.0), pal::fg());
     }
 }
 
