@@ -248,6 +248,9 @@ pub struct App {
     collector: Option<std::thread::JoinHandle<()>>,
     bench: Arc<Mutex<BenchState>>,
     sel: Option<Sel>,
+    /// seleção do quadro anterior e instante da última troca (animação de entrada do painel lateral)
+    sel_prev: Option<Sel>,
+    sel_at: f64,
     range: Range,
     cats: Vec<(Cat, bool)>,
     hist_len: usize,
@@ -281,16 +284,19 @@ impl App {
         Self {
             collector: Some(collect::start(ctx)),
             bench: Arc::new(Mutex::new(last_bench.map(BenchState::Done).unwrap_or(BenchState::Idle))),
-            // EGPU_SEL=gpu|dock|host|cable|psu|port0.. abre com o painel lateral de um nó (capturas e testes)
+            // EGPU_SEL=gpu|dock|host|cable|psu|info|port0.. abre com o painel lateral de um nó (capturas e testes)
             sel: match std::env::var("EGPU_SEL").ok().as_deref() {
                 Some("gpu") => Some(Sel::Gpu),
                 Some("dock") => Some(Sel::Dock),
                 Some("host") => Some(Sel::Host),
                 Some("cable") => Some(Sel::Cable),
+                Some("info") => Some(Sel::Info(Topic::Link)),
                 Some("psu") if crate::psu::load().watts > 0 => Some(Sel::Psu),
                 Some(v) if v.starts_with("port") => v[4..].parse().ok().map(Sel::Port),
                 _ => None,
             },
+            sel_prev: None,
+            sel_at: 0.0,
             range: Range::D7,
             cats: vec![
                 (Cat::Dock, true),
@@ -1358,15 +1364,37 @@ impl eframe::App for App {
         }
 
         // ---------------- painel lateral (detalhes / explicações)
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.sel = None;
+        }
+        if self.sel != self.sel_prev {
+            self.sel_at = t;
+            self.sel_prev = self.sel;
+        }
         if self.sel.is_some() {
+            // entrada curta (220 ms, ease-out): desliza da esquerda e aparece
+            let k = ((t - self.sel_at) / 0.22).clamp(0.0, 1.0) as f32;
+            let e = 1.0 - (1.0 - k).powi(3);
+            if k < 1.0 {
+                ctx.request_repaint();
+            }
             egui::Panel::right("detalhes")
                 .resizable(true)
                 .default_size(430.0)
+                .min_size(360.0)
                 .max_size(560.0)
-                .frame(egui::Frame::new().fill(pal::card()).inner_margin(egui::Margin::same(14)).stroke(Stroke::new(1.0, pal::border())))
+                .frame(egui::Frame::new().fill(pal::card()).inner_margin(egui::Margin::same(10)).stroke(Stroke::new(1.0, pal::border())))
                 .show_inside(root, |ui| {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                    egui::ScrollArea::vertical().show(ui, |ui| self.details(ui, &topo, gpu_static.as_ref(), &samples, bench_done.as_ref(), &ctx));
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        // margem para as sombras dos cartões não serem cortadas pela rolagem
+                        egui::Frame::new()
+                            .outer_margin(egui::Margin { left: 4 + ((1.0 - e) * 28.0) as i8, right: 8, top: 4, bottom: 12 })
+                            .show(ui, |ui| {
+                                ui.set_opacity(e);
+                                self.details(ui, &topo, gpu_static.as_ref(), &samples, bench_done.as_ref(), &ctx)
+                            });
+                    });
                 });
         }
 
@@ -2793,42 +2821,297 @@ impl App {
     // ---------------- painel lateral
 
     fn details(&mut self, ui: &mut Ui, topo: &Topology, gst: Option<&crate::collect::GpuStatic>, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
-        ui.horizontal(|ui| {
-            let title = match self.sel {
-                Some(Sel::Info(t)) => t.title().to_string(),
-                Some(Sel::Host) => "💻 Notebook".into(),
-                Some(Sel::Cable) | Some(Sel::Dock) => "🔗 Dock".into(),
-                Some(Sel::Port(_)) => "🔌 Porta do dock".into(),
-                Some(Sel::Gpu) => "🎮 GPU".into(),
-                Some(Sel::Psu) => format!("🔌 {}", if self.psu.model.trim().is_empty() { "Fonte do dock" } else { self.psu.model.trim() }),
-                None => String::new(),
-            };
-            ui.label(egui::RichText::new(title).size(16.0).strong().color(pal::fg()));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("✕").clicked() {
-                    self.sel = None;
-                }
-            });
-        });
-        ui.separator();
-        match self.sel {
-            Some(Sel::Info(t)) => self.info(ui, t, topo, samples, bench, ctx),
-            Some(Sel::Host) => {
-                node_details(ui, "Controlador USB4 do note", topo.host_ctrl.as_ref());
-                node_details(ui, "Roteador raiz USB4", topo.host_router.as_ref());
-                usb4_table(ui, "Chaves USB4 do host", &topo.host_usb4);
-                node_details(ui, "Porta raiz PCIe (túnel)", topo.root_port.as_ref());
+        let t = ctx.input(|i| i.time);
+        let k = ((t - self.sel_at) / 0.22).clamp(0.0, 1.0) as f32;
+        let e = 1.0 - (1.0 - k).powi(3);
+        let sel_at = self.sel_at;
+        let before = self.sel;
+        let mut sel = self.sel;
+        let last = samples.last().copied().unwrap_or_default();
+        let dock_ok = topo.dock_router.is_some();
+        let neutral = pal::pcie();
+        let d0 = |n: &Node| n.dstate == Some(1);
+        match before {
+            Some(Sel::Info(tp)) => {
+                let (icon, name) = tp.title().split_once(' ').unwrap_or(("ⓘ", tp.title()));
+                side_hero(
+                    ui,
+                    e,
+                    pal::cyan(),
+                    &|p: &egui::Painter, r: Rect| {
+                        let rr = r.height().min(r.width()) * 0.42;
+                        p.circle_filled(r.center(), rr, pal::cyan().gamma_multiply(0.16));
+                        p.circle_stroke(r.center(), rr, Stroke::new(1.0, pal::cyan().gamma_multiply(0.5)));
+                        p.text(r.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(40.0 * (r.height() / 88.0).min(1.0)), pal::fg());
+                    },
+                    name,
+                    "Como funciona",
+                    None,
+                    &mut sel,
+                );
+                ui.add_space(10.0);
+                self.info(ui, tp, topo, samples, bench, ctx);
             }
-            Some(Sel::Cable) | Some(Sel::Dock) => {
-                node_details(ui, "Roteador Thunderbolt do dock", topo.dock_router.as_ref());
-                usb4_table(ui, "Chaves USB4 do dock {5DF7E321-…}", &topo.dock_usb4);
-                node_details(ui, "Switch PCIe do dock (upstream)", topo.dock_switch.as_ref());
-                for (i, p) in topo.ports.iter().enumerate() {
-                    node_details(ui, &format!("Porta downstream {} — {:?}", i + 1, p.role), Some(&p.node));
+            Some(Sel::Gpu) => {
+                let g = last.gpu.unwrap_or_default();
+                let node = topo.gpu.as_ref();
+                let (st, sc) = match node {
+                    None => ("Não encontrada", pal::amber()),
+                    Some(n) if n.problem != 0 => ("Com problema", pal::red()),
+                    Some(n) if n.dstate.is_some_and(|d| d != 1) => ("Dormindo", pal::faint()),
+                    _ => ("Funcionando", pal::green()),
+                };
+                let spin = (g.usage.unwrap_or(0.0) / 100.0) as f32;
+                let title = gst.map(|s| s.name.trim()).filter(|s| !s.is_empty()).unwrap_or("Placa de vídeo");
+                side_hero(ui, e, pal::cyan(), &|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, node.is_some(), t), title, "Dentro do dock, ligada pelo Thunderbolt", Some((st, sc)), &mut sel);
+                side_hint(
+                    ui,
+                    match st {
+                        "Funcionando" => "Tudo normal com a placa. Clique num bloco para ver os gráficos.",
+                        "Dormindo" => "A placa está em economia de energia. Ela acorda sozinha quando um programa usa.",
+                        "Com problema" => "O Windows relatou um problema com a placa. Veja os detalhes técnicos no fim.",
+                        _ => "A placa não apareceu no Windows. Confira se o dock está ligado e o cabo encaixado.",
+                    },
+                );
+                let ser = |f: fn(&crate::collect::GpuM) -> Option<f32>| samples.iter().filter_map(|s| s.gpu.as_ref().and_then(f)).collect::<Vec<f32>>();
+                let temp = g.temp.map(|v| v as f32);
+                let hot = g.hot.map(|v| v as f32);
+                let fan = g.fan;
+                let vram_total = gst.map(|s| s.vram_total_mb).unwrap_or(0);
+                let vram = g.vram.map(|v| {
+                    if vram_total > 0 {
+                        format!("{} / {}", dec(v as f64 / 1024.0, 1), (vram_total as f64 / 1024.0).round())
+                    } else {
+                        dec(v as f64 / 1024.0, 1)
+                    }
+                });
+                let mut tiles = vec![
+                    tl("🌡", temp.map(|v| format!("{v:.0}")), "°C", "Temperatura", heat(temp.unwrap_or(0.0))).vc(heat(temp.unwrap_or(0.0))).sp(ser(|g| g.temp.map(|v| v as f32))),
+                    tl("🔥", hot.map(|v| format!("{v:.0}")), "°C", "Ponto mais quente", heat(hot.unwrap_or(0.0) - 10.0)).vc(heat(hot.unwrap_or(0.0) - 10.0)).sp(ser(|g| g.hot.map(|v| v as f32))),
+                    tl("⚡", g.tbp.map(|v| format!("{v:.0}")), "W", "Consumo da placa", pal::bolt()).sp(ser(|g| g.tbp.map(|v| v as f32))),
+                    tl("⏱", g.clk.map(|v| v.to_string()), "MHz", "Velocidade", pal::data()).sp(ser(|g| g.clk.map(|v| v as f32))),
+                    tl("🌀", fan.map(|v| v.to_string()), "RPM", if fan == Some(0) { "Ventoinha parada" } else { "Ventoinha" }, pal::violet()).sp(ser(|g| g.fan.map(|v| v as f32))),
+                    {
+                        let x = tl("💾", vram, "GB", "Memória de vídeo", pal::data());
+                        match (g.vram, vram_total) {
+                            (Some(v), t) if t > 0 => x.bar(v as f32 / t as f32),
+                            _ => x,
+                        }
+                    },
+                    tl("📶", g.usage.map(|v| format!("{v:.0}")), "%", "Uso da GPU", pal::data()).sp(ser(|g| g.usage.map(|v| v as f32))),
+                ];
+                let link = node.and_then(|n| n.pcie);
+                let mut lt = tl("🔗", link.map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", "Enlace PCIe", neutral);
+                if let Some((cs, cw, ms, mw)) = link {
+                    if cs < ms || cw < mw {
+                        lt = lt.note(format!("máx {}", pcie_short(ms, mw)));
+                    }
                 }
+                tiles.push(lt);
+                let tiles: Vec<Tile> = tiles.into_iter().map(|x| x.tip("Ver no Desempenho")).collect();
+                if tile_grid(ui, &tiles, sel_at).is_some() {
+                    self.tab = Tab::Fluxo;
+                }
+                ui.add_space(12.0);
+                if ui.button(egui::RichText::new("📈 Ver desempenho ›").size(14.0)).clicked() {
+                    self.tab = Tab::Fluxo;
+                }
+                side_tech(ui, "gpu", |ui| {
+                    if let Some(s) = gst {
+                        kv(ui, "ADLX:", format!("{} · {} MB · {} x{}", s.name, s.vram_total_mb, s.bus, s.lanes));
+                        kv(ui, "LUID (PDH):", s.luid.clone().unwrap_or_default());
+                    }
+                    node_details(ui, "GPU", topo.gpu.as_ref());
+                    for n in &topo.gpu_chain {
+                        node_details(ui, "Switch interno da placa", Some(n));
+                    }
+                });
+            }
+            Some(Sel::Dock) => {
+                let ok = dock_ok && topo.dock_switch.is_some() && topo.dock_router.as_ref().is_some_and(|n| n.problem == 0);
+                let (st, sc) = if ok { ("Tudo certo", pal::green()) } else { ("Com problema", pal::red()) };
+                side_hero(ui, e, pal::cyan(), &|p: &egui::Painter, r: Rect| art::dock(p, r, dock_ok, t), "Dock WKG-L19", "Caixa externa da GPU", Some((st, sc)), &mut sel);
+                side_hint(ui, if ok { "O dock está ligado e conversando com o notebook." } else { "Algo no dock não respondeu. Veja os detalhes técnicos no fim." });
+                let dr = topo.dock_router.as_ref();
+                let active = topo.ports.iter().filter(|p| d0(&p.node)).count();
+                let mut tiles = vec![
+                    tl("🔧", dr.and_then(|n| n.firmware.clone()), "", "Firmware", neutral),
+                    tl("🕑", dr.and_then(|n| n.last_arrival).map(|ts| fmt_dur(now_ms() - ts)), "", "Conectado há", neutral),
+                    tl(if ok { "✔" } else { "⚠" }, Some(st.to_string()), "", "Estado", sc).vc(sc),
+                    tl("🔌", (!topo.ports.is_empty()).then(|| format!("{active} de {}", topo.ports.len())), "", "Portas ativas", neutral).tip("Portas acordadas (D0). As outras estão dormindo para economizar."),
+                ];
+                if let Some(b) = bench {
+                    tiles.push(tl("📏", Some(dec(b.h2d_gbs.max(b.d2h_gbs), 1)), "GB/s", "Banda medida", pal::data()));
+                }
+                tile_grid(ui, &tiles, sel_at);
+                side_caption(ui, "Portas");
+                ui.horizontal_wrapped(|ui| {
+                    for (i, p) in topo.ports.iter().enumerate() {
+                        let name = match p.role {
+                            PortRole::Gpu => "🎮 GPU",
+                            PortRole::UsbA => "🖴 USB",
+                            PortRole::TbExtra => "⚡ Thunderbolt",
+                            PortRole::Other => "🔌 Porta",
+                        };
+                        let dot = if d0(&p.node) { pal::green() } else { pal::faint() };
+                        if side_chip(ui, name, Some(dot), true).on_hover_text(if d0(&p.node) { "Ativa" } else { "Dormindo" }).clicked() {
+                            sel = Some(Sel::Port(i));
+                        }
+                    }
+                });
+                ui.add_space(6.0);
+                if side_chip(ui, "⚡ Ver o cabo", None, true).clicked() {
+                    sel = Some(Sel::Cable);
+                }
+                side_tech(ui, "dock", |ui| {
+                    node_details(ui, "Roteador Thunderbolt do dock", topo.dock_router.as_ref());
+                    usb4_table(ui, "Chaves USB4 do dock {5DF7E321-…}", &topo.dock_usb4);
+                    node_details(ui, "Switch PCIe do dock (upstream)", topo.dock_switch.as_ref());
+                    for (i, p) in topo.ports.iter().enumerate() {
+                        node_details(ui, &format!("Porta downstream {} — {:?}", i + 1, p.role), Some(&p.node));
+                    }
+                });
+            }
+            Some(Sel::Cable) => {
+                let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
+                let lanes = topo.dock_usb4.iter().find(|p| p.pid == 21).and_then(|p| p.val.as_u32());
+                let ln = lanes.unwrap_or(2).max(1);
+                let gbps = match speed {
+                    Some(0x8) => Some(ln * 10),
+                    Some(0x4) => Some(ln * 20),
+                    _ => None,
+                };
+                let (st, sc) = match (dock_ok, speed) {
+                    (false, _) => ("Sem conexão", pal::red()),
+                    (true, Some(0x8)) => ("Abaixo do máximo", pal::amber()),
+                    (true, Some(0x4)) => ("Na velocidade máxima", pal::green()),
+                    _ => ("Conectado", pal::green()),
+                };
+                side_hero(ui, e, pal::bolt(), &|p: &egui::Painter, r: Rect| art::usb_c(p, r, dock_ok), "Cabo Thunderbolt", "Liga o notebook ao dock", Some((st, sc)), &mut sel);
+                side_hint(
+                    ui,
+                    match (dock_ok, speed) {
+                        (false, _) => "O notebook não está enxergando o dock. Confira os dois lados do cabo.",
+                        (true, Some(0x8)) => "O dock aceita 40 Gb/s, mas o cabo está entregando a metade. Um cabo Thunderbolt certificado de 40 Gb/s resolve.",
+                        _ => "O cabo leva os dados da GPU e traz energia para o notebook.",
+                    },
+                );
+                let pd = last.power.map(|p| p.online);
+                let tiles = vec![
+                    tl("⚡", gbps.map(|v| v.to_string()), "Gb/s", "Velocidade do cabo", pal::bolt()).vc_if(speed == Some(0x8), pal::amber()).note("≈ decodificado").tip("Lido das chaves USB4 20 e 21 do dock. Veja os detalhes técnicos."),
+                    tl("⛓", lanes.map(|v| v.to_string()), "", "Canais ativos", neutral),
+                    tl("📏", bench.map(|b| format!("↑{} ↓{}", dec(b.h2d_gbs, 1), dec(b.d2h_gbs, 1))), "GB/s", "Banda medida", pal::data()),
+                    tl("🔋", pd.map(|o| if o { "Sim" } else { "Não" }.to_string()), "", "Carregando o notebook", pal::bolt()).vc_if(pd == Some(false), pal::amber()),
+                ];
+                tile_grid(ui, &tiles, sel_at);
+                ui.add_space(12.0);
+                let running = matches!(*self.bench.lock().unwrap(), BenchState::Running(_));
+                if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { "📏 Medindo…" } else { "📏 Medir banda agora" }).size(14.0))).clicked() {
+                    self.start_bench(ctx);
+                }
+                side_tech(ui, "cable", |ui| {
+                    usb4_table(ui, "Chaves USB4 do dock {5DF7E321-…}", &topo.dock_usb4);
+                    node_details(ui, "Roteador Thunderbolt do dock", topo.dock_router.as_ref());
+                    usb4_table(ui, "Chaves USB4 do host", &topo.host_usb4);
+                });
+            }
+            Some(Sel::Host) => {
+                let ctrl = topo.host_ctrl.as_ref();
+                let ok = ctrl.is_some_and(|n| n.problem == 0);
+                let (st, sc) = if ok { ("Funcionando", pal::green()) } else { ("Com problema", pal::red()) };
+                side_hero(ui, e, pal::cyan(), &|p: &egui::Painter, r: Rect| art::laptop(p, r, true, t), "Notebook", "Porta Thunderbolt 4", Some((st, sc)), &mut sel);
+                side_hint(ui, if ok { "A porta Thunderbolt do notebook está pronta e levando a GPU." } else { "O controlador da porta Thunderbolt não respondeu. Veja os detalhes técnicos." });
+                let pw = last.power;
+                let pct = pw.filter(|p| p.full_mwh > 0).map(|p| (p.rem_mwh as f64 * 100.0 / p.full_mwh as f64).round());
+                let tiles = vec![
+                    tl("🔧", topo.host_router.as_ref().and_then(|n| n.firmware.clone()), "", "Firmware", neutral),
+                    tl(if ok { "✔" } else { "⚠" }, Some(if ctrl.is_some() { "Funcionando" } else { "Ausente" }.to_string()), "", "Controlador USB4", sc).vc(sc),
+                    tl("🔗", topo.root_port.as_ref().and_then(|n| n.pcie).map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", "Túnel PCIe", neutral),
+                    tl("🔋", pw.map(|p| if p.online { "Na tomada" } else { "Na bateria" }.to_string()), &pct.map(|v| format!("{v:.0}%")).unwrap_or_default(), "Energia", pal::bolt())
+                        .vc_if(pw.is_some_and(|p| !p.online), pal::amber())
+                        .sp(samples.iter().filter_map(|s| s.power.filter(|p| p.full_mwh > 0).map(|p| p.rem_mwh as f32 * 100.0 / p.full_mwh as f32)).collect()),
+                ];
+                tile_grid(ui, &tiles, sel_at);
+                ui.add_space(8.0);
+                if side_chip(ui, "⚡ Ver o cabo", None, true).clicked() {
+                    sel = Some(Sel::Cable);
+                }
+                side_tech(ui, "host", |ui| {
+                    node_details(ui, "Controlador USB4 do note", topo.host_ctrl.as_ref());
+                    node_details(ui, "Roteador raiz USB4", topo.host_router.as_ref());
+                    usb4_table(ui, "Chaves USB4 do host", &topo.host_usb4);
+                    node_details(ui, "Porta raiz PCIe (túnel)", topo.root_port.as_ref());
+                });
             }
             Some(Sel::Port(i)) => {
-                if let Some(p) = topo.ports.get(i) {
+                let Some(p) = topo.ports.get(i) else {
+                    // topologia ainda não lida (início): espera; lida e sem a porta: fecha
+                    if topo.read_ms != 0 {
+                        self.sel = None;
+                    } else {
+                        ui.spinner();
+                    }
+                    return;
+                };
+                let on = d0(&p.node);
+                let (title, sub) = match p.role {
+                    PortRole::Gpu => ("Porta da GPU", "Onde a placa de vídeo encaixa no dock"),
+                    PortRole::UsbA => ("Porta USB", "As entradas USB do dock"),
+                    PortRole::TbExtra => ("Porta Thunderbolt extra", "Saída para outro aparelho Thunderbolt"),
+                    PortRole::Other => ("Porta do dock", "Saída interna do dock"),
+                };
+                let (st, sc) = if p.node.problem != 0 { ("Com problema", pal::red()) } else if on { ("Ativa", pal::green()) } else { ("Dormindo", pal::faint()) };
+                let role = p.role.clone();
+                side_hero(
+                    ui,
+                    e,
+                    pal::cyan(),
+                    &|pt: &egui::Painter, r: Rect| match role {
+                        PortRole::Gpu => art::gpu(pt, r, 0.0, on, t),
+                        PortRole::UsbA => art::usb_a(pt, r, on),
+                        _ => art::usb_c(pt, r, on),
+                    },
+                    title,
+                    sub,
+                    Some((st, sc)),
+                    &mut sel,
+                );
+                side_hint(ui, if on { "Ligada e em uso." } else { "Dormindo para economizar energia. Ela acorda quando algo for ligado nela." });
+                let mut tiles = vec![
+                    tl(if on { "✔" } else { "💤" }, Some(if on { "Ativa" } else { "Dormindo" }.to_string()), "", "Estado", sc).vc(sc),
+                    {
+                        let link = p.node.pcie;
+                        let mut x = tl("🔗", link.map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", "Enlace PCIe", neutral);
+                        if let Some((cs, cw, ms, mw)) = link {
+                            if cs < ms || cw < mw {
+                                x = x.note(format!("máx {}", pcie_short(ms, mw)));
+                            }
+                        }
+                        x
+                    },
+                ];
+                if p.role == PortRole::UsbA {
+                    tiles.push(tl("🖴", Some(topo.usb_a.len().to_string()), "", "Dispositivos USB", neutral));
+                }
+                tile_grid(ui, &tiles, sel_at);
+                if p.role == PortRole::UsbA && !topo.usb_a.is_empty() {
+                    side_caption(ui, "Ligados agora");
+                    ui.horizontal_wrapped(|ui| {
+                        for d in &topo.usb_a {
+                            side_chip(ui, &format!("🖴 {}", d.name), None, false);
+                        }
+                    });
+                }
+                ui.add_space(8.0);
+                ui.horizontal_wrapped(|ui| {
+                    if p.role == PortRole::Gpu && side_chip(ui, "🎮 Ver a placa", None, true).clicked() {
+                        sel = Some(Sel::Gpu);
+                    }
+                    if side_chip(ui, "🔗 Ver o dock", None, true).clicked() {
+                        sel = Some(Sel::Dock);
+                    }
+                });
+                side_tech(ui, &format!("port{i}"), |ui| {
                     node_details(ui, "Porta downstream do switch", Some(&p.node));
                     node_details(ui, "Dispositivo na porta", p.child.as_ref());
                     if p.role == PortRole::UsbA {
@@ -2836,20 +3119,33 @@ impl App {
                             node_details(ui, "Dispositivo USB", Some(d));
                         }
                     }
-                }
+                });
             }
-            Some(Sel::Gpu) => {
-                if let Some(s) = gst {
-                    kv(ui, "ADLX:", format!("{} · {} MB · {} x{}", s.name, s.vram_total_mb, s.bus, s.lanes));
-                    kv(ui, "LUID (PDH):", s.luid.clone().unwrap_or_default());
+            Some(Sel::Psu) => {
+                if self.psu.watts > 0 {
+                    let l = crate::psu::compute(&self.psu, &psu_inputs(topo, samples));
+                    let f = l.frac.clamp(0.0, 1.0);
+                    let (st, sc) = if f < 0.6 { ("≈ Com folga", pal::green()) } else if f < 0.8 { ("≈ Perto do limite", pal::amber()) } else { ("≈ No limite", pal::red()) };
+                    let model = self.psu.model.trim().to_string();
+                    let rating = self.psu.rating.clone();
+                    side_hero(
+                        ui,
+                        e,
+                        pal::bolt(),
+                        &|p: &egui::Painter, r: Rect| art::psu(p, r, dock_ok, t, &rating, f),
+                        if model.is_empty() { "Fonte do dock" } else { &model },
+                        &format!("Fonte do dock · {} W", self.psu.watts),
+                        Some((st, sc)),
+                        &mut sel,
+                    );
+                    ui.add_space(10.0);
                 }
-                node_details(ui, "GPU", topo.gpu.as_ref());
-                for n in &topo.gpu_chain {
-                    node_details(ui, "Switch interno da placa", Some(n));
-                }
+                self.psu_details(ui, topo, samples);
             }
-            Some(Sel::Psu) => self.psu_details(ui, topo, samples),
             None => {}
+        }
+        if sel != before {
+            self.sel = sel;
         }
     }
 
@@ -2904,9 +3200,13 @@ impl App {
     }
 
     fn info(&mut self, ui: &mut Ui, t: Topic, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
+        // cada parágrafo num callout próprio (bloco recuado), mais fácil de ler em pedaços
         let para = |ui: &mut Ui, s: &str| {
-            ui.label(egui::RichText::new(s).size(14.0).color(pal::fg()));
-            ui.add_space(4.0);
+            egui::Frame::new().fill(pal::well()).corner_radius(CornerRadius::same(pal::radius().min(6))).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(egui::RichText::new(s).size(14.0).color(pal::fg()));
+            });
+            ui.add_space(6.0);
         };
         match t {
             Topic::Link => {
@@ -2921,7 +3221,7 @@ impl App {
                 if ui.button("📏 Rodar teste de banda agora").clicked() {
                     self.start_bench(ctx);
                 }
-                usb4_table(ui, "Chaves USB4 do dock", &topo.dock_usb4);
+                side_tech(ui, "info-link", |ui| usb4_table(ui, "Chaves USB4 do dock", &topo.dock_usb4));
             }
             Topic::Power => {
                 para(ui, "Fonte: WMI root\\wmi BatteryStatus (PowerOnline, ChargeRate, DischargeRate, Voltage) — é o que o driver de bateria ACPI publica.");
@@ -2963,6 +3263,299 @@ impl App {
             }
         }
     }
+}
+
+// ---------------- peças do painel lateral (hero, blocos, faixas)
+
+/// Cor de calor: verde, âmbar acima de 70 °C, vermelho acima de 85 °C.
+fn heat(t: f32) -> Color32 {
+    if t > 85.0 { pal::red() } else if t > 70.0 { pal::amber() } else { pal::green() }
+}
+
+/// "Gen4 x8" a partir do código de velocidade e da largura.
+fn pcie_short(code: u32, w: u32) -> String {
+    format!("{} x{w}", pnp::pcie_speed_name(code).split(' ').next().unwrap_or("?"))
+}
+
+fn dec(v: f64, n: usize) -> String {
+    format!("{v:.n$}").replace('.', ",")
+}
+
+/// Um bloco da grade do painel lateral: ícone, valor grande, rótulo pequeno e, embaixo, uma sparkline ou barra.
+struct Tile {
+    icon: &'static str,
+    value: Option<String>,
+    unit: String,
+    label: String,
+    color: Color32,
+    vcol: Option<Color32>,
+    spark: Vec<f32>,
+    bar: Option<f32>,
+    note: Option<String>,
+    tip: Option<String>,
+}
+
+fn tl(icon: &'static str, value: Option<String>, unit: &str, label: &str, color: Color32) -> Tile {
+    Tile { icon, value, unit: unit.into(), label: label.into(), color, vcol: None, spark: vec![], bar: None, note: None, tip: None }
+}
+
+impl Tile {
+    /// Valor pintado com cor de significado (temperatura, estado).
+    fn vc(mut self, c: Color32) -> Self {
+        self.vcol = Some(c);
+        self
+    }
+    fn vc_if(self, cond: bool, c: Color32) -> Self {
+        if cond { self.vc(c) } else { self }
+    }
+    fn sp(mut self, s: Vec<f32>) -> Self {
+        self.spark = s;
+        self
+    }
+    fn bar(mut self, f: f32) -> Self {
+        self.bar = Some(f);
+        self
+    }
+    fn note(mut self, s: impl Into<String>) -> Self {
+        self.note = Some(s.into());
+        self
+    }
+    fn tip(mut self, s: impl Into<String>) -> Self {
+        self.tip = Some(s.into());
+        self
+    }
+    fn strip(&self) -> bool {
+        self.bar.is_some() || self.spark.len() >= 2
+    }
+}
+
+const TILE_PAD: f32 = 10.0;
+
+fn tile_height(ui: &Ui, x: &Tile, w: f32) -> f32 {
+    let ww = w - 2.0 * TILE_PAD;
+    let lh = ui.painter().layout(x.label.clone(), FontId::proportional(12.5), pal::dim(), ww).size().y;
+    let nh = x.note.as_ref().map(|n| ui.painter().layout(n.clone(), FontId::proportional(12.0), pal::faint(), ww).size().y + 2.0).unwrap_or(0.0);
+    let sh = if x.strip() { 22.0 } else { 0.0 };
+    (TILE_PAD + 30.0 + 6.0 + lh + nh + sh + TILE_PAD).max(88.0)
+}
+
+/// Sparkline das últimas 90 amostras, escala min/max com 10% de folga e ponto no valor atual.
+fn spark(p: &egui::Painter, r: Rect, s: &[f32], c: Color32) {
+    let s = &s[s.len().saturating_sub(90)..];
+    if s.len() < 2 {
+        return;
+    }
+    let (mut lo, mut hi) = s.iter().fold((f32::MAX, f32::MIN), |(a, b), &v| (a.min(v), b.max(v)));
+    let pad = ((hi - lo) * 0.1).max(0.5);
+    lo -= pad;
+    hi += pad;
+    let pts: Vec<Pos2> = s
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| pos2(r.left() + r.width() * i as f32 / (s.len() - 1) as f32, r.bottom() - r.height() * (v - lo) / (hi - lo)))
+        .collect();
+    let last = *pts.last().unwrap();
+    p.add(egui::Shape::line(pts, Stroke::new(1.5, c)));
+    p.circle_filled(last, 2.5, c);
+}
+
+fn side_tile(ui: &mut Ui, w: f32, h: f32, x: &Tile, alpha: f32) -> egui::Response {
+    let (r0, resp) = ui.allocate_exact_size(vec2(w, h), Sense::click());
+    let hv = ui.ctx().animate_bool_with_time(resp.id.with("hv"), resp.hovered(), 0.12);
+    let r = r0.translate(vec2(0.0, -1.5 * hv));
+    let mut p = ui.painter().clone();
+    p.multiply_opacity(alpha);
+    let light = pal::current().is_light();
+    let rad = CornerRadius::same(pal::radius().min(8));
+    let sh = egui::Shadow { offset: [0, 2 + hv as i8], blur: 8 + (4.0 * hv) as u8, spread: 0, color: Color32::from_black_alpha(if light { 22 } else { 70 }) };
+    p.add(sh.as_shape(r, rad));
+    p.rect_filled(r, rad, pal::card2());
+    if hv > 0.01 {
+        p.rect_stroke(r, rad, Stroke::new(1.0, x.color.gamma_multiply(0.6 * hv)), StrokeKind::Inside);
+    }
+    // ícone num círculo tingido
+    let ic = pos2(r.left() + TILE_PAD + 15.0, r.top() + TILE_PAD + 15.0);
+    p.circle_filled(ic, 15.0, x.color.gamma_multiply(0.16));
+    p.text(ic, egui::Align2::CENTER_CENTER, x.icon, FontId::proportional(17.0), x.color);
+    // valor + unidade; encolhe a fonte até caber (nunca corta)
+    let x0 = ic.x + 15.0 + 8.0;
+    let room = r.right() - TILE_PAD - x0;
+    let (vt, vcol) = match &x.value {
+        Some(v) => (v.clone(), x.vcol.unwrap_or(pal::fg())),
+        None => ("—".to_string(), pal::faint()),
+    };
+    let unit = if x.value.is_some() { x.unit.clone() } else { String::new() };
+    let mut size = 24.0;
+    let (vg, ug) = loop {
+        let vg = p.layout_no_wrap(vt.clone(), FontId::proportional(size), vcol);
+        let ug = p.layout_no_wrap(unit.clone(), FontId::proportional((size * 0.54).max(11.0)), pal::dim());
+        if vg.size().x + 3.0 + ug.size().x <= room || size <= 14.0 {
+            break (vg, ug);
+        }
+        size -= 1.0;
+    };
+    let vy = ic.y - vg.size().y / 2.0;
+    let vw = vg.size().x;
+    let vbottom = vy + vg.size().y;
+    p.galley(pos2(x0, vy), vg, vcol);
+    let uh = ug.size().y;
+    p.galley(pos2(x0 + vw + 3.0, vbottom - uh - size * 0.1), ug, pal::dim());
+    // rótulo (quebra linha) e nota
+    let ww = w - 2.0 * TILE_PAD;
+    let mut y = r.top() + TILE_PAD + 30.0 + 6.0;
+    let lg = p.layout(x.label.clone(), FontId::proportional(12.5), pal::dim(), ww);
+    let lh = lg.size().y;
+    p.galley(pos2(r.left() + TILE_PAD, y), lg, pal::dim());
+    y += lh;
+    if let Some(n) = &x.note {
+        let ng = p.layout(n.clone(), FontId::proportional(12.0), pal::faint(), ww);
+        p.galley(pos2(r.left() + TILE_PAD, y + 2.0), ng, pal::faint());
+    }
+    // faixa de baixo: barra de ocupação ou sparkline
+    let strip = Rect::from_min_max(pos2(r.left() + TILE_PAD, r.bottom() - TILE_PAD - 16.0), pos2(r.right() - TILE_PAD, r.bottom() - TILE_PAD));
+    let sc = x.vcol.unwrap_or(x.color);
+    if let Some(f) = x.bar {
+        let b = Rect::from_center_size(strip.center(), vec2(strip.width(), 4.0));
+        p.rect_filled(b, CornerRadius::same(2), pal::well());
+        p.rect_filled(Rect::from_min_size(b.min, vec2(b.width() * f.clamp(0.0, 1.0), 4.0)), CornerRadius::same(2), sc);
+    } else if x.spark.len() >= 2 {
+        spark(&p, strip, &x.spark, sc.gamma_multiply(0.9));
+    }
+    match &x.tip {
+        Some(tip) => resp.on_hover_text(tip.clone()).on_hover_cursor(egui::CursorIcon::PointingHand),
+        None => resp,
+    }
+}
+
+/// Grade de blocos: 2 colunas (3 com ≥ 520 pt). Entram escalonados de cima para baixo. Devolve o bloco clicado.
+fn tile_grid(ui: &mut Ui, tiles: &[Tile], sel_at: f64) -> Option<usize> {
+    let avail = ui.available_width();
+    let cols = if avail >= 520.0 { 3 } else { 2 };
+    let w = ((avail - 8.0 * (cols as f32 - 1.0)) / cols as f32).floor();
+    let t = ui.input(|i| i.time);
+    let mut clicked = None;
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+        for (ri, row) in tiles.chunks(cols).enumerate() {
+            let h = row.iter().map(|x| tile_height(ui, x, w)).fold(88.0, f32::max);
+            ui.horizontal(|ui| {
+                for (ci, x) in row.iter().enumerate() {
+                    let i = ri * cols + ci;
+                    let a = ((t - sel_at - 0.04 * i as f64) / 0.18).clamp(0.0, 1.0) as f32;
+                    if a < 1.0 {
+                        ui.ctx().request_repaint();
+                    }
+                    if side_tile(ui, w, h, x, a).clicked() {
+                        clicked = Some(i);
+                    }
+                }
+            });
+        }
+    });
+    clicked
+}
+
+/// Cabeçalho do painel lateral: ilustração do item, título, subtítulo, pílula de estado e ✕.
+fn side_hero(ui: &mut Ui, e: f32, accent: Color32, art: &dyn Fn(&egui::Painter, Rect), title: &str, sub: &str, state: Option<(&str, Color32)>, sel: &mut Option<Sel>) {
+    let light = pal::current().is_light();
+    let rad = CornerRadius::same(pal::radius());
+    let t = ui.input(|i| i.time);
+    let fr = egui::Frame::new()
+        .fill(pal::card2())
+        .corner_radius(rad)
+        .inner_margin(egui::Margin::same(12))
+        .shadow(egui::Shadow { offset: [0, 3], blur: 12, spread: 0, color: Color32::from_black_alpha(if light { 30 } else { 90 }) })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let close = Rect::from_min_size(ui.max_rect().right_top() + vec2(-24.0, -6.0), vec2(28.0, 28.0));
+            let aw = (ui.available_width() * 0.4).clamp(100.0, 140.0);
+            let ah = aw * 88.0 / 140.0;
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), 88.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                let (ar, _) = ui.allocate_exact_size(vec2(aw, ah), Sense::hover());
+                art(ui.painter(), Rect::from_center_size(ar.center(), ar.size() * (0.9 + 0.1 * e)));
+                ui.add_space(6.0);
+                ui.vertical(|ui| {
+                    ui.set_max_width((ui.available_width() - 30.0).max(80.0));
+                    ui.spacing_mut().item_spacing.y = 3.0;
+                    ui.label(egui::RichText::new(title).size(19.0).strong().color(pal::fg()));
+                    if !sub.is_empty() {
+                        ui.label(egui::RichText::new(sub).size(13.0).color(pal::dim()));
+                    }
+                    if let Some((s, c)) = state {
+                        ui.add_space(4.0);
+                        status_pill(ui, s, c, t, c == pal::red());
+                    }
+                });
+            });
+            let r = ui.interact(close, ui.id().with("fechar"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+            if r.hovered() {
+                ui.painter().rect_filled(close, CornerRadius::same(6), pal::card3());
+            }
+            ui.painter().text(close.center(), egui::Align2::CENTER_CENTER, "✕", FontId::proportional(15.0), if r.hovered() { pal::fg() } else { pal::dim() });
+            if r.on_hover_text("Fechar (Esc)").clicked() {
+                *sel = None;
+            }
+        });
+    // filete de 3 pt no topo, na cor do item, seguindo os cantos do cartão
+    let r = fr.response.rect;
+    ui.painter().with_clip_rect(Rect::from_min_max(r.min, pos2(r.right(), r.top() + 3.0))).rect_filled(r, rad, accent);
+}
+
+/// Frase curta e amigável logo abaixo do hero.
+fn side_hint(ui: &mut Ui, s: &str) {
+    ui.add_space(10.0);
+    ui.label(egui::RichText::new(s).size(14.0).color(pal::dim()));
+    ui.add_space(8.0);
+}
+
+/// Título pequeno de uma faixa (Portas, Dispositivos...).
+fn side_caption(ui: &mut Ui, s: &str) {
+    ui.add_space(12.0);
+    ui.label(egui::RichText::new(s).size(13.0).strong().color(pal::dim()));
+    ui.add_space(2.0);
+}
+
+/// Chip arredondado, opcionalmente com bolinha de estado. Clicável quando `click`.
+fn side_chip(ui: &mut Ui, text: &str, dot: Option<Color32>, click: bool) -> egui::Response {
+    // nome longo quebra linha dentro do chip em vez de alargar o painel
+    let maxw = (ui.available_width() - 20.0 - if dot.is_some() { 14.0 } else { 0.0 } - if click { 14.0 } else { 0.0 }).max(60.0);
+    let r = egui::Frame::new()
+        .fill(pal::card2())
+        .stroke(Stroke::new(1.0, pal::border()))
+        .corner_radius(CornerRadius::same(pal::radius().max(2).min(14)))
+        .inner_margin(egui::Margin::symmetric(10, 5))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                ui.set_max_width(maxw + 28.0);
+                ui.add(egui::Label::new(egui::RichText::new(text).size(14.0).color(pal::fg())).wrap());
+                if let Some(c) = dot {
+                    let (d, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+                    ui.painter().circle_filled(d.center(), 4.0, c);
+                }
+                if click {
+                    ui.label(egui::RichText::new("›").size(14.0).color(pal::faint()));
+                }
+            });
+        })
+        .response;
+    if !click {
+        return r;
+    }
+    let resp = ui.interact(r.rect, ui.id().with(("chip", text)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+    if resp.hovered() {
+        ui.painter().rect_stroke(r.rect, CornerRadius::same(pal::radius().max(2).min(14)), Stroke::new(1.0, pal::cyan().gamma_multiply(0.7)), StrokeKind::Inside);
+    }
+    resp
+}
+
+/// Detalhes crus no fim, recolhidos.
+fn side_tech(ui: &mut Ui, key: &str, add: impl FnOnce(&mut Ui)) {
+    ui.add_space(14.0);
+    egui::CollapsingHeader::new(egui::RichText::new("🔧 Detalhes técnicos").size(13.5).color(pal::dim()))
+        .id_salt(("tech", key))
+        .default_open(false)
+        .show(ui, add);
 }
 
 /// "hoje 01:46", "ontem 14:04" ou "12/11 03:27".
