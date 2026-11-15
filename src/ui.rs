@@ -656,13 +656,17 @@ fn bare(title: &str) -> &str {
 /// Moldura comum dos cartões. No tema AMD: cantos retos, faixa de título preta em caixa alta,
 /// corpo com respiro de 18 px (como os blocos "EXPERIÊNCIA GLOBAL" / "DRIVER E SOFTWARE").
 fn card_shell<R>(ui: &mut Ui, title: &str, accent: Color32, mut info: Option<(&mut Option<Sel>, Topic, &str)>, add: impl FnOnce(&mut Ui, Option<&mut Option<Sel>>) -> R) -> R {
-    if pal::current() == Th::Amd {
+    // sombra + gradiente do corpo entram num marcador pintado ANTES do conteúdo (ficam embaixo dele)
+    let idx = ui.painter().add(egui::Shape::Noop);
+    let cr = pal::radius();
+    let out = if pal::current() == Th::Amd {
         egui::Frame::new()
-            .fill(pal::card())
+            .fill(Color32::TRANSPARENT)
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
-                egui::Frame::new().fill(pal::well()).inner_margin(egui::Margin::symmetric(18, 11)).show(ui, |ui| {
+                let sidx = ui.painter().add(egui::Shape::Noop);
+                let strip = egui::Frame::new().fill(Color32::TRANSPARENT).inner_margin(egui::Margin::symmetric(18, 11)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(bare(title).to_uppercase()).size(13.0).strong().color(pal::fg()));
@@ -671,6 +675,11 @@ fn card_shell<R>(ui: &mut Ui, title: &str, accent: Color32, mut info: Option<(&m
                         }
                     });
                 });
+                // faixa de título com gradiente e um chanfro claro embaixo dela
+                let sr = strip.response.rect;
+                let g = vgrad(ui.painter(), sr, 0, Color32::from_rgb(26, 26, 28), Color32::from_rgb(12, 12, 13));
+                ui.painter().set(sidx, g);
+                ui.painter().hline(sr.x_range(), sr.bottom() + 0.5, Stroke::new(1.0, Color32::from_white_alpha(10)));
                 egui::Frame::new()
                     .inner_margin(egui::Margin::same(18))
                     .show(ui, |ui| {
@@ -680,10 +689,9 @@ fn card_shell<R>(ui: &mut Ui, title: &str, accent: Color32, mut info: Option<(&m
                     })
                     .inner
             })
-            .inner
     } else {
         egui::Frame::new()
-            .fill(pal::card())
+            .fill(Color32::TRANSPARENT)
             .stroke(Stroke::new(1.0, pal::border()))
             .corner_radius(CornerRadius::same(pal::radius()))
             .inner_margin(egui::Margin::same(14))
@@ -700,8 +708,13 @@ fn card_shell<R>(ui: &mut Ui, title: &str, accent: Color32, mut info: Option<(&m
                 ui.add_space(6.0);
                 add(ui, info.map(|i| i.0))
             })
-            .inner
-    }
+    };
+    // cartões não sobem no hover: não são clicáveis
+    let r = out.response.rect;
+    let body = vgrad(ui.painter(), r, cr, pal::card_top(), pal::card_bot());
+    ui.painter().set(idx, egui::Shape::Vec(vec![pal::elev(1, 0.0).as_shape(r, CornerRadius::same(cr)).into(), body]));
+    ui.painter().hline(egui::Rangef::new(r.left() + cr as f32, r.right() - cr as f32), r.top() + 0.5, Stroke::new(1.0, pal::hi()));
+    out.inner
 }
 
 fn kv(ui: &mut Ui, k: &str, v: impl Into<egui::WidgetText>) {
@@ -1863,8 +1876,12 @@ impl App {
             1 => (pal::amber(), "▲"),
             _ => (pal::red(), "✖"),
         };
+        // halo colorido só quando há algo a ver; no verde, a sombra comum de cartão
+        let light = pal::current().is_light();
+        let sh = if lvl > 0 { egui::Shadow { offset: [0, 4], blur: 20, spread: 0, color: col.gamma_multiply(if light { 0.10 } else { 0.18 }) } } else { pal::elev(1, 0.0) };
         let r = egui::Frame::new()
-            .fill(col.gamma_multiply(0.10))
+            .fill(pal::bg().lerp_to_gamma(col, 0.10)) // opaco: a sombra não escurece o miolo
+            .shadow(sh)
             .stroke(Stroke::new(1.0, col.gamma_multiply(0.55)))
             .corner_radius(CornerRadius::same(pal::radius()))
             .inner_margin(egui::Margin::symmetric(20, 14))
