@@ -256,11 +256,12 @@ pub struct Load {
     pub pd: f32,
     pub dock: f32,
     pub usb: f32,
-    /// Carga DC estimada agora.
+    /// Carga DC estimada agora (= gpu + pd + dock + usb, todos em watts inteiros:
+    /// as partes exibidas somam exatamente o total exibido).
     pub now: f32,
-    /// Pior caso sustentado (GPU no limite da placa + PD no máximo + portas no máximo).
+    /// Uso pesado sustentado: placa no limite + notebook carregando no máximo + portas no máximo.
     pub worst: f32,
-    /// Pico transitório estimado (milissegundos) da GPU somado ao resto.
+    /// Picos rápidos (transientes de milissegundos) da placa somados ao resto.
     pub spike: f32,
     pub frac: f32,
     pub amps12: f32,
@@ -271,15 +272,37 @@ pub struct Load {
 /// Limite de potência da RX 7600 XT (TBP de referência).
 pub const GPU_TBP_MAX: f32 = 190.0;
 
+/// Conclusão sobre a fonte (tudo estimado: a fonte não manda dados ao PC).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Verdict {
+    /// Uso pesado até 85% e picos rápidos dentro da fonte.
+    Ok,
+    /// Uso pesado acima de 85% (atenção).
+    Tight,
+    /// Picos rápidos ou uso pesado passam da potência da fonte (aviso).
+    Risk,
+}
+
+pub fn verdict(l: &Load, watts: u32) -> Verdict {
+    let w = watts.max(1) as f32;
+    if l.spike > w || l.worst > w {
+        Verdict::Risk
+    } else if l.worst > w * 0.85 {
+        Verdict::Tight
+    } else {
+        Verdict::Ok
+    }
+}
+
 pub fn compute(p: &Psu, i: &Inputs) -> Load {
     let dock = 6.0; // JHL7440 + switch PCIe + controlador USB: estimativa
-    let usb = if i.usb_devices > 0 { 2.5 } else { 0.0 } + if i.tb_in_use { 7.5 } else { 0.0 };
+    let usb = (if i.usb_devices > 0 { 2.5f32 } else { 0.0 } + if i.tb_in_use { 7.5 } else { 0.0 }).round();
     // notebook pelo PD: carga da bateria + consumo base estimado do sistema, até os 85 W anunciados
-    let pd = if i.pd_on { (i.batt_w.max(0.0) + 18.0).min(85.0) } else { 0.0 };
-    let gpu = i.gpu_w.max(0.0);
+    let pd = if i.pd_on { (i.batt_w.max(0.0) + 18.0).min(85.0).round() } else { 0.0 };
+    let gpu = i.gpu_w.max(0.0).round();
     let now = gpu + pd + dock + usb;
-    let worst = GPU_TBP_MAX.max(gpu) + 85.0 + dock + 4.5 + 15.0;
-    let spike = GPU_TBP_MAX.max(gpu) * 1.6 + 85.0 + dock + usb;
+    let worst = (GPU_TBP_MAX.max(gpu) + 85.0 + dock + 4.5 + 15.0).round();
+    let spike = (GPU_TBP_MAX.max(gpu) * 1.6 + 85.0 + dock + usb).round();
     let watts = p.watts.max(1) as f32;
     let frac = now / watts;
     let eff = efficiency(&p.rating, frac);

@@ -70,15 +70,15 @@ mod pal {
     // ordem: bg card card2 card3 well grid border fg dim faint accent green amber red violet amd intel bolt pcie data
     const P: [[Color32; 20]; 5] = [
         // claro
-        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(181, 136, 0), c(100, 125, 160), c(2, 120, 190)],
+        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(146, 134, 84), c(100, 125, 160), c(2, 120, 190)],
         // escuro
-        [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(150, 160, 170), c(118, 126, 136), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(245, 196, 0), c(120, 150, 190), c(56, 189, 248)],
+        [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(150, 160, 170), c(118, 126, 136), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(222, 212, 156), c(120, 150, 190), c(56, 189, 248)],
         // AMD (Adrenalin): fundo #111, cartões #262626 com faixa de título preta, vermelho #E4002B
-        [c(17, 17, 18), c(38, 38, 40), c(48, 48, 50), c(54, 54, 58), c(12, 12, 13), c(52, 52, 55), c(38, 38, 40), c(242, 242, 244), c(190, 190, 196), c(140, 140, 148), c(228, 0, 43), c(46, 204, 113), c(255, 170, 30), c(255, 99, 120), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(255, 196, 0), c(150, 150, 162), c(110, 185, 235)],
+        [c(17, 17, 18), c(38, 38, 40), c(48, 48, 50), c(54, 54, 58), c(12, 12, 13), c(52, 52, 55), c(38, 38, 40), c(242, 242, 244), c(190, 190, 196), c(140, 140, 148), c(228, 0, 43), c(46, 204, 113), c(255, 170, 30), c(255, 99, 120), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(228, 218, 168), c(150, 150, 162), c(110, 185, 235)],
         // NVIDIA: grafite + verde
-        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(240, 200, 0), c(135, 155, 120), c(140, 200, 60)],
+        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(222, 214, 160), c(135, 155, 120), c(140, 200, 60)],
         // Intel: azul-marinho + ciano
-        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(250, 200, 0), c(110, 150, 200), c(0, 199, 253)],
+        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(226, 220, 172), c(110, 150, 200), c(0, 199, 253)],
     ];
 
     /// Raio dos cantos: o Adrenalin é todo reto; NVIDIA quase reto.
@@ -115,6 +115,8 @@ mod pal {
     pub fn violet() -> Color32 { at(14) }
     pub fn amd() -> Color32 { at(15) }
     pub fn intel() -> Color32 { at(16) }
+    /// Energia (fios, PD, fonte): amarelo-pálido dessaturado, sem significado de estado.
+    /// Não confundir com `amber()`, que é só atenção.
     pub fn bolt() -> Color32 { at(17) }
     pub fn pcie() -> Color32 { at(18) }
     /// Cor de dados (tráfego, gráficos). No tema AMD não é o vermelho da marca,
@@ -351,6 +353,8 @@ pub struct App {
     psu: crate::psu::Psu,
     psu_job: Option<Arc<Mutex<Option<Result<crate::psu::Found, String>>>>>,
     psu_msg: Option<(bool, String)>,
+    /// Carga da fonte calculada uma vez por quadro (App::ui): nó, painel lateral e cartão usam os mesmos números.
+    psu_load: Option<crate::psu::Load>,
 }
 
 impl App {
@@ -407,6 +411,7 @@ impl App {
             psu: crate::psu::load(),
             psu_job: None,
             psu_msg: None,
+            psu_load: None,
         }
     }
 
@@ -1278,13 +1283,14 @@ fn dname(n: &Node) -> String {
     n.dstate.map(pnp::dstate_name).unwrap_or("?").to_string()
 }
 
-fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crate::collect::GpuStatic>, sel: &mut Option<Sel>, bench: Option<&BenchResult>, psu: Option<(&crate::psu::Psu, crate::psu::Load)>) {
+fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crate::collect::GpuStatic>, sel: &mut Option<Sel>, bench: Option<&BenchResult>, psu: Option<(&crate::psu::Psu, crate::psu::Load)>, add_psu: &mut bool) {
     let w = ui.available_width();
     // Duas geometrias. Larga (≥ 760 pt): note | cabo | dock | ramos empilhados à direita, fonte embaixo do dock.
     // Estreita (painel lateral aberto, janela mínima): note e dock em cima (fonte embaixo do note),
     // os três ramos lado a lado embaixo, cada um com o seu cabo descendo do dock. Nada se sobrepõe.
     let narrow = w < 760.0;
-    let has_psu = psu.is_some();
+    // sem fonte informada, o lugar dela fica com um nó "fantasma" (convite a informar): a geometria é a mesma
+    let has_psu = true;
     let h = if narrow {
         (if has_psu { 170.0 } else { 136.0 }) + 52.0 + 100.0 + 8.0
     } else if has_psu {
@@ -1382,7 +1388,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let short = cable_txt.split(" · ").next().unwrap_or_default().to_string();
     let tiny = short.trim_start_matches("Cabo a ").to_string();
     if let Some(s) = fit(&[cable_txt.clone(), short, tiny], 13.5) {
-        p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, s, FontId::proportional(13.5), if dock_ok { pal::bolt() } else { pal::red() });
+        p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, s, FontId::proportional(13.5), if !dock_ok { pal::red() } else if speed == Some(0x8) { pal::amber() } else { pal::bolt() });
     }
     let pd_c: Vec<String> = if flow.pd_on { vec!["Carregando o notebook · até 85 W".into(), "Carregando".into(), "⚡".into()] } else { vec!["O dock não está carregando o notebook".into(), "Sem carga".into()] };
     if let Some(s) = fit(&pd_c, 12.5) {
@@ -1437,9 +1443,8 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let tb_pts = branch(tb_r, 2.0);
     p.extend(egui::Shape::dashed_line(&tb_pts, Stroke::new(1.5, pal::faint()), 5.0, 5.0));
 
-    // --- fonte do dock: ramo de energia chegando ao dock (só com fonte cadastrada)
-    if let Some((_, l)) = &psu {
-        let f = l.frac.clamp(0.0, 1.0);
+    // --- fonte do dock: ramo de energia chegando ao dock (tracejado e apagado enquanto a fonte não é informada)
+    {
         let pts = if narrow {
             // a fonte fica embaixo do note: o cabo entra pela esquerda do dock, na altura dela
             let y = psu_r.center().y;
@@ -1453,9 +1458,14 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
                 vec![pos2(psu_r.center().x, psu_r.top()), pos2(psu_r.center().x, psu_r.top() - 14.0), pos2(lx, psu_r.top() - 14.0), pos2(lx, dock.bottom())]
             }
         };
-        p.add(egui::Shape::line(pts.clone(), Stroke::new(8.0 + 6.0 * f, pal::bolt().gamma_multiply(0.08))));
-        link(&p, &pts, true, 2.0 + 4.0 * f, pal::bolt());
-        pulses(&p, &pts, t, f.max(0.08), pal::bolt(), false);
+        if let Some((_, l)) = &psu {
+            let f = l.frac.clamp(0.0, 1.0);
+            p.add(egui::Shape::line(pts.clone(), Stroke::new(8.0 + 6.0 * f, pal::bolt().gamma_multiply(0.08))));
+            link(&p, &pts, true, 2.0 + 4.0 * f, pal::bolt());
+            pulses(&p, &pts, t, f.max(0.08), pal::bolt(), false);
+        } else {
+            p.extend(egui::Shape::dashed_line(&pts, Stroke::new(1.5, pal::faint()), 5.0, 5.0));
+        }
     }
 
     // --- nós
@@ -1564,36 +1574,75 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         node_box(&p, tb_r, "TB extra 15\u{A0}W", &["não detectada".into()], pal::faint(), pal::amber(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
     }
 
-    // Fonte do dock
+    // Fonte do dock (ou o nó fantasma "+ Informar a fonte")
+    let (psr, lift) = hover(ui, psu_r, ui.id().with("psu"));
     if let Some((ps, l)) = &psu {
+        let w = ps.watts.max(1) as f32;
         let f = l.frac.clamp(0.0, 1.0);
-        let wf = l.worst / ps.watts as f32;
+        let wf = l.worst / w;
+        let st = psu_state(l, ps.watts);
         let title = if ps.model.trim().is_empty() { "Fonte do dock" } else { ps.model.trim() };
         let lines = [format!("≈ {:.0} W de {} W", l.now, ps.watts)];
-        let state = if wf < 0.8 { pal::green() } else if wf < 1.0 { pal::amber() } else { pal::red() };
-        let (psr, lift) = hover(ui, psu_r, ui.id().with("psu"));
-        node_box_r(&p, psu_r, title, &lines, pal::bolt(), state, *sel == Some(Sel::Psu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
-        // mini medidor: ▮ carga agora · ◆ pior caso
+        node_box_r(&p, psu_r, title, &lines, pal::bolt(), st.col, *sel == Some(Sel::Psu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
+        // mini medidor: ▮ carga agora · ┆ uso pesado · ▼ picos rápidos
         let aw = if psu_r.width() < 170.0 { (psu_r.width() * 0.24).clamp(30.0, 44.0) } else { (psu_r.width() * 0.3).clamp(44.0, 74.0) }; // mesma regra do node_box
         let x0 = psu_r.left() + aw + 22.0;
         let track = Rect::from_min_max(pos2(x0, psu_r.bottom() - 15.0), pos2(psu_r.right() - 46.0, psu_r.bottom() - 9.0));
-        let fc = if f < 0.6 { pal::green() } else if f < 0.8 { pal::amber() } else { pal::red() };
-        p.rect_filled(track, CornerRadius::same(3), pal::well());
-        p.rect_stroke(track, CornerRadius::same(3), Stroke::new(1.0, pal::border()), StrokeKind::Outside);
+        let fc = load_col(f);
+        // trilho com contraste nos dois temas (no claro o `well` some sobre o nó)
+        let (tf, ts) = if pal::current().is_light() { (pal::grid(), pal::faint().gamma_multiply(0.7)) } else { (pal::well(), pal::border()) };
+        p.rect_filled(track, CornerRadius::same(3), tf);
+        p.rect_stroke(track, CornerRadius::same(3), Stroke::new(1.0, ts), StrokeKind::Outside);
         if f > 0.004 {
             p.rect_filled(Rect::from_min_max(track.min, pos2(track.left() + track.width() * f, track.bottom())), CornerRadius::same(3), fc);
         }
-        for m in [0.6, 0.8] {
-            let x = track.left() + track.width() * m;
-            p.line_segment([pos2(x, track.center().y - 4.0), pos2(x, track.center().y + 4.0)], Stroke::new(1.0, pal::faint()));
-        }
         let wx = track.left() + track.width() * wf.clamp(0.0, 1.0);
-        let wy = track.center().y;
-        p.add(egui::Shape::convex_polygon(vec![pos2(wx, wy - 5.0), pos2(wx + 4.0, wy), pos2(wx, wy + 5.0), pos2(wx - 4.0, wy)], pal::dim(), Stroke::new(1.0, pal::card2())));
+        let wc = if wf > 0.85 { pal::amber() } else { pal::dim() };
+        p.extend(egui::Shape::dashed_line(&[pos2(wx, track.top() - 3.0), pos2(wx, track.bottom() + 3.0)], Stroke::new(1.5, wc), 2.0, 2.0));
+        let kx = (track.left() + track.width() * (l.spike / w).clamp(0.0, 1.0)).min(track.right() - 3.0);
+        let kc = if l.spike > w { pal::amber() } else { pal::dim() };
+        p.text(pos2(kx, track.top() - 1.0), egui::Align2::CENTER_BOTTOM, "▼", FontId::proportional(9.0), kc);
         p.text(pos2(track.right() + 8.0, track.center().y), egui::Align2::LEFT_CENTER, format!("{:.0} %", f * 100.0), FontId::proportional(12.5), fc);
-        let r = psr.on_hover_text("Estimativa: GPU (medida) + notebook + dock. A fonte não manda dados ao PC.\n▮ agora · ◆ pior caso");
+        let r = psr.on_hover_text(format!(
+            "{}
+Estimativa: placa (medida) + notebook + dock. A fonte não manda dados ao PC.
+▮ agora ≈ {:.0} W · ┆ uso pesado ≈ {:.0} W · ▼ picos rápidos ≈ {:.0} W",
+            st.pill, l.now, l.worst, l.spike
+        ));
         if r.clicked() {
             *sel = Some(Sel::Psu);
+        }
+    } else {
+        // nó fantasma: borda tracejada, ilustração esmaecida e o convite; leva à aba Cabo e energia
+        let cr = CornerRadius::same(pal::radius());
+        p.rect_filled(psu_r, cr, pal::card2().gamma_multiply(0.25 + 0.5 * lift));
+        let e = psu_r.shrink(0.5);
+        let bc = pal::faint().lerp_to_gamma(pal::fg(), 0.3 * lift);
+        p.extend(egui::Shape::dashed_line(&[e.left_top(), e.right_top(), e.right_bottom(), e.left_bottom(), e.left_top()], Stroke::new(1.0, bc), 6.0, 4.0));
+        let aw = if psu_r.width() < 170.0 { (psu_r.width() * 0.24).clamp(30.0, 44.0) } else { (psu_r.width() * 0.3).clamp(44.0, 74.0) };
+        let ar = Rect::from_min_size(psu_r.min + vec2(12.0, 8.0), vec2(aw, psu_r.height() - 16.0));
+        let mut faded = p.clone();
+        faded.multiply_opacity(0.3 + 0.2 * lift);
+        art::psu(&faded, ar, false, t, "", 0.0);
+        let tx = psu_r.left() + aw + 22.0;
+        let wrap = (psu_r.right() - 12.0 - tx).max(40.0);
+        // não cabendo numa linha, quebra em "+ Informar / a fonte" (nunca deixa "fonte" sozinha)
+        let t1 = if p.layout_no_wrap("+ Informar a fonte".into(), FontId::proportional(15.0), pal::dim()).size().x <= wrap { "+ Informar a fonte" } else { "+ Informar
+a fonte" };
+        let g1 = p.layout(t1.into(), FontId::proportional(15.0), pal::dim().lerp_to_gamma(pal::fg(), lift), wrap);
+        // a 2ª linha usa a versão que cabe numa linha só (nunca sobra uma palavra sozinha embaixo)
+        let sub = ["Para ver a carga ao vivo", "Carga ao vivo"].into_iter().find(|c| p.layout_no_wrap(c.to_string(), FontId::proportional(12.5), pal::faint()).size().x <= wrap);
+        let g2 = p.layout_no_wrap(sub.unwrap_or_default().to_string(), FontId::proportional(12.5), pal::faint());
+        let two = sub.is_some() && g1.size().y + 4.0 + g2.size().y <= psu_r.height() - 16.0;
+        let hgt = if two { g1.size().y + 4.0 + g2.size().y } else { g1.size().y };
+        let y0 = psu_r.center().y - hgt / 2.0;
+        let g1h = g1.size().y;
+        p.galley(pos2(tx, y0), g1, pal::dim());
+        if two {
+            p.galley(pos2(tx, y0 + g1h + 4.0), g2, pal::faint());
+        }
+        if psr.on_hover_text("Informe a fonte do dock (aba Cabo e energia) para ver a carga estimada, o uso pesado e os picos rápidos.").clicked() {
+            *add_psu = true;
         }
     }
 }
@@ -1611,6 +1660,7 @@ impl eframe::App for App {
         let (topo, samples, gpu_static, notes) = collect::with_live(|l| (l.topo.clone(), l.samples.iter().copied().collect::<Vec<Sample>>(), l.gpu_static.clone(), l.notes.clone()))
             .unwrap_or_default();
         let topo = topo.unwrap_or_default();
+        self.psu_frame(&topo, &samples);
         if topo.read_ms != 0 {
             if let Some(v) = vendor_of(&topo) {
                 self.vendor = Some(v);
@@ -1739,8 +1789,12 @@ impl eframe::App for App {
                         ui.add_space(pal::gap());
                         card(ui, "🔗  Topologia", pal::cyan(), |ui| {
                             let mut sel = self.sel;
-                            let pl = (self.psu.watts > 0).then(|| (&self.psu, crate::psu::compute(&self.psu, &psu_inputs(&topo, &samples))));
-                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref(), pl);
+                            let pl = self.psu_load.map(|l| (&self.psu, l));
+                            let mut add_psu = false;
+                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref(), pl, &mut add_psu);
+                            if add_psu {
+                                self.tab = Tab::Enlace;
+                            }
                             if sel != self.sel {
                                 self.sel = sel;
                             }
@@ -1781,7 +1835,7 @@ impl eframe::App for App {
                             }
                         }
                         ui.add_space(pal::gap());
-                        self.card_psu(ui, &topo, &samples);
+                        self.card_psu(ui);
                     }
                     Tab::Fluxo => {
                         ui.spacing_mut().item_spacing.x = pal::gap();
@@ -1916,7 +1970,8 @@ impl App {
     }
 
     /// Fonte do dock: modelo digitado, specs buscadas na web, carga estimada em tempo real.
-    fn card_psu(&mut self, ui: &mut Ui, topo: &Topology, samples: &[Sample]) {
+    /// Recolhe o resultado da busca de specs (segundo plano) e calcula a carga da fonte do quadro.
+    fn psu_frame(&mut self, topo: &Topology, samples: &[Sample]) {
         use crate::psu;
         // resultado da busca em segundo plano
         if let Some(job) = &self.psu_job {
@@ -1946,8 +2001,13 @@ impl App {
                 }
             }
         }
-        let inp = psu_inputs(topo, samples);
+        self.psu_load = (self.psu.watts > 0).then(|| psu::compute(&self.psu, &psu_inputs(topo, samples)));
+    }
+
+    fn card_psu(&mut self, ui: &mut Ui) {
+        use crate::psu;
         let before = self.psu.clone();
+        let load = self.psu_load;
         card(ui, "🔌  Fonte do dock", pal::bolt(), |ui| {
             let avail = ui.available_width();
             let (n, cw) = psu_cols(avail);
@@ -2000,18 +2060,24 @@ impl App {
                 self.psu_job = Some(slot);
                 self.psu_msg = None;
             }
-            // ── linha 2: ficha da fonte, uma célula por coluna
+            // ── linha 2: ficha da fonte, uma célula por coluna. 0 = falta informar (dica esmaecida, nunca "0 W")
             let psu_v = &mut self.psu;
             let mut cell = |ui: &mut Ui, i: usize| match i {
                 0 => field(ui, cw, "⚡", "Potência", |ui| {
-                    ui.add_sized([cw, 32.0], egui::DragValue::new(&mut psu_v.watts).range(0..=2000).suffix(" W").speed(5));
+                    if let Some(v) = num_field(ui, "psu-w", cw, psu_v.watts as f32, 0, "W", "— W") {
+                        psu_v.watts = v.round().clamp(0.0, 2000.0) as u32;
+                    }
                 }),
                 1 => field(ui, cw, "⎓", "Linha +12 V", |ui| {
-                    ui.add_sized([cw, 32.0], egui::DragValue::new(&mut psu_v.rail12_a).range(0.0..=170.0).suffix(" A").speed(0.5));
+                    if let Some(v) = num_field(ui, "psu-a", cw, psu_v.rail12_a, 1, "A", "ex.: 62,5 A") {
+                        psu_v.rail12_a = (v * 10.0).round().clamp(0.0, 1700.0) / 10.0;
+                    }
                 }),
                 2 => field(ui, cw, "★", "Selo 80 PLUS", |ui| {
+                    // largura exata da célula
                     egui::ComboBox::from_id_salt("psu-rating")
-                        .width(cw - 8.0)
+                        .width(cw)
+                        .height(320.0)
                         .selected_text(if psu_v.rating.is_empty() { "sem selo / não sei" } else { psu_v.rating.as_str() })
                         .show_ui(ui, |ui| {
                             for r in psu::RATINGS {
@@ -2020,10 +2086,20 @@ impl App {
                         });
                 }),
                 _ => field(ui, cw, "ⓘ", "Origem", |ui| {
+                    // selo (não parece campo editável), na altura dos campos
                     let (r, _) = ui.allocate_exact_size(vec2(cw, 32.0), Sense::hover());
-                    ui.painter().rect_filled(r, CornerRadius::same(pal::radius()), pal::card2());
-                    let t = if psu_v.origin == "web" { "🌐  da internet" } else { "✍  preenchido à mão" };
-                    ui.painter().text(r.left_center() + vec2(12.0, 0.0), egui::Align2::LEFT_CENTER, t, FontId::proportional(14.0), pal::dim());
+                    let (t, c) = if psu_v.origin == "web" {
+                        ("🌐  Da internet", pal::data())
+                    } else if psu_v.watts == 0 && psu_v.model.trim().is_empty() {
+                        ("…  Ainda não informada", pal::faint())
+                    } else {
+                        ("✍  Preenchida à mão", pal::dim())
+                    };
+                    let g = ui.painter().layout_no_wrap(t.to_string(), FontId::proportional(13.5), c);
+                    let chip = Rect::from_min_size(r.min, vec2((g.size().x + 28.0).min(cw), 32.0));
+                    ui.painter().rect_filled(chip, CornerRadius::same(16), c.gamma_multiply(0.14));
+                    ui.painter().rect_stroke(chip, CornerRadius::same(16), Stroke::new(1.0, c.gamma_multiply(0.45)), StrokeKind::Inside);
+                    ui.painter().galley(pos2(chip.left() + 14.0, chip.center().y - g.size().y / 2.0), g, c);
                 }),
             };
             for row in [0usize, 1, 2, 3].chunks(n) {
@@ -2041,49 +2117,43 @@ impl App {
             let (hl, _) = ui.allocate_exact_size(vec2(avail, 1.0), Sense::hover());
             ui.painter().rect_filled(hl, CornerRadius::ZERO, pal::grid());
             ui.add_space(10.0);
-            if self.psu.watts == 0 {
+            // os números do quadro (App::psu_load): os mesmos do nó da topologia e do painel lateral
+            let Some(l) = load.filter(|_| before.watts > 0 && self.psu.watts > 0) else {
                 empty_psu(ui, avail);
                 return;
-            }
-            let l = psu::compute(&self.psu, &inp);
-            let w = self.psu.watts as f32;
+            };
+            let w = before.watts as f32;
             // ── conclusão primeiro
-            if l.spike > w {
-                verdict_strip(ui, pal::red(), "✖", &format!("Os picos da placa (~{:.0} W) passam dos {:.0} W da fonte: o dock pode desligar inteiro, PD junto.", l.spike, w));
-            } else if l.worst > w * 0.85 {
-                verdict_strip(ui, pal::amber(), "▲", &format!("No pior caso a fonte chega a ~{:.0}%. Funciona, com pouca folga.", l.worst / w * 100.0));
-            } else {
-                verdict_strip(ui, pal::green(), "✔", &format!("Folga boa: no pior caso a fonte fica em ~{:.0}%.", l.worst / w * 100.0));
-            }
+            let st = psu_state(&l, before.watts);
+            verdict_strip(ui, st.col, st.icon, &st.msg);
             ui.add_space(6.0);
             load_bar(ui, &l, w, avail);
             ui.add_space(10.0);
             // ── medidores: o centro de cada um cai no centro da coluna dos campos acima
-            let lc = |f: f32| if f > 0.8 { pal::red() } else if f > 0.6 { pal::amber() } else { pal::green() };
-            let rail = self.psu.rail12_a;
-            let rating = if self.psu.rating.is_empty() { "sem selo".to_string() } else { self.psu.rating.clone() };
+            let rail = before.rail12_a;
+            let rating = if before.rating.is_empty() { "sem selo".to_string() } else { before.rating.clone() };
             let gauge_at = |ui: &mut Ui, i: usize| {
                 ui.vertical_centered(|ui| match i {
                     0 => {
-                        gauge(ui, "⚡", l.now, w, &format!("W · {:.0}%", l.frac * 100.0), "Carga agora", lc(l.frac)).on_hover_text(format!(
-                            "Placa {:.0} W (medido) + notebook pelo PD ~{:.0} W + dock ~{:.0} W + portas ~{:.0} W (estimados)",
-                            l.gpu, l.pd, l.dock, l.usb
+                        gauge(ui, "⚡", l.now, w, &format!("W · {:.0}%", l.frac * 100.0), "Carga agora (≈)", load_col(l.frac)).on_hover_text(format!(
+                            "≈ {:.0} W = placa {:.0} W (medido) + notebook pelo PD {:.0} W + dock {:.0} W + portas {:.0} W (estimados)",
+                            l.now, l.gpu, l.pd, l.dock, l.usb
                         ));
                     }
                     1 => {
-                        gauge(ui, "▲", l.spike, w, "W", "Pico possível", lc(l.spike / w)).on_hover_text(format!(
-                            "A placa pode puxar picos de ~1,6× o limite ({:.0} W) por milissegundos, somados ao resto. Fonte fraca desarma nesses picos.",
+                        gauge(ui, "▼", l.spike, w, "W", "Picos rápidos (≈)", if l.spike > w { pal::amber() } else { pal::green() }).on_hover_text(format!(
+                            "Transientes de milissegundos: a placa pode puxar ~1,6× o limite ({:.0} W), somados ao resto. Fonte fraca desarma nesses picos.",
                             psu::GPU_TBP_MAX
                         ));
                     }
                     2 => {
-                        gauge(ui, "🔌", l.wall, w * 1.2, "W", "Na tomada (est.)", pal::data()).on_hover_text(format!("Eficiência estimada {:.0}% ({rating})", l.eff * 100.0));
+                        gauge(ui, "🔌", l.wall, w * 1.2, "W", "Na tomada (≈)", pal::data()).on_hover_text(format!("Eficiência estimada {:.0}% ({rating})", l.eff * 100.0));
                     }
                     _ => {
                         if rail > 0.0 {
-                            gauge(ui, "⎓", l.amps12, rail, "A", "Linha +12 V", lc(l.amps12 / rail)).on_hover_text("Corrente estimada na linha de +12 V, contra o máximo da etiqueta da fonte.");
+                            gauge(ui, "⎓", l.amps12, rail, "A", "Linha +12 V (≈)", load_col(l.amps12 / rail)).on_hover_text("Corrente estimada na linha de +12 V, contra o máximo da etiqueta da fonte.");
                         } else {
-                            gauge(ui, "⎓", f32::NAN, 1.0, "A", "informe a +12 V", pal::dim()).on_hover_text("Preencha a corrente da linha +12 V (está na etiqueta da fonte) para ver este medidor.");
+                            gauge(ui, "⎓", f32::NAN, 1.0, "A", "+12 V: falta informar", pal::faint()).on_hover_text("Preencha a corrente da linha +12 V (está na etiqueta da fonte) para ver este medidor.");
                         }
                     }
                 });
@@ -2096,7 +2166,7 @@ impl App {
                 });
             }
             ui.add_space(4.0);
-            ui.add(egui::Label::new(egui::RichText::new("ⓘ Placa: medida. Notebook, dock e portas: estimados (a fonte não manda dados).").color(pal::faint()).size(12.0)).wrap());
+            ui.add(egui::Label::new(egui::RichText::new("ⓘ Placa: medida. Notebook, dock e portas: estimados (≈), a fonte não manda dados.").color(pal::faint()).size(12.0)).wrap());
         });
         if self.psu != before {
             if self.psu.model != before.model {
@@ -2775,7 +2845,7 @@ fn gauge_grid(ui: &mut Ui, labels: &[(&str, &str)], mut item: impl FnMut(&mut Ui
     even_grid(ui, labels.len(), nat, 8.0, |ui, i, w| item(ui, i, w));
 }
 
-/// Medidor com largura `w` (o arco fica no centro da célula); valor NaN = desconhecido ("?").
+/// Medidor com largura `w` (o arco fica no centro da célula); valor NaN = desconhecido ("—").
 #[allow(clippy::too_many_arguments)]
 fn gauge_w(ui: &mut Ui, w: f32, icon: &str, value: f32, max: f32, unit: &str, label: &str, color: Color32) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 92.0), Sense::click());
@@ -2805,7 +2875,7 @@ fn gauge_w(ui: &mut Ui, w: f32, icon: &str, value: f32, max: f32, unit: &str, la
         let a = a0 + sweep * frac;
         p.circle_filled(c + vec2(a.cos(), a.sin()) * r, 4.5, color);
     }
-    p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "?".to_string() } else { format!("{v:.0}") }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
+    p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "—".to_string() } else { format!("{v:.0}") }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
     p.text(c + vec2(0.0, 14.0), egui::Align2::CENTER_CENTER, unit, FontId::proportional(12.0), pal::dim());
     p.text(pos2(c.x, rect.bottom() - 1.0), egui::Align2::CENTER_BOTTOM, format!("{icon} {label}"), FontId::proportional(12.5), pal::dim());
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -2830,6 +2900,82 @@ fn field<R>(ui: &mut Ui, w: f32, icon: &str, label: &str, add: impl FnOnce(&mut 
         add(ui)
     })
     .inner
+}
+
+/// Estado da fonte para a UI. Tudo é estimado (a fonte não manda dados): nunca vermelho nem ✕,
+/// que ficam só para queda medida. Picos rápidos acima da fonte = risco; uso pesado > 85% = atenção.
+struct PsuState {
+    col: Color32,
+    icon: &'static str,
+    pill: &'static str,
+    msg: String,
+}
+
+fn psu_state(l: &crate::psu::Load, watts: u32) -> PsuState {
+    use crate::psu::Verdict;
+    let w = watts.max(1) as f32;
+    match crate::psu::verdict(l, watts) {
+        Verdict::Risk => PsuState {
+            col: pal::amber(),
+            icon: "⚠",
+            pill: "Risco (estimado)",
+            msg: if l.spike > w {
+                format!("Risco (estimado): os picos rápidos da placa (≈ {:.0} W) passam dos {watts} W da fonte. O dock pode desligar inteiro, e o notebook para de carregar junto.", l.spike)
+            } else {
+                format!("Risco (estimado): no uso pesado a carga (≈ {:.0} W) passa dos {watts} W da fonte.", l.worst)
+            },
+        },
+        Verdict::Tight => PsuState {
+            col: pal::amber(),
+            icon: "▲",
+            pill: "Pouca folga",
+            msg: format!("Pouca folga: no uso pesado a fonte chega a ≈ {:.0}%. Funciona, mas com pouca margem.", l.worst / w * 100.0),
+        },
+        Verdict::Ok => PsuState {
+            col: pal::green(),
+            icon: "✔",
+            pill: "Folga boa",
+            msg: format!("Folga boa: no uso pesado a fonte fica em ≈ {:.0}%, e os picos rápidos (≈ {:.0} W) cabem nela.", l.worst / w * 100.0, l.spike),
+        },
+    }
+}
+
+/// Cor de uma fração estimada da fonte: verde até 85%, âmbar acima (estimativa nunca fica vermelha).
+fn load_col(f: f32) -> Color32 {
+    if f > 0.85 { pal::amber() } else { pal::green() }
+}
+
+/// Campo numérico de texto, alinhado à esquerda, com a unidade à direita. Valor 0 = não informado:
+/// mostra só a dica esmaecida (`hint`). Devolve o novo valor quando o texto muda.
+fn num_field(ui: &mut Ui, key: &str, w: f32, v: f32, dec: usize, unit: &str, hint: &str) -> Option<f32> {
+    let id = ui.id().with(key);
+    let bid = id.with("buf");
+    let shown = if v > 0.0 { format!("{v:.dec$}").replace('.', ",") } else { String::new() };
+    let mut buf = ui.data(|d| d.get_temp::<String>(bid)).unwrap_or(shown);
+    let r = ui.add(
+        egui::TextEdit::singleline(&mut buf)
+            .id(id)
+            .hint_text(egui::RichText::new(hint).color(pal::faint()))
+            .desired_width(f32::INFINITY)
+            .min_size(vec2(w, 32.0))
+            .vertical_align(egui::Align::Center),
+    );
+    if !buf.trim().is_empty() {
+        let tw = ui.painter().layout_no_wrap(format!("{buf} "), FontId::proportional(14.0), pal::fg()).size().x;
+        let ux = (r.rect.right() - 12.0).max(r.rect.left() + 8.0 + tw);
+        ui.painter().text(pos2(ux, r.rect.center().y), egui::Align2::RIGHT_CENTER, unit, FontId::proportional(13.5), pal::dim());
+    }
+    if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(bid, buf.clone()));
+    } else {
+        ui.data_mut(|d| d.remove::<String>(bid));
+    }
+    if r.changed() {
+        let t = buf.trim().replace(',', ".");
+        let t = t.trim_end_matches(|c: char| c.is_alphabetic() || c == ' ');
+        return if t.is_empty() { Some(0.0) } else { t.parse::<f32>().ok() };
+    }
+    None
 }
 
 /// Faixa de veredito: barra de cor à esquerda, ícone colorido e texto em cor neutra.
@@ -2866,21 +3012,27 @@ fn hatch(p: &egui::Painter, r: Rect) {
 }
 
 /// Barra empilhada "quanto da fonte uso e com o quê": placa medida (cheia),
-/// notebook/dock/portas estimados (hachurados), pior caso e pico marcados.
+/// notebook/dock/portas estimados (hachurados); uso pesado (tracejado) e picos rápidos (▼) marcados.
 fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
     let id = ui.id().with("psu-bar");
     // cabeçalho
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new("Carga agora").size(12.5).color(pal::dim()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(egui::RichText::new(format!("{:.0} de {:.0} W", l.now, w)).size(14.0).strong().color(pal::fg()));
+            ui.label(egui::RichText::new(format!("≈ {:.0} de {:.0} W", l.now, w)).size(14.0).strong().color(pal::fg()));
         });
     });
     let (area, _) = ui.allocate_exact_size(vec2(width, 16.0 + 24.0 + 22.0), Sense::hover());
     let track = Rect::from_min_size(pos2(area.left(), area.top() + 16.0), vec2(width, 24.0));
     let p = ui.painter();
     let rad = pal::radius();
-    p.rect_filled(track, CornerRadius::same(rad), pal::well());
+    // trilho com contraste nos dois temas (no claro o `well` some sobre o cartão)
+    if pal::current().is_light() {
+        p.rect_filled(track, CornerRadius::same(rad), pal::grid());
+        p.rect_stroke(track, CornerRadius::same(rad), Stroke::new(1.0, pal::border()), StrokeKind::Outside);
+    } else {
+        p.rect_filled(track, CornerRadius::same(rad), pal::well());
+    }
     let sx = |v: f32| track.left() + (v / w).clamp(0.0, 1.0) * track.width();
     let segs = [
         ("🎮 Placa", l.gpu, pal::data(), true),
@@ -2910,17 +3062,17 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
             hatch(p, r);
         }
         end_x = x1;
-        let tip = format!("{name}: {}{v:.0} W ({})", if *measured { "" } else { "~" }, if *measured { "medido" } else { "estimado" });
+        let tip = format!("{name}: {}{v:.0} W ({})", if *measured { "" } else { "≈ " }, if *measured { "medido" } else { "estimado" });
         ui.interact(r, id.with(("seg", k)), Sense::hover()).on_hover_text(tip);
     }
     let p = ui.painter();
     // sombra interna na borda de cima
     p.line_segment([track.left_top(), track.right_top()], Stroke::new(1.0, Color32::from_black_alpha(60)));
-    // pior caso
+    // uso pesado (sustentado): tracejado
     let wx = sx(l.worst);
     let wc = if l.worst > w * 0.85 { pal::amber() } else { pal::dim() };
     p.add(egui::Shape::dashed_line(&[pos2(wx, track.top() - 3.0), pos2(wx, track.bottom() + 3.0)], Stroke::new(2.0, wc), 4.0, 3.0));
-    // folga no espaço livre (desviando do tracinho do pior caso)
+    // folga no espaço livre (desviando do tracejado do uso pesado)
     let free = track.right() - end_x;
     if free >= 90.0 {
         let txt = format!("folga {:.0} W", (w - l.now).max(0.0));
@@ -2933,22 +3085,23 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
             p.text(pos2((a + b) / 2.0, track.center().y), egui::Align2::CENTER_CENTER, txt, FontId::proportional(12.0), pal::dim());
         }
     }
-    // pico: triângulo em cima do trilho (preso no fim) e rótulo à esquerda dele
+    // picos rápidos: triângulo em cima do trilho (preso no fim) e rótulo à esquerda dele.
+    // Estimativa: âmbar (risco estimado), nunca vermelho
     let over = l.spike > w;
     let kx = sx(l.spike).min(track.right() - 6.0);
-    let kc = if over { pal::red() } else { pal::dim() };
+    let kc = if over { pal::amber() } else { pal::dim() };
     p.text(pos2(kx, track.top() - 1.0), egui::Align2::CENTER_BOTTOM, "▼", FontId::proportional(12.0), kc);
-    let klabel = if over { "pico passa da fonte".to_string() } else { format!("pico ~{:.0} W", l.spike) };
+    let klabel = if over { "⚠ picos rápidos passam da fonte".to_string() } else { format!("picos rápidos ≈ {:.0} W", l.spike) };
     p.text(pos2(kx - 10.0, track.top() - 2.0), egui::Align2::RIGHT_BOTTOM, klabel, FontId::proportional(11.5), kc);
     if over {
-        p.line_segment([pos2(track.right() - 1.0, track.top()), pos2(track.right() - 1.0, track.bottom())], Stroke::new(2.0, pal::red()));
+        p.line_segment([pos2(track.right() - 1.0, track.top()), pos2(track.right() - 1.0, track.bottom())], Stroke::new(2.0, pal::amber()));
     }
-    // régua e rótulo do pior caso embaixo
+    // régua e rótulo do uso pesado embaixo
     let ry = track.bottom() + 5.0;
     let f11 = FontId::proportional(11.0);
     let r0 = p.text(pos2(track.left(), ry), egui::Align2::LEFT_TOP, "0", f11.clone(), pal::faint());
     let r1 = p.text(pos2(track.right(), ry), egui::Align2::RIGHT_TOP, format!("{:.0} W", w), f11.clone(), pal::faint());
-    let g = p.layout_no_wrap("pior caso".into(), FontId::proportional(11.5), wc);
+    let g = p.layout_no_wrap(format!("uso pesado ≈ {:.0} W", l.worst), FontId::proportional(11.5), wc);
     let gx = (wx - g.size().x / 2.0).clamp(r0.right() + 8.0, (r1.left() - 8.0 - g.size().x).max(r0.right() + 8.0));
     p.galley(pos2(gx, ry), g, wc);
     // legenda
@@ -2963,7 +3116,7 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
             }
             // item inteiro como um widget só, para a quebra de linha não separar o quadradinho do texto
             let short = if k == 1 { "💻 Notebook" } else { name };
-            let g = ui.painter().layout_no_wrap(format!("{short} {}{v:.0} W", if *measured { "" } else { "~" }), FontId::proportional(13.0), pal::dim());
+            let g = ui.painter().layout_no_wrap(format!("{short} {}{v:.0} W", if *measured { "" } else { "≈ " }), FontId::proportional(13.0), pal::dim());
             let (r, _) = ui.allocate_exact_size(vec2(16.0 + g.size().x, g.size().y.max(18.0)), Sense::hover());
             let sq = Rect::from_center_size(pos2(r.left() + 5.0, r.center().y), vec2(10.0, 10.0));
             ui.painter().rect_filled(sq, CornerRadius::same(rad.min(2)), *col);
@@ -3636,82 +3789,79 @@ impl App {
                     }
                 });
             }
-            Some(Sel::Psu) => {
-                if self.psu.watts > 0 {
-                    let l = crate::psu::compute(&self.psu, &psu_inputs(topo, samples));
+            Some(Sel::Psu) => match self.psu_load.filter(|_| self.psu.watts > 0) {
+                Some(l) => {
+                    let w = self.psu.watts as f32;
                     let f = l.frac.clamp(0.0, 1.0);
-                    let (st, sc) = if f < 0.6 { ("≈ Com folga", pal::green()) } else if f < 0.8 { ("≈ Perto do limite", pal::amber()) } else { ("≈ No limite", pal::red()) };
+                    let st = psu_state(&l, self.psu.watts);
                     let model = self.psu.model.trim().to_string();
                     let rating = self.psu.rating.clone();
+                    let sub = if rating.trim().is_empty() { format!("{} W · sem selo", self.psu.watts) } else { format!("{} W · 80 PLUS {}", self.psu.watts, rating.trim()) };
                     side_hero(
                         ui,
                         e,
                         pal::bolt(),
                         &|p: &egui::Painter, r: Rect| art::psu(p, r, dock_ok, t, &rating, f),
                         if model.is_empty() { "Fonte do dock" } else { &model },
-                        &format!("Fonte do dock · {} W", self.psu.watts),
-                        Some((st, sc)),
+                        &sub,
+                        Some((st.pill, st.col)),
                         &mut sel,
                     );
-                    ui.add_space(10.0);
+                    side_hint(ui, &st.msg);
+                    let rail = self.psu.rail12_a;
+                    let tiles = vec![
+                        tl("⚡", Some(format!("{:.0}", l.now)), "W", "Carga agora (≈)", pal::bolt()).vc_if(f > 0.85, pal::amber()).bar(f).tip(format!(
+                            "≈ {:.0} W = placa {:.0} W (medido) + notebook {:.0} W + dock {:.0} W + portas {:.0} W (estimados)",
+                            l.now, l.gpu, l.pd, l.dock, l.usb
+                        )),
+                        tl("📈", Some(format!("{:.0}", l.worst)), "W", "Uso pesado (≈)", pal::bolt()).vc_if(l.worst > w * 0.85, pal::amber()).bar((l.worst / w).min(1.0)).tip("Sustentado: placa no limite de potência + notebook carregando no máximo + portas em uso."),
+                        tl("▼", Some(format!("{:.0}", l.spike)), "W", "Picos rápidos (≈)", pal::bolt()).vc_if(l.spike > w, pal::amber()).bar((l.spike / w).min(1.0)).tip("Transientes de milissegundos da placa (~1,6× o limite) somados ao resto."),
+                        tl("🔌", Some(format!("{:.0}", l.wall)), "W", "Na tomada (≈)", pal::data()).tip(format!("Eficiência estimada {:.0}%", l.eff * 100.0)),
+                        if rail > 0.0 {
+                            tl("⎓", Some(dec(l.amps12 as f64, 1)), "A", "Linha +12 V (≈)", pal::bolt()).vc_if(l.amps12 > rail * 0.85, pal::amber()).bar((l.amps12 / rail).min(1.0)).tip(format!("Contra os {} A da etiqueta", dec(rail as f64, 1)))
+                        } else {
+                            tl("⎓", None, "A", "+12 V: falta informar", pal::faint()).tip("Preencha a corrente da linha +12 V (está na etiqueta da fonte).")
+                        },
+                    ];
+                    tile_grid(ui, &tiles, sel_at);
+                    ui.add_space(12.0);
+                    if ui.button(egui::RichText::new("✏ Trocar fonte ›").size(14.0)).clicked() {
+                        self.tab = Tab::Enlace;
+                    }
+                    side_tech(ui, "psu", |ui| {
+                        ui.label(egui::RichText::new("De onde vem a carga agora").size(13.0).strong().color(pal::dim()));
+                        ui.horizontal_wrapped(|ui| {
+                            for (icon, v, tip) in [("🎮", l.gpu, "Placa de vídeo (medida)"), ("💻", l.pd, "Notebook pelo PD (≈ estimado)"), ("▣", l.dock + l.usb, "Dock e portas (≈ estimado)")] {
+                                egui::Frame::new()
+                                    .fill(pal::card2())
+                                    .stroke(Stroke::new(1.0, pal::border()))
+                                    .corner_radius(CornerRadius::same(pal::radius()))
+                                    .inner_margin(egui::Margin::symmetric(10, 5))
+                                    .show(ui, |ui| {
+                                        ui.add(egui::Label::new(egui::RichText::new(format!("{icon} {v:.0} W")).size(14.0).color(pal::fg())).extend());
+                                    })
+                                    .response
+                                    .on_hover_text(tip);
+                            }
+                            ui.add(egui::Label::new(egui::RichText::new(format!("= ≈ {:.0} W", l.now)).size(14.0).strong().color(pal::fg())).extend());
+                        });
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new(format!(
+                            "Eficiência ≈ {:.0}% · +12 V ≈ {} A · uso pesado = placa no limite ({:.0} W) + notebook a 85 W + dock e portas.",
+                            l.eff * 100.0,
+                            dec(l.amps12 as f64, 1),
+                            crate::psu::GPU_TBP_MAX
+                        )).size(12.5).color(pal::dim()));
+                        ui.label(egui::RichText::new("A fonte não manda dados ao PC: só a placa é medida, o resto é estimado.").size(12.5).color(pal::faint()));
+                    });
                 }
-                self.psu_details(ui, topo, samples);
-            }
+                None => self.sel = None,
+            },
             None => {}
         }
         if sel != before {
             self.sel = sel;
         }
-    }
-
-    /// Painel lateral da fonte do dock: medidor, de onde vem a carga, pior caso e pico. Tudo estimado.
-    fn psu_details(&mut self, ui: &mut Ui, topo: &Topology, samples: &[Sample]) {
-        if self.psu.watts == 0 {
-            self.sel = None;
-            return;
-        }
-        let l = crate::psu::compute(&self.psu, &psu_inputs(topo, samples));
-        let w = self.psu.watts as f32;
-        if let Some(c) = art::seal_color(&self.psu.rating) {
-            ui.horizontal(|ui| {
-                egui::Frame::new().fill(c).corner_radius(CornerRadius::same(3)).inner_margin(egui::Margin::symmetric(8, 2)).show(ui, |ui| {
-                    ui.add(egui::Label::new(egui::RichText::new(format!("80+ {}", self.psu.rating.trim())).size(13.0).strong().color(Color32::from_rgb(20, 20, 22))).extend());
-                });
-                ui.label(egui::RichText::new(format!("{} W", self.psu.watts)).size(13.5).color(pal::dim()));
-            });
-            ui.add_space(6.0);
-        }
-        let f = l.frac.clamp(0.0, 1.0);
-        let lc = if f < 0.6 { pal::green() } else if f < 0.8 { pal::amber() } else { pal::red() };
-        ui.vertical_centered(|ui| {
-            gauge(ui, "⚡", l.now, w, "W", "≈ agora", lc).on_hover_text(format!("{:.0}% de {} W", f * 100.0, self.psu.watts));
-        });
-        ui.add_space(6.0);
-        ui.horizontal_wrapped(|ui| {
-            for (icon, v, tip) in [("🎮", l.gpu, "Placa de vídeo (medida)"), ("💻", l.pd, "Notebook pelo PD (estimado)"), ("🖴", l.dock + l.usb, "Dock e portas (estimado)")] {
-                egui::Frame::new()
-                    .fill(pal::card2())
-                    .stroke(Stroke::new(1.0, pal::border()))
-                    .corner_radius(CornerRadius::same(pal::radius()))
-                    .inner_margin(egui::Margin::symmetric(10, 5))
-                    .show(ui, |ui| {
-                        ui.add(egui::Label::new(egui::RichText::new(format!("{icon} {v:.0} W")).size(14.0).color(pal::fg())).extend());
-                    })
-                    .response
-                    .on_hover_text(tip);
-            }
-        });
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new(format!("◆ pior caso ≈ {:.0} W", l.worst)).size(14.0).color(if l.worst >= w { pal::red() } else { pal::fg() }))
-            .on_hover_text("Placa no limite de potência + notebook carregando + todas as portas em uso.");
-        ui.label(egui::RichText::new(format!("⚡ pico ≈ {:.0} W", l.spike)).size(14.0).color(if l.spike > w { pal::amber() } else { pal::fg() }))
-            .on_hover_text("Picos de milissegundos da placa somados ao resto.");
-        ui.add_space(10.0);
-        if ui.button(egui::RichText::new("✏ Trocar fonte ›").size(14.0)).clicked() {
-            self.tab = Tab::Enlace;
-        }
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Valores estimados").size(12.0).color(pal::faint()));
     }
 
     fn info(&mut self, ui: &mut Ui, t: Topic, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
@@ -3929,7 +4079,8 @@ fn side_tile(ui: &mut Ui, w: f32, h: f32, x: &Tile, alpha: f32) -> egui::Respons
     let sc = x.vcol.unwrap_or(x.color);
     if let Some(f) = x.bar {
         let b = Rect::from_center_size(strip.center(), vec2(strip.width(), 4.0));
-        p.rect_filled(b, CornerRadius::same(2), pal::well());
+        // trilho com contraste também no claro (o `well` some sobre o bloco)
+        p.rect_filled(b, CornerRadius::same(2), if pal::current().is_light() { pal::grid() } else { pal::well() });
         p.rect_filled(Rect::from_min_size(b.min, vec2(b.width() * f.clamp(0.0, 1.0), 4.0)), CornerRadius::same(2), sc);
     } else if x.spark.len() >= 2 {
         spark(&p, strip, &x.spark, sc.gamma_multiply(0.9));
@@ -3950,6 +4101,8 @@ fn tile_grid(ui: &mut Ui, tiles: &[Tile], sel_at: f64) -> Option<usize> {
     ui.scope(|ui| {
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         for (ri, row) in tiles.chunks(cols).enumerate() {
+            // linha incompleta (ex.: 5 blocos em 2 colunas): os blocos dela dividem a largura toda
+            let w = if row.len() < cols { ((avail - 8.0 * (row.len() as f32 - 1.0)) / row.len() as f32).floor() } else { w };
             let h = row.iter().map(|x| tile_height(ui, x, w)).fold(88.0, f32::max);
             ui.horizontal(|ui| {
                 for (ci, x) in row.iter().enumerate() {
