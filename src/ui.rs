@@ -205,6 +205,7 @@ enum Sel {
     Dock,
     Port(usize),
     Gpu,
+    Psu,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -280,7 +281,16 @@ impl App {
         Self {
             collector: Some(collect::start(ctx)),
             bench: Arc::new(Mutex::new(last_bench.map(BenchState::Done).unwrap_or(BenchState::Idle))),
-            sel: None,
+            // EGPU_SEL=gpu|dock|host|cable|psu|port0.. abre com o painel lateral de um nó (capturas e testes)
+            sel: match std::env::var("EGPU_SEL").ok().as_deref() {
+                Some("gpu") => Some(Sel::Gpu),
+                Some("dock") => Some(Sel::Dock),
+                Some("host") => Some(Sel::Host),
+                Some("cable") => Some(Sel::Cable),
+                Some("psu") if crate::psu::load().watts > 0 => Some(Sel::Psu),
+                Some(v) if v.starts_with("port") => v[4..].parse().ok().map(Sel::Port),
+                _ => None,
+            },
             range: Range::D7,
             cats: vec![
                 (Cat::Dock, true),
@@ -499,6 +509,7 @@ fn resolve_theme(cfg: u8, vendor: Option<Th>) -> Th {
         Some("amd") => Some(Th::Amd),
         Some("nvidia") => Some(Th::Nvidia),
         Some("intel") => Some(Th::Intel),
+        Some("claro") => return Th::Light,
         _ => vendor,
     };
     match cfg {
@@ -717,7 +728,13 @@ struct Flow {
 }
 
 fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, art: Option<&dyn Fn(&egui::Painter, Rect)>) {
-    let p = &p.with_clip_rect(rect.intersect(p.clip_rect()));
+    node_box_r(p, rect, title, lines, accent, state, selected, focus, art, 0.0);
+}
+
+/// Igual a node_box, deixando `reserve_bottom` px livres embaixo do texto (para um medidor por cima).
+#[allow(clippy::too_many_arguments)]
+fn node_box_r(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, art: Option<&dyn Fn(&egui::Painter, Rect)>, reserve_bottom: f32) {
+    let p =&p.with_clip_rect(rect.intersect(p.clip_rect()));
     let fill = if focus { pal::card3() } else { pal::card2() };
     p.rect_filled(rect, CornerRadius::same(pal::radius()), fill);
     p.rect_stroke(rect, CornerRadius::same(pal::radius()), Stroke::new(if selected { 2.0 } else { 1.0 }, if selected { pal::cyan() } else { pal::border() }), StrokeKind::Inside);
@@ -736,7 +753,7 @@ fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent
     };
     let wrap = (rect.right() - 26.0 - (rect.left() + tx)).max(40.0);
     let tg = p.layout(title.to_string(), FontId::proportional(if focus { 16.5 } else { 15.0 }), pal::fg(), wrap);
-    let reserve = if focus { 24.0 } else { 0.0 }; // no dock, a faixa das portas fica embaixo
+    let reserve = if focus { 24.0 } else { reserve_bottom }; // no dock, a faixa das portas fica embaixo
     let room = rect.height() - 14.0 - reserve;
     let mut gs = vec![];
     let mut block = tg.size().y;
@@ -898,6 +915,69 @@ mod art {
         p.rect_filled(port.shrink(k * 0.04), CornerRadius::same(255), Color32::from_rgb(10, 10, 12));
         p.rect_filled(Rect::from_center_size(port.center(), vec2(k * 0.46, k * 0.06)), CornerRadius::same(1), if on { pal::bolt() } else { metal() });
     }
+
+    /// Cor do selo 80 PLUS pelo nome da certificação (None = sem selo).
+    pub fn seal_color(rating: &str) -> Option<Color32> {
+        let rt = rating.trim().to_lowercase();
+        Some(if rt.is_empty() {
+            return None;
+        } else if rt.contains("titan") {
+            Color32::from_rgb(110, 114, 122)
+        } else if rt.contains("plat") {
+            Color32::from_rgb(170, 182, 196)
+        } else if rt.contains("gold") || rt.contains("ouro") {
+            Color32::from_rgb(212, 175, 55)
+        } else if rt.contains("silver") || rt.contains("prata") {
+            Color32::from_rgb(196, 198, 204)
+        } else if rt.contains("bronze") {
+            Color32::from_rgb(176, 120, 64)
+        } else {
+            Color32::from_rgb(235, 235, 235)
+        })
+    }
+
+    /// Fonte ATX vista de lado: ventoinha que gira mais rápido com a carga, conectores e selo 80 PLUS.
+    pub fn psu(p: &Painter, r: Rect, on: bool, t: f64, rating: &str, load: f32) {
+        let r = fit(r, 1.3);
+        let k = r.width();
+        let case = r.shrink2(vec2(0.0, k * 0.05));
+        p.rect_filled(case, CornerRadius::same(4), metal());
+        p.rect_filled(case.shrink(2.0), CornerRadius::same(3), body());
+        // ventoinha com grade
+        let c = pos2(case.left() + case.width() * 0.4, case.center().y);
+        let rad = case.height() * 0.38;
+        p.circle_filled(c, rad, Color32::from_rgb(14, 14, 16));
+        let ang = if on { (t as f32) * (0.4 + 6.0 * load.clamp(0.0, 1.0)) } else { 0.0 };
+        for b in 0..5 {
+            let a = ang + b as f32 * TAU / 5.0;
+            let p0 = c + vec2(a.cos(), a.sin()) * rad * 0.3;
+            let p1 = c + vec2((a + 0.45).cos(), (a + 0.45).sin()) * rad * 0.65;
+            let p2 = c + vec2((a + 0.7).cos(), (a + 0.7).sin()) * rad * 0.92;
+            p.add(Shape::line(vec![p0, p1, p2], Stroke::new(rad * 0.16, metal().gamma_multiply(0.75))));
+        }
+        for f in [0.95, 0.66, 0.38] {
+            p.circle_stroke(c, rad * f, Stroke::new(0.8, metal()));
+        }
+        p.line_segment([c - vec2(rad * 0.95, 0.0), c + vec2(rad * 0.95, 0.0)], Stroke::new(0.8, metal()));
+        p.line_segment([c - vec2(0.0, rad * 0.95), c + vec2(0.0, rad * 0.95)], Stroke::new(0.8, metal()));
+        p.circle_filled(c, rad * 0.24, metal());
+        p.circle_filled(c, rad * 0.1, if on { pal::cyan() } else { pal::faint() });
+        // conectores modulares (2 × 3)
+        let s = k * 0.07;
+        let x0 = case.right() - k * 0.24;
+        for row in 0..3 {
+            for col in 0..2 {
+                let m = pos2(x0 + col as f32 * s * 1.35, case.top() + k * 0.1 + row as f32 * s * 1.3);
+                p.rect_filled(Rect::from_min_size(m, vec2(s, s)), CornerRadius::same(1), Color32::from_rgb(10, 10, 12));
+            }
+        }
+        // selo 80 PLUS
+        if let Some(col) = seal_color(rating) {
+            let seal = Rect::from_min_size(pos2(case.right() - k * 0.26, case.bottom() - k * 0.17), vec2(k * 0.22, k * 0.12));
+            p.rect_filled(seal, CornerRadius::same(2), col);
+            p.text(seal.center(), eframe::egui::Align2::CENTER_CENTER, "80+", eframe::egui::FontId::proportional(k * 0.075), Color32::from_rgb(20, 20, 22));
+        }
+    }
 }
 
 /// Pontinhos andando ao longo de uma polilinha (a "pulsação" do tráfego).
@@ -941,13 +1021,26 @@ fn link(p: &egui::Painter, pts: &[Pos2], alive: bool, width: f32, color: Color32
     }
 }
 
+/// Entradas da estimativa de carga da fonte: GPU medida + PD/bateria + portas em uso.
+fn psu_inputs(topo: &Topology, samples: &[Sample]) -> crate::psu::Inputs {
+    let last = samples.last().copied().unwrap_or_default();
+    crate::psu::Inputs {
+        gpu_w: last.gpu.and_then(|g| g.tbp).unwrap_or(0.0) as f32,
+        pd_on: last.power.map(|p| p.online).unwrap_or(false),
+        batt_w: last.power.map(|p| p.charge_mw as f32 / 1000.0).unwrap_or(0.0),
+        usb_devices: topo.usb_a.len(),
+        tb_in_use: topo.ports.iter().any(|d| d.role == PortRole::TbExtra && d.child.is_some()),
+    }
+}
+
 fn dname(n: &Node) -> String {
     n.dstate.map(pnp::dstate_name).unwrap_or("?").to_string()
 }
 
-fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crate::collect::GpuStatic>, sel: &mut Option<Sel>, bench: Option<&BenchResult>) {
+fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crate::collect::GpuStatic>, sel: &mut Option<Sel>, bench: Option<&BenchResult>, psu: Option<(&crate::psu::Psu, crate::psu::Load)>) {
     let w = ui.available_width();
-    let h = 260.0;
+    // com fonte cadastrada, uma faixa a mais embaixo do dock; a faixa de cima não muda
+    let h = if psu.is_some() { 320.0 } else { 260.0 };
     let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     let p = ui.painter_at(rect);
     let t = ui.input(|i| i.time);
@@ -959,12 +1052,13 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     // geometria
     let host_w = (w * 0.18).clamp(200.0, 240.0);
     let bw = (w * 0.24).clamp(200.0, 300.0);
-    let host = Rect::from_min_size(pos2(rect.left() + 4.0, rect.center().y - 40.0), vec2(host_w, 80.0));
+    let cy = rect.top() + 130.0;
+    let host = Rect::from_min_size(pos2(rect.left() + 4.0, cy - 40.0), vec2(host_w, 80.0));
     let bx = rect.right() - bw - 4.0;
     // o dock fica centrado no vão entre o note e os ramos, deixando espaço para os cabos
     let gap = bx - host.right();
     let dock_w = (gap * 0.52).clamp(190.0, 320.0);
-    let dock = Rect::from_center_size(pos2(host.right() + gap * 0.5, rect.center().y), vec2(dock_w, 136.0));
+    let dock = Rect::from_center_size(pos2(host.right() + gap * 0.5, cy), vec2(dock_w, 136.0));
     let gpu_r = Rect::from_min_size(pos2(bx, rect.top() + 2.0), vec2(bw, 78.0));
     let usb_r = Rect::from_min_size(pos2(bx, rect.top() + 91.0), vec2(bw, 78.0));
     let tb_r = Rect::from_min_size(pos2(bx, rect.top() + 180.0), vec2(bw, 78.0));
@@ -1042,6 +1136,22 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     }
     let tb_pts = branch(tb_r, 2.0);
     p.extend(egui::Shape::dashed_line(&tb_pts, Stroke::new(1.5, pal::faint()), 5.0, 5.0));
+
+    // --- fonte do dock: ramo vertical de energia subindo para o dock (só com fonte cadastrada)
+    let psu_r = Rect::from_center_size(pos2(dock.center().x, dock.bottom() + 40.0 + 39.0), vec2(dock.width().min(300.0), 78.0));
+    if let Some((_, l)) = &psu {
+        let f = l.frac.clamp(0.0, 1.0);
+        // entra no dock à direita das bolinhas das portas
+        let lx = (dock.left() + 128.0).max(dock.center().x).min(dock.right() - 24.0);
+        let pts = if (lx - psu_r.center().x).abs() < 1.0 {
+            vec![pos2(lx, psu_r.top()), pos2(lx, dock.bottom())]
+        } else {
+            vec![pos2(psu_r.center().x, psu_r.top()), pos2(psu_r.center().x, psu_r.top() - 14.0), pos2(lx, psu_r.top() - 14.0), pos2(lx, dock.bottom())]
+        };
+        p.add(egui::Shape::line(pts.clone(), Stroke::new(8.0 + 6.0 * f, pal::bolt().gamma_multiply(0.08))));
+        link(&p, &pts, true, 2.0 + 4.0 * f, pal::bolt());
+        pulses(&p, &pts, t, f.max(0.08), pal::bolt(), false);
+    }
 
     // --- nós
     let hostn = topo.host_router.as_ref();
@@ -1144,6 +1254,41 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     if ports.iter().all(|(d, _)| d.role != PortRole::TbExtra) {
         node_box(&p, tb_r, "TB extra 15 W", &["não detectada".into()], pal::faint(), pal::amber(), false, false, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
     }
+
+    // Fonte do dock
+    if let Some((ps, l)) = &psu {
+        let f = l.frac.clamp(0.0, 1.0);
+        let wf = l.worst / ps.watts as f32;
+        let title = if ps.model.trim().is_empty() { "Fonte do dock" } else { ps.model.trim() };
+        let lines = [format!("≈ {:.0} W de {} W", l.now, ps.watts)];
+        let state = if wf < 0.8 { pal::green() } else if wf < 1.0 { pal::amber() } else { pal::red() };
+        node_box_r(&p, psu_r, title, &lines, pal::bolt(), state, *sel == Some(Sel::Psu), false, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
+        // mini medidor: ▮ carga agora · ◆ pior caso
+        let aw = (psu_r.width() * 0.3).clamp(44.0, 74.0);
+        let x0 = psu_r.left() + aw + 22.0;
+        let track = Rect::from_min_max(pos2(x0, psu_r.bottom() - 15.0), pos2(psu_r.right() - 46.0, psu_r.bottom() - 9.0));
+        let fc = if f < 0.6 { pal::green() } else if f < 0.8 { pal::amber() } else { pal::red() };
+        p.rect_filled(track, CornerRadius::same(3), pal::well());
+        p.rect_stroke(track, CornerRadius::same(3), Stroke::new(1.0, pal::border()), StrokeKind::Outside);
+        if f > 0.004 {
+            p.rect_filled(Rect::from_min_max(track.min, pos2(track.left() + track.width() * f, track.bottom())), CornerRadius::same(3), fc);
+        }
+        for m in [0.6, 0.8] {
+            let x = track.left() + track.width() * m;
+            p.line_segment([pos2(x, track.center().y - 4.0), pos2(x, track.center().y + 4.0)], Stroke::new(1.0, pal::faint()));
+        }
+        let wx = track.left() + track.width() * wf.clamp(0.0, 1.0);
+        let wy = track.center().y;
+        p.add(egui::Shape::convex_polygon(vec![pos2(wx, wy - 5.0), pos2(wx + 4.0, wy), pos2(wx, wy + 5.0), pos2(wx - 4.0, wy)], pal::dim(), Stroke::new(1.0, pal::card2())));
+        p.text(pos2(track.right() + 8.0, track.center().y), egui::Align2::LEFT_CENTER, format!("{:.0} %", f * 100.0), FontId::proportional(12.5), fc);
+        let r = ui
+            .interact(psu_r, ui.id().with("psu"), Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .on_hover_text("Estimativa: GPU (medida) + notebook + dock. A fonte não manda dados ao PC.\n▮ agora · ◆ pior caso");
+        if r.clicked() {
+            *sel = Some(Sel::Psu);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1240,7 +1385,8 @@ impl eframe::App for App {
                         ui.add_space(pal::gap());
                         card(ui, "🔗  Topologia", pal::cyan(), |ui| {
                             let mut sel = self.sel;
-                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref());
+                            let pl = (self.psu.watts > 0).then(|| (&self.psu, crate::psu::compute(&self.psu, &psu_inputs(&topo, &samples))));
+                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref(), pl);
                             if sel != self.sel {
                                 self.sel = sel;
                             }
@@ -1408,14 +1554,7 @@ impl App {
                 }
             }
         }
-        let last = samples.last().copied().unwrap_or_default();
-        let inp = psu::Inputs {
-            gpu_w: last.gpu.and_then(|g| g.tbp).unwrap_or(0.0) as f32,
-            pd_on: last.power.map(|p| p.online).unwrap_or(false),
-            batt_w: last.power.map(|p| p.charge_mw as f32 / 1000.0).unwrap_or(0.0),
-            usb_devices: topo.usb_a.len(),
-            tb_in_use: topo.ports.iter().any(|d| d.role == PortRole::TbExtra && d.child.is_some()),
-        };
+        let inp = psu_inputs(topo, samples);
         let before = self.psu.clone();
         card(ui, "🔌  Fonte do dock", pal::bolt(), |ui| {
             let avail = ui.available_width();
@@ -2656,12 +2795,13 @@ impl App {
     fn details(&mut self, ui: &mut Ui, topo: &Topology, gst: Option<&crate::collect::GpuStatic>, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
         ui.horizontal(|ui| {
             let title = match self.sel {
-                Some(Sel::Info(t)) => t.title(),
-                Some(Sel::Host) => "💻 Notebook",
-                Some(Sel::Cable) | Some(Sel::Dock) => "🔗 Dock",
-                Some(Sel::Port(_)) => "🔌 Porta do dock",
-                Some(Sel::Gpu) => "🎮 GPU",
-                None => "",
+                Some(Sel::Info(t)) => t.title().to_string(),
+                Some(Sel::Host) => "💻 Notebook".into(),
+                Some(Sel::Cable) | Some(Sel::Dock) => "🔗 Dock".into(),
+                Some(Sel::Port(_)) => "🔌 Porta do dock".into(),
+                Some(Sel::Gpu) => "🎮 GPU".into(),
+                Some(Sel::Psu) => format!("🔌 {}", if self.psu.model.trim().is_empty() { "Fonte do dock" } else { self.psu.model.trim() }),
+                None => String::new(),
             };
             ui.label(egui::RichText::new(title).size(16.0).strong().color(pal::fg()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -2708,8 +2848,59 @@ impl App {
                     node_details(ui, "Switch interno da placa", Some(n));
                 }
             }
+            Some(Sel::Psu) => self.psu_details(ui, topo, samples),
             None => {}
         }
+    }
+
+    /// Painel lateral da fonte do dock: medidor, de onde vem a carga, pior caso e pico. Tudo estimado.
+    fn psu_details(&mut self, ui: &mut Ui, topo: &Topology, samples: &[Sample]) {
+        if self.psu.watts == 0 {
+            self.sel = None;
+            return;
+        }
+        let l = crate::psu::compute(&self.psu, &psu_inputs(topo, samples));
+        let w = self.psu.watts as f32;
+        if let Some(c) = art::seal_color(&self.psu.rating) {
+            ui.horizontal(|ui| {
+                egui::Frame::new().fill(c).corner_radius(CornerRadius::same(3)).inner_margin(egui::Margin::symmetric(8, 2)).show(ui, |ui| {
+                    ui.add(egui::Label::new(egui::RichText::new(format!("80+ {}", self.psu.rating.trim())).size(13.0).strong().color(Color32::from_rgb(20, 20, 22))).extend());
+                });
+                ui.label(egui::RichText::new(format!("{} W", self.psu.watts)).size(13.5).color(pal::dim()));
+            });
+            ui.add_space(6.0);
+        }
+        let f = l.frac.clamp(0.0, 1.0);
+        let lc = if f < 0.6 { pal::green() } else if f < 0.8 { pal::amber() } else { pal::red() };
+        ui.vertical_centered(|ui| {
+            gauge(ui, "⚡", l.now, w, "W", "≈ agora", lc).on_hover_text(format!("{:.0}% de {} W", f * 100.0, self.psu.watts));
+        });
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for (icon, v, tip) in [("🎮", l.gpu, "Placa de vídeo (medida)"), ("💻", l.pd, "Notebook pelo PD (estimado)"), ("🖴", l.dock + l.usb, "Dock e portas (estimado)")] {
+                egui::Frame::new()
+                    .fill(pal::card2())
+                    .stroke(Stroke::new(1.0, pal::border()))
+                    .corner_radius(CornerRadius::same(pal::radius()))
+                    .inner_margin(egui::Margin::symmetric(10, 5))
+                    .show(ui, |ui| {
+                        ui.add(egui::Label::new(egui::RichText::new(format!("{icon} {v:.0} W")).size(14.0).color(pal::fg())).extend());
+                    })
+                    .response
+                    .on_hover_text(tip);
+            }
+        });
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new(format!("◆ pior caso ≈ {:.0} W", l.worst)).size(14.0).color(if l.worst >= w { pal::red() } else { pal::fg() }))
+            .on_hover_text("Placa no limite de potência + notebook carregando + todas as portas em uso.");
+        ui.label(egui::RichText::new(format!("⚡ pico ≈ {:.0} W", l.spike)).size(14.0).color(if l.spike > w { pal::amber() } else { pal::fg() }))
+            .on_hover_text("Picos de milissegundos da placa somados ao resto.");
+        ui.add_space(10.0);
+        if ui.button(egui::RichText::new("✏ Trocar fonte ›").size(14.0)).clicked() {
+            self.tab = Tab::Enlace;
+        }
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("Valores estimados").size(12.0).color(pal::faint()));
     }
 
     fn info(&mut self, ui: &mut Ui, t: Topic, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
