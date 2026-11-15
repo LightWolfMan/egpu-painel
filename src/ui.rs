@@ -255,6 +255,7 @@ pub struct App {
     tab: Tab,
     vendor: Option<Th>,
     hist_limit: usize,
+    logo_tex: Option<(Th, bool, u32, egui::TextureHandle)>,
 }
 
 impl App {
@@ -295,6 +296,7 @@ impl App {
             tab: std::env::var("EGPU_ABA").ok().and_then(|v| v.parse::<usize>().ok()).and_then(|i| Tab::ALL.get(i).copied()).unwrap_or(Tab::Geral),
             vendor: vendor_of(&pnp::read_topology()),
             hist_limit: 30,
+            logo_tex: None,
         }
     }
 
@@ -1179,7 +1181,7 @@ impl eframe::App for App {
                 match self.tab {
                     Tab::Geral => {
                         if let Some(v) = self.vendor {
-                            brand(ui, v);
+                            brand(ui, v, &mut self.logo_tex);
                         }
                         card(ui, "🔗  Topologia", pal::cyan(), |ui| {
                             let mut sel = self.sel;
@@ -1504,62 +1506,57 @@ fn theme_card(ui: &mut Ui, name: &str, th: Th, selected: bool) -> egui::Response
 // ---------------------------------------------------------------------------
 // Peças visuais extras
 
-/// Marca do fabricante da GPU detectada, centralizada no topo da visão geral.
-/// Desenho vetorial próprio que remete à marca (nítido em qualquer DPI); não embute arquivo de logotipo.
-fn brand(ui: &mut Ui, v: Th) {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 54.0), Sense::hover());
-    let p = ui.painter_at(rect);
-    let t = ui.input(|i| i.time);
-    let light = pal::current().is_light();
-    let ink = if light { Color32::from_rgb(20, 20, 22) } else { Color32::WHITE };
-    let c = rect.center();
-    // brilho suave atrás da marca
-    let glow = match v {
-        Th::Amd => Color32::from_rgb(228, 0, 43),
-        Th::Nvidia => Color32::from_rgb(118, 185, 0),
-        _ => Color32::from_rgb(0, 113, 197),
+/// Logotipos oficiais (SVG do Wikimedia Commons, em assets/logos), como o HWiNFO faz:
+/// identificam o fabricante da GPU detectada. Marcas registradas dos respectivos donos.
+const LOGO_AMD: &[u8] = include_bytes!("../assets/logos/amd.svg");
+const LOGO_NVIDIA: &[u8] = include_bytes!("../assets/logos/nvidia.svg");
+const LOGO_INTEL: &[u8] = include_bytes!("../assets/logos/intel.svg");
+
+/// Rasteriza a SVG na altura pedida em pixels físicos (nítida em qualquer DPI).
+/// No tema escuro, o preto do logotipo vira branco (as cores da marca ficam).
+fn render_logo(v: Th, height_px: u32, dark: bool) -> Option<egui::ColorImage> {
+    use resvg::{tiny_skia, usvg};
+    let data = match v {
+        Th::Amd => LOGO_AMD,
+        Th::Nvidia => LOGO_NVIDIA,
+        _ => LOGO_INTEL,
     };
-    let k = 0.10 + 0.05 * ((t * 1.1).sin() as f32);
-    for i in 0..4 {
-        p.rect_filled(Rect::from_center_size(c, vec2(260.0 - i as f32 * 40.0, 40.0 - i as f32 * 6.0)), CornerRadius::same(30), glow.gamma_multiply(k * 0.35));
+    let tree = usvg::Tree::from_data(data, &usvg::Options::default()).ok()?;
+    let size = tree.size();
+    let k = height_px as f32 / size.height();
+    let w = (size.width() * k).ceil() as u32;
+    let mut pix = tiny_skia::Pixmap::new(w.max(1), height_px.max(1))?;
+    resvg::render(&tree, tiny_skia::Transform::from_scale(k, k), &mut pix.as_mut());
+    let mut px = pix.data().to_vec();
+    if dark {
+        for c in px.chunks_exact_mut(4) {
+            let a = c[3] as u16;
+            if a > 0 && (c[0] as u16) * 4 < a && (c[1] as u16) * 4 < a && (c[2] as u16) * 4 < a {
+                c[0] = c[3];
+                c[1] = c[3];
+                c[2] = c[3];
+            }
+        }
     }
-    match v {
-        Th::Amd => {
-            let g = p.layout_no_wrap("AMD".into(), FontId::proportional(34.0), ink);
-            let s = 30.0;
-            let total = g.size().x + 10.0 + s;
-            let x0 = c.x - total / 2.0;
-            p.galley(pos2(x0, c.y - g.size().y / 2.0), g.clone(), ink);
-            // seta: canto superior direito + bloco interno
-            let o = pos2(x0 + g.size().x + 10.0, c.y - s / 2.0);
-            let q = |x: f32, y: f32| o + vec2(x * s, y * s);
-            p.add(egui::Shape::convex_polygon(vec![q(0.0, 0.0), q(1.0, 0.0), q(0.72, 0.28), q(0.28, 0.28)], ink, Stroke::NONE));
-            p.add(egui::Shape::convex_polygon(vec![q(1.0, 0.0), q(1.0, 1.0), q(0.72, 0.72), q(0.72, 0.28)], ink, Stroke::NONE));
-            p.add(egui::Shape::convex_polygon(vec![q(0.0, 0.72), q(0.28, 0.44), q(0.56, 0.44), q(0.56, 0.72)], ink, Stroke::NONE));
-        }
-        Th::Nvidia => {
-            let green = Color32::from_rgb(118, 185, 0);
-            let g = p.layout_no_wrap("NVIDIA".into(), FontId::proportional(30.0), ink);
-            let s = 36.0;
-            let total = s + 12.0 + g.size().x;
-            let x0 = c.x - total / 2.0;
-            let mark = Rect::from_min_size(pos2(x0, c.y - s / 2.0), vec2(s, s));
-            p.rect_filled(mark, CornerRadius::same(3), green);
-            // "olho": arcos concêntricos brancos e pupila verde
-            let e = mark.center() + vec2(2.0, 0.0);
-            p.add(egui::Shape::ellipse_stroke(e, vec2(13.0, 8.0), Stroke::new(2.4, Color32::WHITE)));
-            p.circle_filled(e, 4.2, Color32::WHITE);
-            p.circle_filled(e, 2.0, green);
-            p.galley(pos2(mark.right() + 12.0, c.y - g.size().y / 2.0), g, ink);
-        }
-        _ => {
-            let blue = if light { Color32::from_rgb(0, 104, 181) } else { Color32::from_rgb(0, 199, 253) };
-            let g = p.layout_no_wrap("intel".into(), FontId::proportional(36.0), blue);
-            let x0 = c.x - g.size().x / 2.0;
-            let r = p.galley(pos2(x0, c.y - g.size().y / 2.0), g.clone(), blue);
-            let _ = r;
-            p.rect_filled(Rect::from_min_size(pos2(x0 + g.size().x + 3.0, c.y + 6.0), vec2(6.0, 6.0)), CornerRadius::ZERO, blue);
-        }
+    Some(egui::ColorImage::from_rgba_premultiplied([w as usize, height_px as usize], &px))
+}
+
+/// Logotipo do fabricante centralizado no topo da visão geral.
+fn brand(ui: &mut Ui, v: Th, cache: &mut Option<(Th, bool, u32, egui::TextureHandle)>) {
+    let h_pt = 34.0;
+    let ppp = ui.ctx().pixels_per_point();
+    let h_px = (h_pt * ppp).round() as u32;
+    let dark = !pal::current().is_light();
+    let fresh = matches!(cache, Some((cv, cd, ch, _)) if *cv == v && *cd == dark && *ch == h_px);
+    if !fresh {
+        *cache = render_logo(v, h_px, dark).map(|img| (v, dark, h_px, ui.ctx().load_texture("logo-fabricante", img, egui::TextureOptions::LINEAR)));
+    }
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h_pt + 22.0), Sense::hover());
+    if let Some((_, _, _, tex)) = cache.as_ref() {
+        let [w, h] = tex.size();
+        let size = vec2(w as f32 / ppp, h as f32 / ppp);
+        let r = Rect::from_center_size(rect.center(), size);
+        ui.painter().image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     }
     resp.on_hover_text(format!("GPU {} detectada no dock", v.name()));
 }
