@@ -1213,10 +1213,18 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         None if dock_ok => "Cabo conectado".into(),
         None => "Sem conexão".into(),
     };
-    let narrow = b.x - a.x < 190.0;
-    let cable_txt = if narrow { cable_txt.split(" · ").next().unwrap_or_default().to_string() } else { cable_txt };
-    p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, cable_txt, FontId::proportional(13.5), if dock_ok { pal::bolt() } else { pal::red() });
-    p.text(mid + vec2(0.0, 34.0), egui::Align2::CENTER_TOP, if flow.pd_on { if narrow { "Carregando" } else { "Carregando o notebook · até 85 W" } } else { "O dock não está carregando o notebook" }, FontId::proportional(12.5), if flow.pd_on { pal::bolt().gamma_multiply(0.8) } else { pal::amber() });
+    // rótulos do cabo: usa a versão mais longa que cabe no vão entre o note e o dock (nunca fica escondida atrás deles)
+    let room = b.x - a.x - 10.0;
+    let fit = |cands: &[String], size: f32| -> Option<String> { cands.iter().find(|c| p.layout_no_wrap(c.to_string(), FontId::proportional(size), pal::fg()).size().x <= room).cloned() };
+    let short = cable_txt.split(" · ").next().unwrap_or_default().to_string();
+    let tiny = short.trim_start_matches("Cabo a ").to_string();
+    if let Some(s) = fit(&[cable_txt.clone(), short, tiny], 13.5) {
+        p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, s, FontId::proportional(13.5), if dock_ok { pal::bolt() } else { pal::red() });
+    }
+    let pd_c: Vec<String> = if flow.pd_on { vec!["Carregando o notebook · até 85 W".into(), "Carregando".into(), "⚡".into()] } else { vec!["O dock não está carregando o notebook".into(), "Sem carga".into()] };
+    if let Some(s) = fit(&pd_c, 12.5) {
+        p.text(mid + vec2(0.0, 34.0), egui::Align2::CENTER_TOP, s, FontId::proportional(12.5), if flow.pd_on { pal::bolt().gamma_multiply(0.8) } else { pal::amber() });
+    }
     let cable_hit = Rect::from_center_size(mid, vec2((b.x - a.x).max(10.0), 70.0));
     if ui.interact(cable_hit, ui.id().with("cabo"), Sense::click()).clicked() {
         *sel = Some(Sel::Cable);
