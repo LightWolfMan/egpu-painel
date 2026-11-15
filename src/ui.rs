@@ -831,17 +831,26 @@ struct Flow {
     gpu: Option<crate::collect::GpuM>,
 }
 
-fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, art: Option<&dyn Fn(&egui::Painter, Rect)>) {
-    node_box_r(p, rect, title, lines, accent, state, selected, focus, art, 0.0);
+#[allow(clippy::too_many_arguments)]
+fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, lift: f32, t: f64, art: Option<&dyn Fn(&egui::Painter, Rect)>) {
+    node_box_r(p, rect, title, lines, accent, state, selected, focus, lift, t, art, 0.0);
 }
 
 /// Igual a node_box, deixando `reserve_bottom` px livres embaixo do texto (para um medidor por cima).
 #[allow(clippy::too_many_arguments)]
-fn node_box_r(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, art: Option<&dyn Fn(&egui::Painter, Rect)>, reserve_bottom: f32) {
-    let p =&p.with_clip_rect(rect.intersect(p.clip_rect()));
+fn node_box_r(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, lift: f32, t: f64, art: Option<&dyn Fn(&egui::Painter, Rect)>, reserve_bottom: f32) {
+    // sombra (cresce no hover) e brilho respirando na seleção, antes do recorte do nó
+    let cr = CornerRadius::same(pal::radius());
+    p.add(pal::elev(2, lift).as_shape(rect, cr));
+    if selected {
+        let b = 0.85 + 0.15 * ((t * 2.1).sin() as f32);
+        p.add(egui::Shadow { offset: [0, 0], blur: 18, spread: 2, color: pal::sel().gamma_multiply(0.30 * b) }.as_shape(rect, cr));
+    }
+    let p = &p.with_clip_rect(rect.intersect(p.clip_rect()));
     let fill = if focus { pal::card3() } else { pal::card2() };
-    p.rect_filled(rect, CornerRadius::same(pal::radius()), fill);
-    p.rect_stroke(rect, CornerRadius::same(pal::radius()), Stroke::new(if selected { 2.0 } else { 1.0 }, if selected { pal::cyan() } else { pal::border() }), StrokeKind::Inside);
+    p.add(vgrad(p, rect, pal::radius(), fill, fill.lerp_to_gamma(Color32::BLACK, 0.06)));
+    let stroke = if selected { Stroke::new(2.0, pal::sel()) } else { Stroke::new(1.0, pal::border().lerp_to_gamma(pal::fg(), 0.25 * lift)) };
+    p.rect_stroke(rect, cr, stroke, StrokeKind::Inside);
     let bar = Rect::from_min_size(rect.min + vec2(1.0, 8.0), vec2(3.0, rect.height() - 16.0));
     p.rect_filled(bar, CornerRadius::same(2), accent);
     p.circle_filled(rect.right_top() + vec2(-12.0, 12.0), 4.5, state);
@@ -1110,6 +1119,7 @@ fn pulses(p: &egui::Painter, pts: &[Pos2], t: f64, intensity: f32, color: Color3
         let seg = (lens[k + 1] - lens[k]).max(1e-3);
         let pos = pts[k] + (pts[k + 1] - pts[k]) * ((d - lens[k]) / seg);
         let a = 0.35 + 0.65 * intensity.clamp(0.0, 1.0);
+        p.circle_filled(pos, (2.2 + 1.6 * intensity) * 2.4, glow(color, 0.22 * a));
         p.circle_filled(pos, 2.2 + 1.6 * intensity, color.gamma_multiply(a));
     }
 }
@@ -1117,6 +1127,7 @@ fn pulses(p: &egui::Painter, pts: &[Pos2], t: f64, intensity: f32, color: Color3
 fn link(p: &egui::Painter, pts: &[Pos2], alive: bool, width: f32, color: Color32) {
     let c = if alive { color.gamma_multiply(0.45) } else { pal::red().gamma_multiply(0.5) };
     if alive {
+        p.add(egui::Shape::line(pts.to_vec(), Stroke::new(width + 5.0, glow(color, 0.10))));
         p.add(egui::Shape::line(pts.to_vec(), Stroke::new(width, c)));
     } else {
         for w in pts.windows(2) {
@@ -1146,8 +1157,15 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     // com fonte cadastrada, uma faixa a mais embaixo do dock; a faixa de cima não muda
     let h = if psu.is_some() { 320.0 } else { 260.0 };
     let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
-    let p = ui.painter_at(rect);
+    // recorte com folga: as sombras dos nós não são cortadas (a margem do cartão tem 14/18 px)
+    let p = ui.painter().with_clip_rect(rect.expand(12.0));
     let t = ui.input(|i| i.time);
+    // área clicável com cursor de mão; `lift` anima a sombra do hover (o nó não se mexe: os cabos ficam alinhados)
+    let hover = |ui: &mut Ui, r: Rect, id: egui::Id| -> (egui::Response, f32) {
+        let resp = ui.interact(r, id, Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        let lift = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.15);
+        (resp, lift)
+    };
 
     let dock_ok = topo.dock_router.is_some();
     let switch_ok = topo.dock_switch.is_some();
@@ -1260,8 +1278,9 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     // --- nós
     let hostn = topo.host_router.as_ref();
     let host_lines = vec!["Thunderbolt 4".to_string(), format!("Firmware {}", hostn.and_then(|n| n.firmware.clone()).unwrap_or("?".into()))];
-    node_box(&p, host, "Notebook", &host_lines, pal::intel(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
-    if ui.interact(host, ui.id().with("host"), Sense::click()).clicked() {
+    let (hr, lift) = hover(ui, host, ui.id().with("host"));
+    node_box(&p, host, "Notebook", &host_lines, pal::intel(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
+    if hr.clicked() {
         *sel = Some(Sel::Host);
     }
 
@@ -1277,7 +1296,8 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     if let Some(br) = bench {
         dock_lines.push(format!("Banda medida: {:.1} GB/s", br.h2d_gbs.max(br.d2h_gbs)).replace('.', ","));
     }
-    node_box(&p, dock, "Dock WKG-L19", &dock_lines, pal::cyan(), if dock_ok && switch_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Dock), true, Some(&|p: &egui::Painter, r: Rect| art::dock(p, r.with_max_y(r.bottom() - 26.0), dock_ok, t)));
+    let (dkr, lift) = hover(ui, dock, ui.id().with("dock"));
+    node_box(&p, dock, "Dock WKG-L19", &dock_lines, pal::cyan(), if dock_ok && switch_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Dock), true, lift, t, Some(&|p: &egui::Painter, r: Rect| art::dock(p, r.with_max_y(r.bottom() - 26.0), dock_ok, t)));
     // bolinhas de estado das portas downstream (verde = D0 ativo, cinza = D3 dormindo)
     for (i, dp) in topo.ports.iter().enumerate() {
         let c = pos2(dock.left() + 22.0 + i as f32 * 34.0, dock.bottom() - 16.0);
@@ -1285,7 +1305,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let col = if dp.node.problem != 0 { pal::red() } else if on { pal::green() } else { pal::faint() };
         if on {
             let k = (t * 2.0 + i as f64).sin() as f32 * 0.5 + 0.5;
-            p.circle_filled(c, 7.0 + 2.0 * k, col.gamma_multiply(0.18));
+            p.circle_filled(c, 7.0 + 2.0 * k, glow(col, 0.25));
         }
         p.circle_filled(c, 5.0, col);
         let icon = match dp.role {
@@ -1297,7 +1317,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let hit = Rect::from_center_size(c + vec2(6.0, 0.0), vec2(26.0, 18.0));
         ui.interact(hit, ui.id().with(("dport", i)), Sense::hover()).on_hover_text(format!("porta downstream {} · {}", i + 1, dname(&dp.node)));
     }
-    if ui.interact(dock, ui.id().with("dock"), Sense::click()).clicked() {
+    if dkr.clicked() {
         *sel = Some(Sel::Dock);
     }
 
@@ -1317,8 +1337,9 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     };
     let gm = flow.gpu.unwrap_or_default();
     let spin = gm.fan.map(|f| f as f32 / 3200.0).unwrap_or(gm.usage.unwrap_or(0.0) as f32 / 100.0);
-    node_box(&p, gpu_r, "Radeon RX 7600 XT", &gl, pal::data(), if gpu_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Gpu), false, Some(&|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, gpu_ok, t)));
-    if ui.interact(gpu_r, ui.id().with("gpu"), Sense::click()).clicked() {
+    let (gr, lift) = hover(ui, gpu_r, ui.id().with("gpu"));
+    node_box(&p, gpu_r, "Radeon RX 7600 XT", &gl, pal::data(), if gpu_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Gpu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, gpu_ok, t)));
+    if gr.clicked() {
         *sel = Some(Sel::Gpu);
     }
     for (i, (dp, r)) in ports.iter().enumerate() {
@@ -1347,16 +1368,17 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         };
         let busy = dp.role == PortRole::UsbA && !topo.usb_a.is_empty() || dp.child.is_some();
         let draw: &dyn Fn(&egui::Painter, Rect) = if dp.role == PortRole::UsbA { &|p, r| art::usb_a(p, r, busy) } else { &|p, r| art::usb_c(p, r, busy) };
-        node_box(&p, *r, title, &lines, accent, if dp.node.problem == 0 { pal::green() } else { pal::red() }, *sel == Some(Sel::Port(i)), false, Some(draw));
-        if ui.interact(*r, ui.id().with(("port", i)), Sense::click()).clicked() {
+        let (pr, lift) = hover(ui, *r, ui.id().with(("port", i)));
+        node_box(&p, *r, title, &lines, accent, if dp.node.problem == 0 { pal::green() } else { pal::red() }, *sel == Some(Sel::Port(i)), false, lift, t, Some(draw));
+        if pr.clicked() {
             *sel = Some(Sel::Port(i));
         }
     }
     if ports.iter().all(|(d, _)| d.role != PortRole::UsbA) {
-        node_box(&p, usb_r, "USB-A 10 Gb/s", &["não detectada".into()], pal::green(), pal::red(), false, false, Some(&|p: &egui::Painter, r: Rect| art::usb_a(p, r, false)));
+        node_box(&p, usb_r, "USB-A 10 Gb/s", &["não detectada".into()], pal::green(), pal::red(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_a(p, r, false)));
     }
     if ports.iter().all(|(d, _)| d.role != PortRole::TbExtra) {
-        node_box(&p, tb_r, "TB extra 15 W", &["não detectada".into()], pal::faint(), pal::amber(), false, false, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
+        node_box(&p, tb_r, "TB extra 15 W", &["não detectada".into()], pal::faint(), pal::amber(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
     }
 
     // Fonte do dock
@@ -1366,7 +1388,8 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let title = if ps.model.trim().is_empty() { "Fonte do dock" } else { ps.model.trim() };
         let lines = [format!("≈ {:.0} W de {} W", l.now, ps.watts)];
         let state = if wf < 0.8 { pal::green() } else if wf < 1.0 { pal::amber() } else { pal::red() };
-        node_box_r(&p, psu_r, title, &lines, pal::bolt(), state, *sel == Some(Sel::Psu), false, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
+        let (psr, lift) = hover(ui, psu_r, ui.id().with("psu"));
+        node_box_r(&p, psu_r, title, &lines, pal::bolt(), state, *sel == Some(Sel::Psu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
         // mini medidor: ▮ carga agora · ◆ pior caso
         let aw = (psu_r.width() * 0.3).clamp(44.0, 74.0);
         let x0 = psu_r.left() + aw + 22.0;
@@ -1385,10 +1408,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let wy = track.center().y;
         p.add(egui::Shape::convex_polygon(vec![pos2(wx, wy - 5.0), pos2(wx + 4.0, wy), pos2(wx, wy + 5.0), pos2(wx - 4.0, wy)], pal::dim(), Stroke::new(1.0, pal::card2())));
         p.text(pos2(track.right() + 8.0, track.center().y), egui::Align2::LEFT_CENTER, format!("{:.0} %", f * 100.0), FontId::proportional(12.5), fc);
-        let r = ui
-            .interact(psu_r, ui.id().with("psu"), Sense::click())
-            .on_hover_cursor(egui::CursorIcon::PointingHand)
-            .on_hover_text("Estimativa: GPU (medida) + notebook + dock. A fonte não manda dados ao PC.\n▮ agora · ◆ pior caso");
+        let r = psr.on_hover_text("Estimativa: GPU (medida) + notebook + dock. A fonte não manda dados ao PC.\n▮ agora · ◆ pior caso");
         if r.clicked() {
             *sel = Some(Sel::Psu);
         }
