@@ -1496,12 +1496,12 @@ impl eframe::App for App {
             if k < 1.0 {
                 ctx.request_repaint();
             }
-            egui::Panel::right("detalhes")
+            let pr = egui::Panel::right("detalhes")
                 .resizable(true)
                 .default_size(430.0)
                 .min_size(360.0)
                 .max_size(560.0)
-                .frame(egui::Frame::new().fill(pal::card()).inner_margin(egui::Margin::same(10)).stroke(Stroke::new(1.0, pal::border())))
+                .frame(egui::Frame::new().fill(pal::card()).inner_margin(egui::Margin::same(10)))
                 .show_inside(root, |ui| {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
                     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -1514,6 +1514,27 @@ impl eframe::App for App {
                             });
                     });
                 });
+            // o painel "flutua" sobre a página: sombra suave à esquerda, filete de 1 px e realce no topo
+            let pr = pr.response.rect;
+            let lp = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::new("sombra-painel")));
+            let (sr, sg, sb) = pal::shade_base();
+            let sa = match th {
+                Th::Light => 26,
+                Th::Intel => 120,
+                _ => 110,
+            };
+            let dark = Color32::from_rgba_unmultiplied(sr, sg, sb, sa);
+            let sh = Rect::from_min_max(pos2(pr.left() - 18.0, pr.top()), pos2(pr.left(), pr.bottom()));
+            let mut m = egui::Mesh::default();
+            m.colored_vertex(sh.left_top(), Color32::TRANSPARENT);
+            m.colored_vertex(sh.right_top(), dark);
+            m.colored_vertex(sh.right_bottom(), dark);
+            m.colored_vertex(sh.left_bottom(), Color32::TRANSPARENT);
+            m.add_triangle(0, 1, 2);
+            m.add_triangle(0, 2, 3);
+            lp.add(egui::Shape::mesh(m));
+            lp.vline(pr.left() + 0.5, pr.y_range(), Stroke::new(1.0, pal::border()));
+            lp.hline(pr.x_range(), pr.top() + 0.5, Stroke::new(1.0, pal::hi()));
         }
 
         let cm = if th == Th::Amd { egui::Margin::same(20) } else { egui::Margin::symmetric(16, 8) };
@@ -3493,10 +3514,8 @@ fn side_tile(ui: &mut Ui, w: f32, h: f32, x: &Tile, alpha: f32) -> egui::Respons
     let r = r0.translate(vec2(0.0, -1.5 * hv));
     let mut p = ui.painter().clone();
     p.multiply_opacity(alpha);
-    let light = pal::current().is_light();
     let rad = CornerRadius::same(pal::radius().min(8));
-    let sh = egui::Shadow { offset: [0, 2 + hv as i8], blur: 8 + (4.0 * hv) as u8, spread: 0, color: Color32::from_black_alpha(if light { 22 } else { 70 }) };
-    p.add(sh.as_shape(r, rad));
+    p.add(pal::elev(2, hv).as_shape(r, rad));
     p.rect_filled(r, rad, pal::card2());
     if hv > 0.01 {
         p.rect_stroke(r, rad, Stroke::new(1.0, x.color.gamma_multiply(0.6 * hv)), StrokeKind::Inside);
@@ -3585,14 +3604,13 @@ fn tile_grid(ui: &mut Ui, tiles: &[Tile], sel_at: f64) -> Option<usize> {
 
 /// Cabeçalho do painel lateral: ilustração do item, título, subtítulo, pílula de estado e ✕.
 fn side_hero(ui: &mut Ui, e: f32, accent: Color32, art: &dyn Fn(&egui::Painter, Rect), title: &str, sub: &str, state: Option<(&str, Color32)>, sel: &mut Option<Sel>) {
-    let light = pal::current().is_light();
     let rad = CornerRadius::same(pal::radius());
     let t = ui.input(|i| i.time);
     let fr = egui::Frame::new()
         .fill(pal::card2())
         .corner_radius(rad)
         .inner_margin(egui::Margin::same(12))
-        .shadow(egui::Shadow { offset: [0, 3], blur: 12, spread: 0, color: Color32::from_black_alpha(if light { 30 } else { 90 }) })
+        .shadow(pal::elev(2, 0.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             let close = Rect::from_min_size(ui.max_rect().right_top() + vec2(-24.0, -6.0), vec2(28.0, 28.0));
