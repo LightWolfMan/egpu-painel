@@ -3,8 +3,13 @@
 //! eGPU Painel — monitor e diagnóstico do dock eGPU Thunderbolt (foco na placa do dock).
 //!
 //! Modos:
-//!   (sem args)   abre o painel e fica na bandeja ao fechar
+//!   (sem args)   bandeja + abre o painel
 //!   --bandeja    inicia só na bandeja
+//!   --painel     só a janela (processo filho que a bandeja dispara; sai ao fechar)
+//!
+//! A bandeja é um processo mínimo (~2 MB, 0% CPU, bloqueado em GetMessageW) que escuta o
+//! Event Log e o PnP e grava o histórico. A janela roda em outro processo, que termina ao
+//! fechar: toda a memória do egui/OpenGL/ADLX volta para o sistema.
 //!   --bench      roda o teste de banda D3D12 e imprime no console
 //!   --perfil [N] mede o custo de cada parte do coletor (N voltas, padrão 20), sem janela
 //!   --dump       imprime topologia + chaves USB4 decodificadas
@@ -27,6 +32,9 @@ pub fn on_new_event(ev: &history::Ev) {
     let fresh = util::now_ms() - ev.ts < 60_000;
     if !fresh {
         return;
+    }
+    if history::is_panel() {
+        return; // balões e ícone são da bandeja
     }
     match ev.kind {
         DockOn if ev.src == "PnP ao vivo" => tray::set_dock(true),
@@ -78,6 +86,50 @@ fn dump() {
     }
 }
 
+const TITLE: &str = "eGPU Painel";
+
+/// Traz a janela do painel (de outro processo) para a frente.
+fn focus_panel_window() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    let t = util::wide(TITLE);
+    unsafe {
+        match FindWindowW(None, windows::core::PCWSTR(t.as_ptr())) {
+            Ok(h) if !h.is_invalid() => {
+                let _ = ShowWindow(h, SW_RESTORE);
+                let _ = SetForegroundWindow(h);
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+static CHILD: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
+
+/// Abre o painel como processo filho (ou foca o que já está aberto).
+fn open_panel() {
+    let mut g = CHILD.lock().unwrap();
+    if let Some(c) = g.as_mut() {
+        if let Ok(None) = c.try_wait() {
+            focus_panel_window();
+            return;
+        }
+    }
+    unsafe {
+        let _ = windows::Win32::UI::WindowsAndMessaging::AllowSetForegroundWindow(windows::Win32::UI::WindowsAndMessaging::ASFW_ANY);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        *g = std::process::Command::new(exe).arg("--painel").spawn().ok();
+    }
+}
+
+fn close_panel() {
+    if let Some(mut c) = CHILD.lock().unwrap().take() {
+        let _ = c.kill();
+        let _ = c.wait();
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |a: &str| args.iter().any(|x| x == a);
@@ -105,7 +157,24 @@ fn main() {
         return;
     }
 
-    // instância única
+    if has("--painel") {
+        let name = util::wide("Local\\eGPU-Painel-janela");
+        let _m = unsafe { windows::Win32::System::Threading::CreateMutexW(None, true, windows::core::PCWSTR(name.as_ptr())) };
+        if unsafe { windows::Win32::Foundation::GetLastError() } == windows::Win32::Foundation::ERROR_ALREADY_EXISTS {
+            focus_panel_window();
+            return;
+        }
+        history::set_panel_mode();
+        history::get();
+        tray::DOCK_ON.store(pnp::present_ids("USB4").iter().any(|id| history::dev_role(id) == history::DevRole::DockRouter), Ordering::SeqCst);
+        ui::run();
+        return;
+    }
+
+    // instância única (bandeja)
+    unsafe {
+        let _ = windows::Win32::UI::HiDpi::SetProcessDpiAwarenessContext(windows::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
     let name = util::wide("Local\\eGPU-Painel-instancia");
     let _mutex = unsafe {
         windows::Win32::System::Threading::CreateMutexW(None, true, windows::core::PCWSTR(name.as_ptr()))
@@ -129,21 +198,16 @@ fn main() {
     });
     tray::create();
 
-    let mut open = !has("--bandeja");
+    if !has("--bandeja") {
+        open_panel();
+    }
+    util::trim_working_set();
     loop {
-        if open {
-            tray::PANEL_OPEN.store(true, Ordering::SeqCst);
-            ui::run();
-            tray::PANEL_OPEN.store(false, Ordering::SeqCst);
-            util::trim_working_set();
-            if let Some(tray::Cmd::Quit) = tray::take_pending() {
-                break;
-            }
-        }
         match tray::wait() {
-            tray::Cmd::Open => open = true,
+            tray::Cmd::Open => open_panel(),
             tray::Cmd::Quit => break,
         }
     }
+    close_panel();
     tray::destroy();
 }

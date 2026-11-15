@@ -301,6 +301,9 @@ impl App {
     }
 
     fn refresh_history(&mut self) {
+        if crate::history::is_panel() {
+            crate::history::get().tail();
+        }
         let h = history::get();
         let n = h.len();
         if n == self.hist_len {

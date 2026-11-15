@@ -82,7 +82,11 @@ pub fn icon_rgba(size: u32, ok: bool) -> Vec<u8> {
 }
 
 fn make_hicon(ok: bool) -> HICON {
-    let size = 32u32;
+    // tamanho do ícone pequeno no DPI do sistema (16 px a 100%, 20 a 125%, 32 a 200%…)
+    let size = unsafe {
+        let dpi = windows::Win32::UI::HiDpi::GetDpiForSystem();
+        windows::Win32::UI::HiDpi::GetSystemMetricsForDpi(SM_CXSMICON, dpi).max(16) as u32
+    };
     let rgba = icon_rgba(size, ok);
     unsafe {
         let bmi = BITMAPINFO {

@@ -141,11 +141,26 @@ pub struct History {
     inner: Mutex<Inner>,
 }
 
+/// No processo do painel (`--painel`) o histórico é só leitura: a bandeja é a única que assina
+/// o Event Log/PnP e grava. O painel acompanha as linhas novas do arquivo (`tail`) e, quando gera
+/// algo próprio (teste de banda, aviso), só acrescenta a linha; ela volta pelo `tail`.
+static PANEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static LAST_TAIL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+pub fn set_panel_mode() {
+    PANEL.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+pub fn is_panel() -> bool {
+    PANEL.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 struct Inner {
     events: Vec<Ev>,
     keys: HashSet<String>,
     file: Option<std::fs::File>,
     state: State,
+    /// Bytes do historico.jsonl já lidos (até a última linha completa).
+    offset: u64,
 }
 
 static HIST: OnceLock<History> = OnceLock::new();
@@ -155,7 +170,9 @@ pub fn get() -> &'static History {
         let dir = util::data_dir();
         let mut events = vec![];
         let mut keys = HashSet::new();
+        let mut offset = 0u64;
         if let Ok(text) = std::fs::read_to_string(dir.join("historico.jsonl")) {
+            offset = text.rfind('\n').map(|i| i + 1).unwrap_or(0) as u64;
             for line in text.lines() {
                 if let Ok(ev) = serde_json::from_str::<Ev>(line) {
                     if let Some(k) = &ev.key {
@@ -175,7 +192,7 @@ pub fn get() -> &'static History {
             .append(true)
             .open(dir.join("historico.jsonl"))
             .ok();
-        History { inner: Mutex::new(Inner { events, keys, file, state }) }
+        History { inner: Mutex::new(Inner { events, keys, file, state, offset }) }
     })
 }
 
@@ -183,16 +200,25 @@ impl History {
     /// Acrescenta um evento (deduplicado pela chave). Retorna true se era novo.
     pub fn push(&self, ev: Ev) -> bool {
         let mut g = self.inner.lock().unwrap();
+        let panel = is_panel();
         if let Some(k) = &ev.key {
-            if !g.keys.insert(k.clone()) {
+            let dup = if panel { g.keys.contains(k) } else { !g.keys.insert(k.clone()) };
+            if dup {
                 return false;
             }
         }
         if let Some(f) = g.file.as_mut() {
-            if let Ok(line) = serde_json::to_string(&ev) {
-                let _ = writeln!(f, "{line}");
+            if let Ok(mut line) = serde_json::to_string(&ev) {
+                // uma única escrita por linha: dois processos acrescentam ao mesmo arquivo
+                line.push('\n');
+                let _ = f.write_all(line.as_bytes());
                 let _ = f.flush();
             }
+        }
+        if panel {
+            drop(g);
+            LAST_TAIL.store(0, std::sync::atomic::Ordering::SeqCst);
+            return true;
         }
         // mantém ordenado (quase sempre é o último)
         let pos = g.events.partition_point(|e| e.ts <= ev.ts);
@@ -200,6 +226,50 @@ impl History {
         drop(g);
         crate::on_new_event(&ev);
         true
+    }
+
+    /// Painel: lê as linhas que a bandeja (ou o próprio painel) acrescentou. No máximo 1×/s.
+    pub fn tail(&self) {
+        use std::io::{Read, Seek, SeekFrom};
+        use std::sync::atomic::Ordering;
+        let now = util::now_ms();
+        if now - LAST_TAIL.load(Ordering::SeqCst) < 1000 {
+            return;
+        }
+        LAST_TAIL.store(now, Ordering::SeqCst);
+        let path = util::data_dir().join("historico.jsonl");
+        let Ok(len) = std::fs::metadata(&path).map(|m| m.len()) else { return };
+        let mut fresh = vec![];
+        {
+            let mut g = self.inner.lock().unwrap();
+            if len <= g.offset {
+                return;
+            }
+            let Ok(mut f) = std::fs::File::open(&path) else { return };
+            if f.seek(SeekFrom::Start(g.offset)).is_err() {
+                return;
+            }
+            let mut buf = vec![];
+            if f.take(len - g.offset).read_to_end(&mut buf).is_err() {
+                return;
+            }
+            let Some(end) = buf.iter().rposition(|b| *b == b'\n') else { return };
+            g.offset += end as u64 + 1;
+            for line in String::from_utf8_lossy(&buf[..end]).lines() {
+                let Ok(ev) = serde_json::from_str::<Ev>(line) else { continue };
+                if let Some(k) = &ev.key {
+                    if !g.keys.insert(k.clone()) {
+                        continue;
+                    }
+                }
+                let pos = g.events.partition_point(|e| e.ts <= ev.ts);
+                g.events.insert(pos, ev.clone());
+                fresh.push(ev);
+            }
+        }
+        for ev in &fresh {
+            crate::on_new_event(ev);
+        }
     }
 
     pub fn snapshot(&self) -> Vec<Ev> {
@@ -240,6 +310,9 @@ impl History {
 }
 
 fn save_state(s: &State) {
+    if is_panel() {
+        return;
+    }
     if let Ok(j) = serde_json::to_string_pretty(s) {
         let _ = std::fs::write(util::data_dir().join("estado.json"), j);
     }
