@@ -2214,9 +2214,15 @@ fn status_pill(ui: &mut Ui, text: &str, color: Color32, t: f64, pulse: bool) -> 
 
 /// Bloco número-grande clicável.
 fn tile(ui: &mut Ui, icon: &str, value: String, unit: &str, label: &str, color: Color32) -> egui::Response {
+    // a sombra sobe no hover (estado do quadro anterior), prometendo o clique
+    let id = ui.id().with(("tile", label));
+    let hov = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
+    let lift = ui.ctx().animate_bool_with_time(id, hov, 0.15);
+    let cr = CornerRadius::same(pal::radius().min(8));
     let resp = egui::Frame::new()
         .fill(pal::card2())
-        .corner_radius(CornerRadius::same(8))
+        .shadow(pal::elev(2, lift))
+        .corner_radius(cr)
         .inner_margin(egui::Margin::symmetric(10, 6))
         .show(ui, |ui| {
             ui.vertical(|ui| {
@@ -2229,9 +2235,9 @@ fn tile(ui: &mut Ui, icon: &str, value: String, unit: &str, label: &str, color: 
             });
         })
         .response;
-    let r = ui.interact(resp.rect, ui.id().with(("tile", label)), Sense::click());
-    if r.hovered() {
-        ui.painter().rect_stroke(resp.rect, CornerRadius::same(8), Stroke::new(1.0, color.gamma_multiply(0.7)), StrokeKind::Inside);
+    let r = ui.interact(resp.rect, id, Sense::click());
+    if lift > 0.01 {
+        ui.painter().rect_stroke(resp.rect, cr, Stroke::new(1.0, color.gamma_multiply(0.7 * lift)), StrokeKind::Inside);
     }
     r.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -2393,9 +2399,12 @@ fn gauge(ui: &mut Ui, icon: &str, value: f32, max: f32, unit: &str, label: &str,
             })
             .collect()
     };
+    let lift = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.15);
     p.add(egui::Shape::line(arc(1.0), Stroke::new(7.0, pal::grid())));
     let frac = (v / max).clamp(0.0, 1.0);
     if frac > 0.004 {
+        // brilho atrás do arco; acende no hover (o medidor é clicável)
+        p.add(egui::Shape::line(arc(frac), Stroke::new(7.0 + 6.0 * lift, glow(color, 0.06 + 0.14 * lift))));
         p.add(egui::Shape::line(arc(frac), Stroke::new(7.0, color)));
         let a = a0 + sweep * frac;
         p.circle_filled(c + vec2(a.cos(), a.sin()) * r, 4.5, color);
@@ -2403,9 +2412,6 @@ fn gauge(ui: &mut Ui, icon: &str, value: f32, max: f32, unit: &str, label: &str,
     p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "?".to_string() } else { format!("{v:.0}") }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
     p.text(c + vec2(0.0, 14.0), egui::Align2::CENTER_CENTER, unit, FontId::proportional(12.0), pal::dim());
     p.text(pos2(c.x, rect.bottom() - 1.0), egui::Align2::CENTER_BOTTOM, format!("{icon} {label}"), FontId::proportional(12.5), pal::dim());
-    if resp.hovered() {
-        p.circle_stroke(c, r + 7.0, Stroke::new(1.0, color.gamma_multiply(0.4)));
-    }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
