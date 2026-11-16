@@ -1,0 +1,40 @@
+name: Meu dock é outro modelo
+description: Seu dock ou sua placa aparecem errados no painel? Conte qual é o modelo para ele passar a ser reconhecido.
+title: "[Meu dock] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cada dock expõe o Thunderbolt/USB4 de um jeito. Com o relatório do app dá para ensinar o painel a reconhecer o seu. Se o relatório abaixo estiver cortado, o completo está na sua área de transferência: cole com Ctrl+V.
+  - type: input
+    id: modelo
+    attributes:
+      label: Modelo do dock
+      description: Fabricante e modelo, como está na caixa ou na etiqueta.
+      placeholder: "ex.: Razer Core X Chroma, AOOSTAR AG02, Sonnet Breakaway Box 750"
+    validations:
+      required: true
+  - type: input
+    id: placa
+    attributes:
+      label: Placa de vídeo
+      placeholder: "ex.: AMD Radeon RX 7600 XT"
+  - type: input
+    id: notebook
+    attributes:
+      label: Notebook e porta usada
+      description: Modelo do notebook e qual porta (Thunderbolt 3, Thunderbolt 4, USB4).
+      placeholder: "ex.: Dell Latitude 3450, porta USB4 da esquerda"
+  - type: textarea
+    id: o-que-acontece
+    attributes:
+      label: O que acontece
+      description: O que o painel mostra certo e o que mostra errado (ou não mostra).
+    validations:
+      required: true
+  - type: textarea
+    id: relatorio
+    attributes:
+      label: Relatório do app
+      description: Gerado pelo eGPU Painel, já sem nome de usuário, nome do PC e números de série.
+      render: text

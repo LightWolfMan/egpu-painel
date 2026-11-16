@@ -1,0 +1,31 @@
+name: Problema
+description: Algo no eGPU Painel não funciona ou mostra um valor errado.
+title: "[Problema] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por relatar! Se você abriu esta página pelo botão **Feedback** do app, o relatório já vem preenchido abaixo. Se ele estiver cortado, o texto completo está na sua área de transferência: cole com Ctrl+V.
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+      description: O que você viu e o que esperava ver.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      description: Os passos até o problema aparecer, se você souber.
+      placeholder: |
+        1. Liguei o dock com o notebook ligado
+        2. Abri o painel na aba Cabo e energia
+        3. ...
+  - type: textarea
+    id: relatorio
+    attributes:
+      label: Relatório do app
+      description: Gerado pelo eGPU Painel, já sem nome de usuário, nome do PC e números de série.
+      render: text

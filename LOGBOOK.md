@@ -178,3 +178,16 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   rótulo do tipo de evento é calculado na exibição e segue o idioma.
 - Conferido em captura real (en e pt): Visão geral, Cabo e energia, Histórico, Opções — sem texto cortado.
 - Pendente: linha sobre idioma no README (fica com a sessão que está reescrevendo o README).
+
+## 2026-11-16 — feedback no app (branch `feedback`)
+
+- 2026-11-16 (branch `feedback`): **Feedback dentro do app**. O link "Feedback" do rodapé abre um painel
+  (egui::Modal) com tipo (Problema / Ideia / Meu dock é outro modelo), mensagem, seções ligáveis
+  (Sistema, Dock e topologia, Placa de vídeo, Quedas recentes) e prévia exata. "Abrir no GitHub" copia o
+  texto completo e abre `issues/new` com o formulário certo pré-preenchido (`.github/ISSUE_TEMPLATE/`
+  bug.yml e meu-dock.yml; Ideia vai como issue em branco). URL limitada a 7000 bytes: o relatório é
+  cortado com aviso para colar o completo. Limpeza em `src/feedback.rs` (`sanitize`): perfil, usuário,
+  nome do PC, e-mail, MAC, instância dos IDs PnP (`…`), GUIDs (menos a chave USB4 do Windows), bytes
+  longos; usuário igual a palavra do fabricante do notebook ("Dell") fica no texto solto, sai dos
+  caminhos. `--relatorio` imprime o relatório; `EGPU_FEEDBACK=1` abre o painel (capturas). Sem rede
+  nova. Falta: conferir com clique real o fluxo até o GitHub (templates só valem depois do push).

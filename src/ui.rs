@@ -374,6 +374,7 @@ pub struct App {
     psu_msg: Option<(bool, String)>,
     /// Carga da fonte calculada uma vez por quadro (App::ui): nó, painel lateral e cartão usam os mesmos números.
     psu_load: Option<crate::psu::Load>,
+    fb: Option<FbPanel>,
 }
 
 impl App {
@@ -440,6 +441,8 @@ impl App {
             psu_job: None,
             psu_msg: None,
             psu_load: None,
+            // EGPU_FEEDBACK=1 abre com o painel de feedback (capturas e testes)
+            fb: std::env::var("EGPU_FEEDBACK").is_ok().then(FbPanel::default),
         }
     }
 
@@ -664,7 +667,6 @@ fn caption_rgb(th: Th) -> Option<(u8, u8, u8)> {
     }
 }
 
-const URL_FEEDBACK: &str = "https://github.com/LightWolfMan/egpu-painel/issues/new";
 const URL_SPONSORS: &str = "https://github.com/sponsors/LightWolfMan";
 const URL_PIX: &str = "https://github.com/LightWolfMan/egpu-painel#apoie";
 
@@ -685,7 +687,8 @@ enum FootIcon {
 }
 
 /// Botão-link do rodapé: ícone + texto curto (ou só ícone quando estreito), realce e sublinhado no hover.
-fn foot_link(ui: &mut Ui, icon: FootIcon, label: &str, tip: &str, url: &'static str, compact: bool) {
+/// `url` = None: só devolve o clique (o Feedback abre um painel, não um site).
+fn foot_link(ui: &mut Ui, icon: FootIcon, label: &str, tip: &str, url: Option<&'static str>, compact: bool) -> bool {
     let font = egui::FontId::proportional(12.5);
     let tg = ui.painter().layout_no_wrap(label.to_owned(), font.clone(), pal::dim());
     let iw = 14.0;
@@ -721,9 +724,10 @@ fn foot_link(ui: &mut Ui, icon: FootIcon, label: &str, tip: &str, url: &'static 
         }
     }
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(tip);
-    if resp.clicked() {
+    if let Some(url) = url.filter(|_| resp.clicked()) {
         open_url(url);
     }
+    resp.clicked()
 }
 
 fn lerp_color(a: Color32, b: Color32, k: f32) -> Color32 {
@@ -744,7 +748,8 @@ fn ack_button(ui: &mut Ui, col: Color32) -> bool {
     .clicked()
 }
 
-fn footer(ui: &mut Ui) {
+/// Devolve `true` quando o link "Feedback" foi clicado (abre o painel de feedback).
+fn footer(ui: &mut Ui) -> bool {
     let full = ui.max_rect().expand2(vec2(16.0, 0.0));
     ui.painter().hline(full.x_range(), full.top() + 0.5, Stroke::new(1.0, pal::grid()));
     let ver = concat!("v", env!("CARGO_PKG_VERSION"));
@@ -756,16 +761,18 @@ fn footer(ui: &mut Ui) {
     let avail = ui.available_width();
     let compact = avail < lw + links_full + 40.0;
     let left = if avail < lw + 3.0 * 30.0 + 40.0 { format!("{ver} · GPL-3.0") } else { long };
+    let mut fb = false;
     ui.horizontal_centered(|ui| {
         ui.label(egui::RichText::new(left).font(font).color(pal::faint()))
             .on_hover_text(t("Código aberto sob a GPL-3.0: use, estude, modifique e compartilhe à vontade. Quem distribuir uma versão modificada mantém o código aberto também.", "Open source under the GPL-3.0: use, study, modify and share freely. Anyone who distributes a modified version must keep it open source too."));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            foot_link(ui, FootIcon::Pix, "Pix", t("Pix (QR Code ou copia e cola), para quem está no Brasil", "Pix (QR Code or copy-and-paste), for people in Brazil"), URL_PIX, compact);
-            foot_link(ui, FootIcon::Text("❤"), t("Apoiar", "Support"), t("GitHub Sponsors — de qualquer país, cartão internacional", "GitHub Sponsors — from any country, international card"), URL_SPONSORS, compact);
-            foot_link(ui, FootIcon::Text("💬"), "Feedback", t("Feedback — relatar um problema ou sugerir uma melhoria (GitHub)", "Feedback — report a problem or suggest an improvement (GitHub)"), URL_FEEDBACK, compact);
+            foot_link(ui, FootIcon::Pix, "Pix", t("Pix (QR Code ou copia e cola), para quem está no Brasil", "Pix (QR Code or copy-and-paste), for people in Brazil"), Some(URL_PIX), compact);
+            foot_link(ui, FootIcon::Text("❤"), t("Apoiar", "Support"), t("GitHub Sponsors — de qualquer país, cartão internacional", "GitHub Sponsors — from any country, international card"), Some(URL_SPONSORS), compact);
+            fb = foot_link(ui, FootIcon::Text("💬"), "Feedback", t("Feedback — relatar um problema ou sugerir uma melhoria", "Feedback — report a problem or suggest an improvement"), None, compact);
         });
     });
+    fb
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -1969,11 +1976,15 @@ impl eframe::App for App {
 
         }
         // ---------------- rodapé: versão, licença, feedback e apoio (largura toda, em todas as abas)
-        egui::Panel::bottom("rodape")
+        if egui::Panel::bottom("rodape")
             .resizable(false)
             .exact_size(30.0)
             .frame(egui::Frame::new().fill(pal::well()).inner_margin(egui::Margin::symmetric(16, 0)))
-            .show_inside(root, |ui| footer(ui));
+            .show_inside(root, |ui| footer(ui))
+            .inner
+        {
+            self.fb = Some(FbPanel::default());
+        }
         // ---------------- navegação: abas no topo (claro/escuro), barra AMD ou menu lateral (NVIDIA/Intel)
         if th == Th::Amd {
         } else if th.nav_left() {
@@ -2134,6 +2145,8 @@ impl eframe::App for App {
                 ui.add_space(14.0);
             });
         });
+
+        self.feedback_panel(&ctx, &topo, &samples, gpu_static.as_ref());
 
         let busy = flow.copy > 2.0 || flow.d3 > 5.0 || matches!(bench, BenchState::Running(_));
         let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
@@ -5150,5 +5163,184 @@ fn fmt_dur(ms: i64) -> String {
         format!("{}\u{A0}h\u{A0}{}\u{A0}min", s / 3600, (s % 3600) / 60)
     } else {
         format!("{}\u{A0}d\u{A0}{}\u{A0}h", s / 86400, (s % 86400) / 3600)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Feedback: painel que monta o relatório limpo e abre a issue no GitHub (navegador da pessoa)
+
+use crate::feedback::{self, FbKind};
+
+struct FbPanel {
+    kind: FbKind,
+    msg: String,
+    on: [bool; 4],
+    /// montado uma vez, quando a topologia e a primeira amostra chegam (ou no "Atualizar")
+    report: Option<feedback::Report>,
+    /// relatório das seções marcadas, já limpo (refeito só quando as caixas mudam)
+    text: String,
+    status: Option<String>,
+}
+
+impl Default for FbPanel {
+    fn default() -> Self {
+        Self { kind: FbKind::Problem, msg: String::new(), on: [true; 4], report: None, text: String::new(), status: None }
+    }
+}
+
+impl App {
+    fn feedback_panel(&mut self, ctx: &egui::Context, topo: &Topology, samples: &[Sample], gst: Option<&collect::GpuStatic>) {
+        let Some(fb) = self.fb.as_mut() else { return };
+        if fb.report.is_none() && topo.read_ms != 0 && !samples.is_empty() {
+            let incs: Vec<feedback::Inc> = self
+                .incidents
+                .iter()
+                .map(|i| feedback::Inc { start: i.start, end: i.end, sev: i.sev, is_drop: i.is_drop, pd_lost: i.pd_lost, kinds: i.events.iter().map(|e| e.kind).collect() })
+                .collect();
+            let r = feedback::build(topo, gst, samples.last(), &incs);
+            fb.text = feedback::compose(&r, &fb.on);
+            fb.report = Some(r);
+        }
+        let screen = ctx.content_rect();
+        let w = (screen.width() - 48.0).clamp(320.0, 760.0);
+        let mut close = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        // a prévia fica com a altura que sobra: o resto do painel é medido no quadro anterior
+        let fixed_id = egui::Id::new("fb-fixo");
+        let fixed: f32 = ctx.data(|d| d.get_temp(fixed_id)).unwrap_or(470.0);
+        let ph = (screen.height() - 64.0 - 36.0 - 16.0 - fixed).clamp(60.0, 340.0);
+        let mut preview_h = 0.0;
+        let mut content_h = 0.0;
+        egui::Modal::new(egui::Id::new("feedback"))
+            .backdrop_color(Color32::from_black_alpha(140))
+            .frame(
+                egui::Frame::new()
+                    .fill(pal::card())
+                    .stroke(Stroke::new(1.0, pal::border()))
+                    .corner_radius(CornerRadius::same(pal::radius()))
+                    .inner_margin(egui::Margin::same(18)),
+            )
+            .show(ctx, |ui| {
+                ui.set_width(w);
+                // janela baixa: o painel inteiro rola em vez de sair da tela. A altura vem da janela, não
+                // do quadro anterior (o Area do Modal limita o conteúdo ao tamanho que ele já tinha)
+                let hmax = (screen.height() - 100.0).max(200.0);
+                content_h = ui.allocate_ui(vec2(w, hmax), |ui| egui::ScrollArea::vertical().id_salt("fb-tudo").show(ui, |ui| {
+                    ui.set_width(w);
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    ui.label(egui::RichText::new("💬  Enviar feedback").size(18.0).strong().color(pal::fg()));
+                    ui.label(
+                        egui::RichText::new("Vira uma issue pública no GitHub do eGPU Painel, aberta no seu navegador (precisa de uma conta no GitHub).")
+                            .size(13.0)
+                            .color(pal::dim()),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        for k in FbKind::ALL {
+                            if chip(ui, fb.kind == k, k.label(), pal::cyan()) {
+                                fb.kind = k;
+                            }
+                        }
+                    });
+                    let hint = match fb.kind {
+                        FbKind::Problem => "O que aconteceu? O que você esperava? Quando começou?",
+                        FbKind::Idea => "Qual é a ideia? O que ela resolveria para você?",
+                        FbKind::OtherDock => "Qual é o seu dock? O que aparece certo e o que aparece errado no painel?",
+                    };
+                    ui.add(egui::TextEdit::multiline(&mut fb.msg).hint_text(hint).desired_rows(4).desired_width(f32::INFINITY));
+                    ui.horizontal_wrapped(|ui| {
+                        check_style(ui);
+                        ui.label(egui::RichText::new("Incluir:").size(13.0).strong().color(pal::dim()));
+                        let mut changed = false;
+                        for (i, name) in feedback::SECTIONS.iter().enumerate() {
+                            changed |= ui.checkbox(&mut fb.on[i], *name).changed();
+                        }
+                        if changed {
+                            if let Some(r) = &fb.report {
+                                fb.text = feedback::compose(r, &fb.on);
+                            }
+                        }
+                    });
+                    ui.label(
+                        egui::RichText::new("🔒 Nome de usuário, nome do PC e números de série são removidos. Você vê tudo antes de enviar.")
+                            .size(13.0)
+                            .color(pal::faint()),
+                    );
+                    let full = feedback::full_text(fb.kind, &fb.msg, &fb.text);
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Prévia do que vai").size(13.0).strong().color(pal::dim()));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("↻ Atualizar").on_hover_text("Lê de novo o dock, a placa e as quedas").clicked() {
+                                fb.report = None;
+                                fb.status = None;
+                            }
+                        });
+                    });
+                    preview_h = egui::Frame::new()
+                        .fill(pal::well())
+                        .stroke(Stroke::new(1.0, pal::border()))
+                        .corner_radius(CornerRadius::same(pal::radius().min(6)))
+                        .inner_margin(egui::Margin::same(8))
+                        .show(ui, |ui| {
+                            egui::ScrollArea::vertical().max_height(ph).auto_shrink([false, true]).show(ui, |ui| {
+                                if fb.report.is_none() {
+                                    ui.label(egui::RichText::new("Juntando as informações…").color(pal::faint()));
+                                } else {
+                                    ui.add(
+                                        egui::TextEdit::multiline(&mut full.as_str())
+                                            .font(FontId::monospace(12.0))
+                                            .text_color(pal::fg())
+                                            .frame(egui::Frame::NONE)
+                                            .desired_width(f32::INFINITY),
+                                    );
+                                }
+                            });
+                        })
+                        .response
+                        .rect
+                        .height();
+                    if let Some(st) = &fb.status {
+                        ui.label(egui::RichText::new(st).size(13.0).color(pal::green()));
+                    }
+                    ui.add_space(2.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let ready = fb.report.is_some();
+                        let open = ui.add_enabled(
+                            ready,
+                            egui::Button::new(egui::RichText::new("↗ Abrir no GitHub").size(14.0).strong().color(pal::fg()))
+                                .fill(pal::cyan().gamma_multiply(0.25))
+                                .stroke(Stroke::new(1.0, pal::cyan().gamma_multiply(0.8)))
+                                .corner_radius(CornerRadius::same(6))
+                                .min_size(vec2(0.0, 32.0)),
+                        );
+                        if open.on_hover_text("Copia o texto completo e abre a issue já preenchida no navegador").clicked() {
+                            let hints = fb.report.as_ref().map(|r| r.hints.clone()).unwrap_or_default();
+                            let (url, _cut) = feedback::issue_url(fb.kind, &fb.msg, &fb.text, &hints);
+                            ui.ctx().copy_text(full.clone());
+                            open_url(&url);
+                            fb.status = Some("Abrimos o GitHub no navegador. Se o relatório estiver cortado, cole com Ctrl+V.".into());
+                        }
+                        let btn = |t: &str| egui::Button::new(egui::RichText::new(t).size(14.0)).min_size(vec2(0.0, 32.0));
+                        if ui.add_enabled(ready, btn("📋 Copiar relatório")).clicked() {
+                            ui.ctx().copy_text(full.clone());
+                            fb.status = Some("Copiado para a área de transferência.".into());
+                        }
+                        if ui.add(btn("Fechar")).clicked() {
+                            close = true;
+                        }
+                    });
+                })
+                .content_size
+                .y)
+                .inner;
+            });
+        let fixed_now = (content_h - preview_h).max(0.0);
+        if (fixed_now - fixed).abs() > 1.0 {
+            ctx.data_mut(|d| d.insert_temp(fixed_id, fixed_now));
+            ctx.request_repaint();
+        }
+        if close {
+            self.fb = None;
+        }
     }
 }

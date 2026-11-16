@@ -13,10 +13,12 @@
 //!   --bench      roda o teste de banda D3D12 e imprime no console
 //!   --perfil [N] mede o custo de cada parte do coletor (N voltas, padrão 20), sem janela
 //!   --dump       imprime topologia + chaves USB4 decodificadas
+//!   --relatorio  imprime o relatório de feedback já limpo (o mesmo que o painel mostra)
 
 mod bench;
 mod collect;
 mod config;
+mod feedback;
 mod history;
 #[macro_use]
 mod i18n;
@@ -142,6 +144,11 @@ fn main() {
     if has("--dump") {
         attach_console();
         dump();
+        return;
+    }
+    if has("--relatorio") {
+        attach_console();
+        print!("{}", feedback::cli_report());
         return;
     }
     if has("--perfil") {
