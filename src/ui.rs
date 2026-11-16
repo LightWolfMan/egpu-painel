@@ -795,6 +795,20 @@ struct EqCol {
 thread_local! {
     static EQ: std::cell::RefCell<Option<EqCol>> = const { std::cell::RefCell::new(None) };
     static CARD_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static FLEX: std::cell::Cell<f32> = const { std::cell::Cell::new(0.0) };
+}
+
+/// Sobra de altura do cartão que está esticando numa linha `eq_cols` (fora dele é 0).
+/// Um elemento flexível (gráfico, faixas, blocos) chama `flex(parte, teto)` ANTES de se alocar e
+/// cresce o que recebeu: `parte` da sobra que resta, no máximo `teto` px. O que ninguém pega fica
+/// como vão no pé do cartão. Vem da medida do quadro anterior (que ignora o crescimento): não oscila.
+fn flex(share: f32, max: f32) -> f32 {
+    FLEX.with(|f| {
+        let s = f.get();
+        let take = (s * share).min(max).max(0.0).floor();
+        f.set(s - take);
+        take
+    })
 }
 
 /// `ui.columns(n)` com os cartões de cada coluna terminando na mesma linha de base.
@@ -837,16 +851,24 @@ fn card_shell<R>(ui: &mut Ui, title: &str, accent: Color32, info: Option<(&mut O
         None
     };
     CARD_DEPTH.with(|d| d.set(depth + 1));
+    if let Some(x) = stretch {
+        FLEX.with(|f| f.set(x));
+    }
     let out = card_shell_in(ui, title, accent, info, |ui, sel| {
         let r = add(ui, sel);
         if let Some(x) = stretch {
+            // o que os elementos flexíveis já cresceram sai da sobra; o resto vira vão no pé
+            let used = x - FLEX.with(|f| f.replace(0.0));
             // (set_min_height mede a partir do cursor, não do topo: aqui a base é posta direto)
             let m = ui.min_rect();
-            ui.expand_to_include_rect(Rect::from_min_max(pos2(m.left(), m.bottom()), pos2(m.left() + 1.0, m.bottom() + x)));
+            let rest = (x - used).max(0.0);
+            if rest > 0.5 {
+                ui.expand_to_include_rect(Rect::from_min_max(pos2(m.left(), m.bottom()), pos2(m.left() + 1.0, m.bottom() + rest)));
+            }
             let grown = ui.min_rect().height() - m.height();
             EQ.with(|e| {
                 if let Some(e) = e.borrow_mut().as_mut() {
-                    e.applied = grown;
+                    e.applied = used + grown;
                 }
             });
         }
@@ -2756,6 +2778,11 @@ fn tile_value_w(p: &egui::Painter, x: &TileItem, size: f32) -> f32 {
 /// (rótulo inteiro numa linha, valor a ≥ 16 pt); o valor usa o MESMO tamanho em toda a linha,
 /// o maior (até 21 pt) que cabe em todos. Nada corta nem quebra no meio. Devolve o bloco clicado.
 fn tile_row(ui: &mut Ui, id: &str, items: &[TileItem]) -> Option<usize> {
+    tile_row_x(ui, id, items, 0.0)
+}
+
+/// `tile_row` com `extra` px a mais de altura (sobra do cartão; o valor continua no pé do bloco).
+fn tile_row_x(ui: &mut Ui, id: &str, items: &[TileItem], extra: f32) -> Option<usize> {
     let p = ui.painter().clone();
     let lab = |x: &TileItem| format!("{}\u{A0}{}", x.icon, x.label); // ícone grudado na 1ª palavra
     // quantas colunas: o máximo em que todo bloco cabe com o valor a ≥ 16 pt e o rótulo em
@@ -2797,7 +2824,8 @@ fn tile_row(ui: &mut Ui, id: &str, items: &[TileItem]) -> Option<usize> {
         + TPY
         + 4.0
         + vh
-        + TPY;
+        + TPY
+        + extra;
     let mut clicked = None;
     even_grid(ui, items.len(), nat, 10.0, |ui, i, w| {
         let x = &items[i];
@@ -2872,9 +2900,13 @@ fn hidden_strip(ui: &mut Ui, sel: &mut Option<Sel>) {
 }
 
 /// Faixas do enlace desenhadas: cada faixa é uma pista de 0–20 Gb/s (TB3).
-fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::Response {
+fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64, extra: f32) -> egui::Response {
     let w = ui.available_width();
-    let h = 18.0 * lanes.max(1) as f32 + 22.0;
+    // `extra` (sobra do cartão) alarga o passo entre as faixas e engrossa um pouco a pista
+    let nl = lanes.max(1) as f32;
+    let pitch = 18.0 + extra / nl;
+    let th = 11.0 + (extra / nl * 0.25).min(5.0);
+    let h = pitch * nl + 22.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let p = ui.painter_at(rect);
     // colunas medidas: rótulo "Canal N" à esquerda, valor "20/20 Gb/s" à direita, pista no meio
@@ -2883,10 +2915,10 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::R
     let x0 = rect.left() + lw + 10.0;
     let x1 = rect.right() - vw - 10.0;
     for l in 0..lanes.max(1) {
-        let y = rect.top() + 4.0 + l as f32 * 18.0;
-        let track = Rect::from_min_max(pos2(x0, y), pos2(x1, y + 11.0));
+        let y = rect.top() + 4.0 + l as f32 * pitch;
+        let track = Rect::from_min_max(pos2(x0, y), pos2(x1, y + th));
         p.rect_filled(track, CornerRadius::same(5), pal::well());
-        p.text(pos2(rect.left(), y + 5.5), egui::Align2::LEFT_CENTER, format!("Canal {}", l + 1), FontId::proportional(12.5), pal::dim());
+        p.text(pos2(rect.left(), y + th / 2.0), egui::Align2::LEFT_CENTER, format!("Canal {}", l + 1), FontId::proportional(12.5), pal::dim());
         if let Some(v) = per_lane {
             let frac = (v / 20.0).clamp(0.0, 1.0);
             let fill = Rect::from_min_max(track.min, pos2(x0 + (x1 - x0) * frac, track.bottom()));
@@ -2894,8 +2926,8 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64) -> egui::R
             p.rect_filled(fill, CornerRadius::same(5), col.gamma_multiply(0.85));
             // brilho correndo dentro da faixa
             let sx = fill.left() + ((t as f32 * 60.0 + l as f32 * 37.0) % fill.width().max(1.0));
-            p.rect_filled(Rect::from_center_size(pos2(sx, fill.center().y), vec2(14.0, 9.0)), CornerRadius::same(4), Color32::WHITE.gamma_multiply(0.18));
-            p.text(pos2(x1 + 8.0, y + 5.5), egui::Align2::LEFT_CENTER, format!("{v:.0}/20 Gb/s"), FontId::proportional(13.0), col);
+            p.rect_filled(Rect::from_center_size(pos2(sx, fill.center().y), vec2(14.0, th - 2.0)), CornerRadius::same(4), Color32::WHITE.gamma_multiply(0.18));
+            p.text(pos2(x1 + 8.0, y + th / 2.0), egui::Align2::LEFT_CENTER, format!("{v:.0}/20 Gb/s"), FontId::proportional(13.0), col);
         }
     }
     let total = per_lane.map(|v| v * lanes as f32);
@@ -2926,10 +2958,10 @@ fn battery_icon(ui: &mut Ui, pct: f32, online: bool, charging: bool, t: f64) {
 }
 
 /// Quedas por dia (14 dias): vermelho = só enlace, âmbar = PD caiu junto.
-fn drops_chart(ui: &mut Ui, incidents: &[&Incident]) -> egui::Response {
+fn drops_chart(ui: &mut Ui, incidents: &[&Incident], h: f32) -> egui::Response {
     use chrono::{Local, TimeZone};
     let w = ui.available_width();
-    let (rect, resp) = ui.allocate_exact_size(vec2(w, 64.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let p = ui.painter_at(rect);
     let days = 14i64;
     let today = Local::now().date_naive();
@@ -3341,7 +3373,9 @@ impl App {
                 _ => None,
             };
             let t = ui.input(|i| i.time);
-            if lanes_view(ui, lanes, per_lane, t).on_hover_text("Chaves USB4 20 (velocidade) e 21 (faixas). Clique para ver a decodificação.").clicked() {
+            // sobra do cartão (linha eq_cols): faixas mais espaçadas, respiro e blocos mais altos
+            let lx = flex(0.5, 14.0 * lanes.max(1) as f32);
+            if lanes_view(ui, lanes, per_lane, t, lx).on_hover_text("Chaves USB4 20 (velocidade) e 21 (faixas). Clique para ver a decodificação.").clicked() {
                 *sel = Some(Sel::Info(Topic::Link));
             }
             if speed == Some(8) {
@@ -3351,7 +3385,7 @@ impl App {
                     *sel = Some(Sel::Info(Topic::Link));
                 }
             }
-            ui.add_space(4.0);
+            ui.add_space(4.0 + flex(0.4, 16.0));
             let (st, stc) = match dr.dstate {
                 Some(1) => ("Ativo", pal::green()),
                 Some(4) => ("☾ Em repouso", pal::dim()),
@@ -3363,7 +3397,7 @@ impl App {
             }
             tiles.push((ti("🔀", st, "", "Estado", stc).tip("Estado de energia do roteador do dock (D0 ativo, D3 economia — o USB4 dorme quando ocioso)"), Sel::Dock));
             let (items, dest): (Vec<TileItem>, Vec<Sel>) = tiles.into_iter().unzip();
-            if let Some(i) = tile_row(ui, "enlace", &items) {
+            if let Some(i) = tile_row_x(ui, "enlace", &items, flex(1.0, 28.0)) {
                 *sel = Some(dest[i]);
             }
         });
@@ -3397,7 +3431,7 @@ impl App {
                 *sel = Some(Sel::Info(Topic::Power));
             }
             let series: Vec<f32> = samples.iter().filter_map(|s| s.power).map(|p| (p.charge_mw - p.discharge_mw) as f32 / 1000.0).collect();
-            chart(ui, "Carga da bateria (W)", &[(pal::bolt(), "agora", series)], 10.0, " W", 64.0);
+            chart(ui, "Carga da bateria (W)", &[(pal::bolt(), "agora", series)], 10.0, " W", 64.0 + flex(1.0, 150.0));
         });
         self.sel = sel;
     }
@@ -3423,7 +3457,7 @@ impl App {
             if tile_row(ui, "quedas", &items).is_some() {
                 self_open_timeline(sel);
             }
-            if drops_chart(ui, &drops).clicked() {
+            if drops_chart(ui, &drops, 64.0 + flex(1.0, 150.0)).clicked() {
                 *sel = Some(Sel::Info(Topic::Stability));
             }
             let d30: Vec<&&Incident> = drops.iter().filter(|i| now - i.start <= 30 * 86_400_000).collect();
@@ -3465,7 +3499,7 @@ impl App {
             });
             let copy: Vec<f32> = samples.iter().map(|s| s.copy).collect();
             let d3: Vec<f32> = samples.iter().map(|s| s.d3).collect();
-            chart(ui, "Uso da placa (5 min)", &[(pal::data(), "Cópia de dados", copy), (pal::violet(), "Gráficos 3D", d3)], 100.0, "%", 84.0);
+            chart(ui, "Uso da placa (5 min)", &[(pal::data(), "Cópia de dados", copy), (pal::violet(), "Gráficos 3D", d3)], 100.0, "%", 84.0 + flex(1.0, 170.0));
             ui.horizontal(|ui| {
                 let running = matches!(bench, BenchState::Running(_));
                 if ui.add_enabled(!running, egui::Button::new("📏 Teste de banda")).on_hover_text("Cópias D3D12 de 1 GiB na fila COPY, host↔VRAM (~5 s).").clicked() {
@@ -3516,7 +3550,7 @@ impl App {
             let temp: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.temp)).map(|v| v as f32).collect();
             let hot: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.hot)).map(|v| v as f32).collect();
             let tbp: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.tbp)).map(|v| v as f32).collect();
-            chart(ui, "🌡 / ⚡", &[(pal::green(), "GPU", temp), (pal::amber(), "hotspot", hot), (pal::bolt(), "W", tbp)], 90.0, "", 70.0);
+            chart(ui, "🌡 / ⚡", &[(pal::green(), "GPU", temp), (pal::amber(), "hotspot", hot), (pal::bolt(), "W", tbp)], 90.0, "", 70.0 + flex(1.0, 170.0));
             if let Some(s) = st {
                 let vram = g.vram.unwrap_or(0) as f32;
                 let frac = if s.vram_total_mb > 0 { vram / s.vram_total_mb as f32 } else { 0.0 };
