@@ -147,6 +147,12 @@ fn main() {
         collect::profile(n);
         return;
     }
+    if has("--icone") {
+        // grava o ícone do painel em .ico (16/32/48/256 px, DIB 32 bpp) — usado pelo atalho
+        let out = args.iter().skip_while(|a| *a != "--icone").nth(1).cloned().unwrap_or_else(|| "egpu-painel.ico".into());
+        let _ = std::fs::write(&out, ico_bytes(&[16, 32, 48, 256]));
+        return;
+    }
     if has("--fonte") {
         attach_console();
         let model = args.iter().skip_while(|a| *a != "--fonte").nth(1).cloned().unwrap_or_default();
@@ -224,4 +230,41 @@ fn main() {
     }
     close_panel();
     tray::destroy();
+}
+
+/// Monta um .ico com imagens DIB 32 bpp (BGRA de baixo para cima + máscara AND vazia).
+fn ico_bytes(sizes: &[u32]) -> Vec<u8> {
+    let imgs: Vec<Vec<u8>> = sizes
+        .iter()
+        .map(|&n| {
+            let rgba = tray::icon_rgba(n, true);
+            let mut b = Vec::new();
+            for v in [40u32, n, n * 2, 1 | (32 << 16), 0, 0, 0, 0, 0, 0] {
+                b.extend_from_slice(&v.to_le_bytes());
+            }
+            for y in (0..n).rev() {
+                for x in 0..n {
+                    let i = ((y * n + x) * 4) as usize;
+                    b.extend_from_slice(&[rgba[i + 2], rgba[i + 1], rgba[i], rgba[i + 3]]);
+                }
+            }
+            let mask_row = (n.div_ceil(32) * 4) as usize;
+            b.extend(std::iter::repeat_n(0u8, mask_row * n as usize));
+            b
+        })
+        .collect();
+    let mut out = vec![0, 0, 1, 0];
+    out.extend_from_slice(&(sizes.len() as u16).to_le_bytes());
+    let mut off = 6 + 16 * sizes.len() as u32;
+    for (n, img) in sizes.iter().zip(&imgs) {
+        let d = if *n >= 256 { 0 } else { *n as u8 };
+        out.extend_from_slice(&[d, d, 0, 0, 1, 0, 32, 0]);
+        out.extend_from_slice(&(img.len() as u32).to_le_bytes());
+        out.extend_from_slice(&off.to_le_bytes());
+        off += img.len() as u32;
+    }
+    for img in imgs {
+        out.extend(img);
+    }
+    out
 }

@@ -151,7 +151,10 @@ egpu-painel.exe --bench        roda o teste de banda D3D12 e imprime no console
 egpu-painel.exe --dump         imprime topologia e chaves USB4 decodificadas (dock e host)
 egpu-painel.exe --perfil [N]   mede o custo de cada parte do coletor, sem janela
 egpu-painel.exe --fonte "MODELO"  busca as specs de uma fonte e imprime o que achou
+egpu-painel.exe --icone ARQ.ico   grava o ícone do painel (16/32/48/256 px), útil para atalhos
 ```
+
+Para instalar: copie `egpu-painel.exe` para uma pasta fixa (ex.: `%LOCALAPPDATA%\Programs\eGPU-Painel`), gere o ícone com `--icone` e crie um atalho apontando para o exe com esse ícone. O exe é autossuficiente (logotipos e ícones embutidos).
 
 Variáveis para testes: `EGPU_TEMA=amd|nvidia|intel` simula a placa detectada; `EGPU_ABA=0..4` abre direto numa aba.
 
