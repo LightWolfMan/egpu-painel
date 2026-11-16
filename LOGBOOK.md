@@ -153,3 +153,8 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   da última queda (`ack_ts`); o banner e a pílula do cabeçalho voltam ao verde até surgir uma queda mais
   nova. As quedas continuam no Histórico. "Dock desconectado" não é reconhecível (é estado atual).
   Conferido com clique real: banner fica verde, aba não muda, Histórico intacto.
+- **Publicado**: `LightWolfMan/egpu-painel` agora é público (GPL-3.0 detectada pelo GitHub, 38 commits,
+  todos com e-mail noreply). O repositório privado antigo virou `egpu-painel-old` (guarda o histórico
+  com o e-mail pessoal; apagar quando quiser). Ref local `refs/backup/pre-noreply` idem — não enviar.
+- Falta: clicar **Publish** no GitHub Sponsors + criar faixas; criar conta LivePix com usuário
+  `lightwolfman` (se o nome não estiver livre, trocar o link em `src/ui.rs` e `.github/FUNDING.yml`).
