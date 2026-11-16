@@ -1,6 +1,7 @@
 name: Meu dock é outro modelo
 description: Seu dock ou sua placa aparecem errados no painel? Conte qual é o modelo para ele passar a ser reconhecido.
 title: "[Meu dock] "
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:

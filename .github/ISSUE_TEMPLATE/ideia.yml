@@ -1,0 +1,22 @@
+name: Ideia
+description: Uma sugestão para o eGPU Painel ficar mais útil.
+title: "[Ideia] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado pela ideia! Se você abriu esta página pelo botão **Feedback** do app, o texto já vem preenchido abaixo.
+  - type: textarea
+    id: ideia
+    attributes:
+      label: Qual é a ideia?
+      description: O que o painel faria e o que isso resolveria para você.
+    validations:
+      required: true
+  - type: textarea
+    id: relatorio
+    attributes:
+      label: Relatório do app
+      description: Gerado pelo eGPU Painel, já sem nome de usuário, nome do PC e números de série. Opcional.
+      render: text

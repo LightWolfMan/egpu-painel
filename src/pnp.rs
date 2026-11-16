@@ -218,6 +218,9 @@ pub fn present_ids(enumerator: &str) -> Vec<String> {
 pub struct Node {
     pub id: String,
     pub name: String,
+    /// Descrição genérica do INF (DeviceDesc). `name` prefere o FriendlyName, que num celular é o
+    /// nome dado pelo dono; o relatório de feedback usa esta.
+    pub desc: String,
     pub present: bool,
     pub problem: u32,
     pub firmware: Option<String>,
@@ -239,9 +242,8 @@ pub struct Node {
 pub fn read_node(dn: u32) -> Node {
     let s = |k: &DEVPROPKEY| prop(dn, k).and_then(|v| v.as_str().map(String::from));
     let (st, problem) = status(dn);
-    let name = s(&DEVPKEY_Device_FriendlyName)
-        .or_else(|| s(&DEVPKEY_Device_DeviceDesc))
-        .unwrap_or_default();
+    let desc = s(&DEVPKEY_Device_DeviceDesc).unwrap_or_default();
+    let name = s(&DEVPKEY_Device_FriendlyName).unwrap_or_else(|| desc.clone());
     let pcie = match (
         prop(dn, &PCI_CUR_SPEED).and_then(|v| v.as_u32()),
         prop(dn, &PCI_CUR_WIDTH).and_then(|v| v.as_u32()),
@@ -257,6 +259,7 @@ pub fn read_node(dn: u32) -> Node {
     Node {
         id: device_id(dn),
         name,
+        desc,
         present: st & 0x8 != 0 || st & 0x2 != 0, // DN_STARTED | DN_DRIVER_LOADED
         problem,
         firmware: s(&DEVPKEY_Device_FirmwareVersion),

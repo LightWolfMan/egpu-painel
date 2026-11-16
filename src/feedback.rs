@@ -1,9 +1,10 @@
 //! Feedback dentro do app: monta um relatório (seções ligáveis), limpa tudo o que identifica a pessoa
 //! ou a máquina e abre uma issue no GitHub pelo navegador da própria pessoa (URL pré-preenchida com os
-//! formulários de .github/ISSUE_TEMPLATE). Nada de rede aqui: o texto completo vai para a área de
-//! transferência, e a URL leva o que couber (~7000 bytes).
+//! formulários de .github/ISSUE_TEMPLATE). Nada de rede aqui: a URL leva o que couber (~6000 bytes) e,
+//! se o relatório não couber, ele vai para a área de transferência.
 
 use crate::collect::{GpuStatic, Sample};
+use crate::i18n::t;
 use crate::history::{Ev, Kind};
 use crate::pnp::{self, Node, PVal, PortRole, Topology, Usb4Prop};
 use regex_lite::{Captures, Regex};
@@ -12,10 +13,12 @@ use std::sync::OnceLock;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const REPO_NEW: &str = "https://github.com/LightWolfMan/egpu-painel/issues/new";
-/// Teto da URL inteira. Navegadores aceitam mais, mas o GitHub recusa pedidos muito longos (414).
-pub const URL_MAX: usize = 7000;
+/// Teto da URL inteira. Medido em 2026-11-16: sem login, o GitHub responde 302 (vai para o login) até
+/// ~6900 bytes e 500 a partir de ~7000; uma URL de ~6000 bytes chega inteira ao navegador padrão pelo
+/// ShellExecute. 6000 deixa folga.
+pub const URL_MAX: usize = 6000;
 pub const CUT_NOTE: &str = "(relatório cortado — o completo está na área de transferência, cole aqui)";
-const MSG_CUT_NOTE: &str = "(mensagem cortada — a completa está na área de transferência)";
+const MSG_CUT_NOTE: &str = "(mensagem cortada — a completa está na área de transferência, cole aqui)";
 /// GUID das chaves de propriedade USB4 do Windows: é o mesmo em todo PC, não identifica ninguém.
 const USB4_FMTID: &str = "5DF7E321-1C1B-4CE2-B4FA-55F4A5BC2CB6";
 const NE: &str = "não exposto";
@@ -31,9 +34,17 @@ impl FbKind {
     pub const ALL: [FbKind; 3] = [FbKind::Problem, FbKind::Idea, FbKind::OtherDock];
     pub fn label(self) -> &'static str {
         match self {
-            FbKind::Problem => "Problema",
-            FbKind::Idea => "Ideia",
-            FbKind::OtherDock => "Meu dock é outro modelo",
+            FbKind::Problem => t("Problema", "Problem"),
+            FbKind::Idea => t("Ideia", "Idea"),
+            FbKind::OtherDock => t("Meu dock é outro modelo", "My dock is another model"),
+        }
+    }
+    /// (formulário, campo da mensagem): todos os formulários têm também o campo "relatorio".
+    fn form(self) -> (&'static str, &'static str) {
+        match self {
+            FbKind::Problem => ("bug.yml", "descricao"),
+            FbKind::Idea => ("ideia.yml", "ideia"),
+            FbKind::OtherDock => ("meu-dock.yml", "o-que-acontece"),
         }
     }
     fn prefix(self) -> &'static str {
@@ -76,20 +87,19 @@ pub fn group_incidents(events: &[Ev]) -> Vec<Inc> {
     v
 }
 
-/// Dicas para pré-preencher o formulário "Meu dock" (só dado lido, nunca inventado).
-#[derive(Clone, Default)]
-pub struct Hints {
-    pub dock: Option<String>,
-    pub gpu: Option<String>,
-    pub notebook: Option<String>,
-}
+/// Títulos das seções dentro do relatório (vai para o mantenedor: fica em português).
+const SECTIONS: [&str; 4] = ["Sistema", "Dock e topologia", "Placa de vídeo", "Quedas recentes"];
 
-pub const SECTIONS: [&str; 4] = ["Sistema", "Dock e topologia", "Placa de vídeo", "Quedas recentes"];
+/// Nomes das seções nas caixas do painel (idioma da interface).
+pub fn section_label(i: usize) -> &'static str {
+    [t("Sistema", "System"), t("Dock e topologia", "Dock and topology"), t("Placa de vídeo", "Graphics card"), t("Quedas recentes", "Recent drops")][i]
+}
 
 #[derive(Clone, Default)]
 pub struct Report {
     pub sections: [String; 4],
-    pub hints: Hints,
+    /// Fabricante e modelo do notebook: só para a limpeza (ver `sanitize`).
+    pub hw: Option<String>,
 }
 
 fn reg_str(sub: &str, name: &str) -> Option<String> {
@@ -163,6 +173,15 @@ fn pcie(n: &Node) -> String {
     }
 }
 
+/// ID de instância sem a instância: `ENUM\\hardware\\instância` → `ENUM\\hardware\\…`. A instância
+/// (serial, posição no barramento) sai na origem; a regex de `sanitize` fica só de rede de segurança.
+fn strip_instance(id: &str) -> String {
+    match id.rsplit_once('\\') {
+        Some((hw, _)) if hw.contains('\\') => format!("{hw}\\…"),
+        _ => id.into(),
+    }
+}
+
 fn node_line(s: &mut String, label: &str, n: &Option<Node>) {
     match n {
         Some(n) => {
@@ -170,7 +189,7 @@ fn node_line(s: &mut String, label: &str, n: &Option<Node>) {
                 s,
                 "{label}: {} [{}] · firmware {} · {} · PCIe {}",
                 n.name,
-                n.id,
+                strip_instance(&n.id),
                 n.firmware.as_deref().unwrap_or(NE),
                 dstate(n),
                 pcie(n)
@@ -191,14 +210,22 @@ fn role(r: &PortRole) -> &'static str {
     }
 }
 
-/// Valor de uma chave USB4 para o relatório. Identificador por aparelho (GUID, bytes longos, data)
-/// não vai: só o tipo e o tamanho, para saber que ele existe.
+/// Valor de uma chave USB4 para o relatório, por lista de permissão: o valor só sai para as chaves
+/// conhecidas que não identificam o aparelho (nomes e IDs do DROM, rota, profundidade, enlace) e para
+/// inteiros pequenos. O resto (texto, lista, bytes, 64 bits, GUID, data) sai só com o tipo e o
+/// tamanho, para saber que existe.
 fn usb4_value(p: &Usb4Prop) -> String {
+    let known = matches!(p.pid, 8..=11 | 13..=18 | 20 | 21);
     match &p.val {
+        PVal::U8(_) | PVal::U16(_) | PVal::U32(_) | PVal::Bool(_) => p.decoded.clone(),
+        PVal::Str(_) | PVal::List(_) | PVal::Bin(_) if known => p.decoded.clone(),
+        PVal::Str(x) => format!("texto, {} bytes (removido)", x.len()),
+        PVal::List(l) => format!("lista, {} itens (removida)", l.len()),
+        PVal::Bin(b) => format!("binário, {} bytes (removido)", b.len()),
+        PVal::U64(_) => "inteiro de 64 bits (removido)".into(),
         PVal::Guid(_) => "identificador único (removido)".into(),
         PVal::Time(_) => "data (removida)".into(),
-        PVal::Bin(b) if p.pid != 11 && b.len() >= 8 => format!("{} bytes (removidos: podem identificar o aparelho)", b.len()),
-        _ => p.decoded.clone(),
+        PVal::Other(ty, n) => format!("tipo 0x{ty:X}, {n} bytes (removido)"),
     }
 }
 
@@ -213,6 +240,12 @@ fn usb4_lines(s: &mut String, title: &str, props: &[Usb4Prop]) {
     }
 }
 
+/// Nome genérico do INF (DeviceDesc), não o FriendlyName: num celular o Windows grava como
+/// FriendlyName o nome que o dono deu ao aparelho ("Galaxy de Maria").
+fn generic_name(n: &Node) -> &str {
+    if n.desc.is_empty() { NE } else { &n.desc }
+}
+
 fn sec_dock(t: &Topology) -> String {
     let mut s = String::new();
     node_line(&mut s, "Controlador host", &t.host_ctrl);
@@ -225,13 +258,13 @@ fn sec_dock(t: &Topology) -> String {
             s,
             "  Porta ({}): {} · {} · filho: {}",
             role(&p.role),
-            p.node.id,
+            strip_instance(&p.node.id),
             dstate(&p.node),
-            p.child.as_ref().map(|c| c.name.as_str()).unwrap_or("nenhum")
+            p.child.as_ref().map(generic_name).unwrap_or("nenhum")
         );
     }
     for n in &t.usb_a {
-        let _ = writeln!(s, "  USB-A: {} [{}]", n.name, n.id);
+        let _ = writeln!(s, "  USB-A: {} [{}]", generic_name(n), strip_instance(&n.id));
     }
     usb4_lines(&mut s, "USB4 do dock", &t.dock_usb4);
     usb4_lines(&mut s, "USB4 do host", &t.host_usb4);
@@ -246,14 +279,14 @@ fn sec_gpu(t: &Topology, gst: Option<&GpuStatic>, last: Option<&Sample>) -> Stri
     let mut s = String::new();
     match &t.gpu {
         Some(g) => {
-            let _ = writeln!(s, "Placa: {} [{}]", g.name, g.id);
+            let _ = writeln!(s, "Placa: {} [{}]", g.name, strip_instance(&g.id));
             let _ = writeln!(s, "Driver: {} ({})", g.driver.as_deref().unwrap_or(NE), g.driver_provider.as_deref().unwrap_or(NE));
             let _ = writeln!(s, "Energia: {} · PCIe {}", dstate(g), pcie(g));
         }
         None => s += "Placa: não encontrada atrás do dock\n",
     }
     for n in &t.gpu_chain {
-        let _ = writeln!(s, "  Cadeia PCIe: {} [{}] · {} · PCIe {}", n.name, n.id, dstate(n), pcie(n));
+        let _ = writeln!(s, "  Cadeia PCIe: {} [{}] · {} · PCIe {}", n.name, strip_instance(&n.id), dstate(n), pcie(n));
     }
     match gst {
         Some(g) => {
@@ -284,17 +317,13 @@ fn sec_gpu(t: &Topology, gst: Option<&GpuStatic>, last: Option<&Sample>) -> Stri
     s
 }
 
-/// "há 3 h" grosseiro de propósito: sem data nem hora exatas.
+/// Em baldes de dia, de propósito: somados à data da issue (pública), minuto ou hora mostrariam
+/// quando a pessoa liga, desliga e tira o notebook da tomada.
 pub fn ago(ms: i64) -> String {
-    let m = ms.max(0) / 60_000;
-    if m < 1 {
-        "há menos de 1 min".into()
-    } else if m < 60 {
-        format!("há {m} min")
-    } else if m < 48 * 60 {
-        format!("há {} h", m / 60)
-    } else {
-        format!("há {} dias", m / 1440)
+    match ms.max(0) / 86_400_000 {
+        0 => "nas últimas 24 h".into(),
+        1 => "ontem".into(),
+        d => format!("há {d} dias"),
     }
 }
 
@@ -307,7 +336,9 @@ fn sec_drops(incs: &[Inc], now: i64) -> String {
     let _ = writeln!(s, "Incidentes com aviso ou falha em 7 dias: {}", probs.len());
     for i in probs.iter().rev().take(15) {
         let mut kinds: Vec<&str> = vec![];
-        for k in &i.kinds {
+        // sem queda, ligar/desligar/dormir/acordar é só rotina: não vai
+        let routine = |k: &Kind| matches!(k, Kind::Sleep | Kind::Wake | Kind::StandbyIn | Kind::StandbyOut | Kind::Boot | Kind::Shutdown | Kind::AcOn);
+        for k in i.kinds.iter().filter(|k| i.is_drop || !routine(k)) {
             if !kinds.contains(&k.label()) {
                 kinds.push(k.label());
             }
@@ -330,17 +361,7 @@ fn sec_drops(incs: &[Inc], now: i64) -> String {
 
 pub fn build(t: &Topology, gst: Option<&GpuStatic>, last: Option<&Sample>, incs: &[Inc]) -> Report {
     let nb = notebook();
-    let dock = {
-        let get = |pid| t.dock_usb4.iter().find(|p| p.pid == pid).and_then(|p| p.val.as_str().map(str::to_string));
-        match (get(9), get(10)) {
-            (Some(a), Some(b)) => Some(format!("{a} {b}").split_whitespace().collect::<Vec<_>>().join(" ")),
-            _ => t.dock_router.as_ref().map(|n| n.name.clone()),
-        }
-    };
-    Report {
-        sections: [sec_system(nb.as_deref()), sec_dock(t), sec_gpu(t, gst, last), sec_drops(incs, crate::util::now_ms())],
-        hints: Hints { dock, gpu: t.gpu.as_ref().map(|g| g.name.clone()), notebook: nb },
-    }
+    Report { sections: [sec_system(nb.as_deref()), sec_dock(t), sec_gpu(t, gst, last), sec_drops(incs, crate::util::now_ms())], hw: nb }
 }
 
 /// Seções marcadas, juntas e limpas: é exatamente o relatório que vai.
@@ -355,7 +376,7 @@ pub fn compose(r: &Report, on: &[bool; 4]) -> String {
             out += body;
         }
     }
-    sanitize(&out.replace('\u{A0}', " "), r.hints.notebook.as_deref())
+    sanitize(&out.replace('\u{A0}', " "), r.hw.as_deref())
 }
 
 // ---------------------------------------------------------------------------
@@ -366,8 +387,8 @@ fn env(k: &str) -> Option<String> {
 }
 
 /// Limpa com os nomes desta sessão (usuário, computador, perfil). `hw` = fabricante/modelo do notebook:
-/// se o nome de usuário for uma palavra desse texto ("Dell"), ele é dado de hardware e fica no texto
-/// solto (nos caminhos sai sempre).
+/// se o nome de usuário for uma palavra desse texto ("Dell"), só a ocorrência exata do nome do produto
+/// fica; em qualquer outro lugar o usuário sai.
 pub fn sanitize(s: &str, hw: Option<&str>) -> String {
     sanitize_with(s, env("USERPROFILE").as_deref(), env("USERNAME").as_deref(), env("COMPUTERNAME").as_deref(), hw)
 }
@@ -380,34 +401,29 @@ fn is_word(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// Troca `word` (sem diferenciar caixa) quando ela é palavra inteira.
+/// Troca `word` (sem diferenciar caixa, char a char) quando ela é palavra inteira.
 fn replace_word(t: &str, word: &str, with: &str) -> String {
-    let w = word.trim();
-    if w.chars().count() < 2 {
+    let w: Vec<char> = word.trim().chars().collect();
+    if w.len() < 2 {
         return t.to_string();
     }
-    let lt = t.to_lowercase();
-    let lw = w.to_lowercase();
-    // to_lowercase pode mudar o tamanho em bytes fora do ASCII; nesse caso compara por char
-    if lt.len() != t.len() {
-        return t.to_string().replace(w, with);
-    }
+    let eq = |a: char, b: char| a == b || a.to_lowercase().eq(b.to_lowercase());
+    let c: Vec<char> = t.chars().collect();
     let mut out = String::with_capacity(t.len());
     let mut i = 0;
-    while let Some(p) = lt[i..].find(&lw) {
-        let a = i + p;
-        let b = a + lw.len();
-        let before = t[..a].chars().next_back();
-        let after = t[b..].chars().next();
-        out += &t[i..a];
-        if before.is_some_and(is_word) || after.is_some_and(is_word) {
-            out += &t[a..b];
-        } else {
+    while i < c.len() {
+        let hit = i + w.len() <= c.len()
+            && c[i..i + w.len()].iter().zip(&w).all(|(&a, &b)| eq(a, b))
+            && !(i > 0 && is_word(c[i - 1]))
+            && !c.get(i + w.len()).is_some_and(|&x| is_word(x));
+        if hit {
             out += with;
+            i += w.len();
+        } else {
+            out.push(c[i]);
+            i += 1;
         }
-        i = b;
     }
-    out += &t[i..];
     out
 }
 
@@ -449,9 +465,14 @@ pub fn sanitize_with(s: &str, profile: Option<&str>, user: Option<&str>, pc: Opt
         t = replace_word(&t, pc, "<computador>");
     }
     if let Some(u) = user {
-        let hw_word = hw.is_some_and(|h| replace_word(h, u, "\u{0}") != h);
-        if !hw_word {
-            t = replace_word(&t, u, "<usuário>");
+        // o nome exato do produto ("Dell Inc. Latitude 3450") fica atrás de um marcador; do resto o usuário sai
+        let hw = hw.map(str::trim).filter(|h| replace_word(h, u, "\u{0}") != *h);
+        if let Some(h) = hw {
+            t = replace_word(&t, h, "\u{1}");
+        }
+        t = replace_word(&t, u, "<usuário>");
+        if let Some(h) = hw {
+            t = t.replace('\u{1}', h);
         }
     }
     t
@@ -473,7 +494,7 @@ pub fn pct(s: &str) -> String {
     o
 }
 
-fn title(kind: FbKind, message: &str, hints: &Hints) -> String {
+fn title(kind: FbKind, message: &str) -> String {
     let first = message.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
     let mut t: String = first.chars().take(60).collect();
     if first.chars().count() > 60 {
@@ -482,12 +503,6 @@ fn title(kind: FbKind, message: &str, hints: &Hints) -> String {
             t.truncate(p);
         }
         t.push('…');
-    }
-    if t.is_empty() {
-        t = match kind {
-            FbKind::OtherDock => hints.dock.clone().unwrap_or_default(),
-            _ => String::new(),
-        };
     }
     format!("{} {t}", kind.prefix()).trim_end().to_string()
 }
@@ -516,29 +531,12 @@ fn fit(s: &str, budget: usize) -> (String, bool) {
     (cut.to_string(), true)
 }
 
-/// URL da issue nova com o formulário certo pré-preenchido. `true` = algo foi cortado para caber.
-pub fn issue_url(kind: FbKind, message: &str, report: &str, hints: &Hints) -> (String, bool) {
+/// URL da issue nova com o formulário certo pré-preenchido. `message` e `report` chegam já limpos (o
+/// que a prévia mostra) e nada além deles vai. Devolve (url, mensagem cortada, relatório cortado).
+pub fn issue_url(kind: FbKind, message: &str, report: &str) -> (String, bool, bool) {
     let message = message.trim();
-    let mut q: Vec<(&str, String)> = vec![];
-    // (campo da mensagem, campo do relatório)
-    let (msg_field, rep_field) = match kind {
-        FbKind::Problem => {
-            q.push(("template", "bug.yml".into()));
-            ("descricao", "relatorio")
-        }
-        FbKind::OtherDock => {
-            q.push(("template", "meu-dock.yml".into()));
-            for (k, v) in [("modelo", &hints.dock), ("placa", &hints.gpu), ("notebook", &hints.notebook)] {
-                if let Some(v) = v {
-                    q.push((k, v.clone()));
-                }
-            }
-            ("o-que-acontece", "relatorio")
-        }
-        // sem formulário: issue em branco, tudo no corpo
-        FbKind::Idea => ("body", "body"),
-    };
-    q.push(("title", title(kind, message, hints)));
+    let (form, msg_field) = kind.form();
+    let mut q: Vec<(&str, String)> = vec![("template", form.into()), ("title", title(kind, message))];
     let join = |q: &[(&str, String)]| -> String {
         let mut u = String::from(REPO_NEW);
         for (i, (k, v)) in q.iter().enumerate() {
@@ -549,37 +547,31 @@ pub fn issue_url(kind: FbKind, message: &str, report: &str, hints: &Hints) -> (S
         }
         u
     };
-    let mut cut = false;
     // a mensagem tem prioridade, mas não pode comer a URL inteira
-    let (mut msg, mcut) = fit(message, URL_MAX / 2);
-    if mcut {
+    let (mut msg, msg_cut) = fit(message, URL_MAX / 2);
+    if msg_cut {
         msg = format!("{msg}\n\n{MSG_CUT_NOTE}");
-        cut = true;
+    }
+    if !msg.is_empty() {
+        q.push((msg_field, msg));
     }
     let report = report.trim_end();
-    let wrap = |r: &str| if kind == FbKind::Idea { format!("{msg}\n\n## Relatório\n\n```text\n{r}\n```") } else { r.to_string() };
-    if msg_field != rep_field {
-        q.push((msg_field, msg.clone()));
+    if report.is_empty() {
+        return (join(&q), msg_cut, false);
     }
-    let base = join(&q).len() + 1 + rep_field.len() + 1;
-    let full = wrap(report);
-    let rep = if base + pct(&full).len() <= URL_MAX {
-        full
+    let base = join(&q).len() + "&relatorio=".len();
+    let (rep, rep_cut) = if base + pct(report).len() <= URL_MAX {
+        (report.to_string(), false)
     } else {
-        cut = true;
         let note = format!("\n\n{CUT_NOTE}");
-        let overhead = pct(&wrap("")).len() + pct(&note).len();
-        let (r, _) = fit(report, URL_MAX.saturating_sub(base + overhead));
-        wrap(&format!("{r}{note}"))
+        let (r, _) = fit(report, URL_MAX.saturating_sub(base + pct(&note).len()));
+        (format!("{r}{note}"), true)
     };
-    if report.is_empty() && kind != FbKind::Idea {
-        return (join(&q), cut);
-    }
-    q.push((rep_field, rep));
-    (join(&q), cut)
+    q.push(("relatorio", rep));
+    (join(&q), msg_cut, rep_cut)
 }
 
-/// Mensagem (como a pessoa escreveu) + relatório limpo: o que vai para a área de transferência.
+/// Mensagem + relatório (os dois já limpos): é a prévia e o que "Copiar relatório" copia.
 pub fn full_text(kind: FbKind, message: &str, report: &str) -> String {
     let mut s = format!("Feedback do eGPU Painel {VERSION} · {}\n", kind.label());
     if !message.trim().is_empty() {
@@ -626,9 +618,11 @@ mod tests {
         assert_eq!(clean("Fulanos e Beltrano ficam"), "Fulanos e Beltrano ficam");
         assert_eq!(clean("escreva para fulano.silva+x@exemplo.com.br hoje"), "escreva para <e-mail> hoje");
         assert_eq!(clean("MAC 3C-A9-F4-12-AB-0E e 3c:a9:f4:12:ab:0e"), "MAC <MAC> e <MAC>");
-        // usuário com nome do fabricante: no texto solto fica (é hardware), no caminho sai
-        let s = sanitize_with(r"Notebook: Dell Inc. Vostro 5620 · C:\Users\Dell\x", Some(r"C:\Users\Dell"), Some("Dell"), None, Some("Dell Inc. Vostro 5620"));
-        assert_eq!(s, r"Notebook: Dell Inc. Vostro 5620 · C:\Users\<usuário>\x");
+        // usuário com nome do fabricante: só o nome exato do produto fica; solto e no caminho sai
+        let s = sanitize_with(r"Notebook: Dell Inc. Vostro 5620 · C:\Users\Dell\x · oi Dell", Some(r"C:\Users\Dell"), Some("Dell"), None, Some("Dell Inc. Vostro 5620"));
+        assert_eq!(s, r"Notebook: Dell Inc. Vostro 5620 · C:\Users\<usuário>\x · oi <usuário>");
+        // fora do ASCII a comparação é por char: caixa e fronteira de palavra continuam valendo
+        assert_eq!(sanitize_with("İ notebook-dell-a e NOTEBOOK-DELL-A, notebook-dell-ab", None, None, Some("NOTEBOOK-DELL-A"), None), "İ <computador> e <computador>, notebook-dell-ab");
         assert_eq!(sanitize_with("a casa e o jogo", None, Some("a"), Some("e"), None), "a casa e o jogo");
         let x = clean(r"C:\Users\Fulano\x DESKTOP-AB12CD Fulano");
         assert_eq!(clean(&x), x);
@@ -662,31 +656,51 @@ mod tests {
 
     #[test]
     fn url_shape_and_cap() {
-        let h = Hints { dock: Some("Intel Module 2 PD 85W".into()), gpu: Some("AMD Radeon RX 7600 XT".into()), notebook: None };
-        let (u, cut) = issue_url(FbKind::OtherDock, "Meu dock é um Razer Core X", "## Sistema\nx\n", &h);
-        assert!(!cut);
-        assert!(u.starts_with("https://github.com/LightWolfMan/egpu-painel/issues/new?template=meu-dock.yml&modelo=Intel%20Module"));
-        assert!(u.contains("&title=%5BMeu%20dock%5D%20Meu%20dock%20%C3%A9%20um%20Razer%20Core%20X"));
+        let (u, mc, rc) = issue_url(FbKind::OtherDock, "Meu dock é um Razer Core X", "## Sistema\nx\n");
+        assert!(!mc && !rc);
+        assert!(u.starts_with("https://github.com/LightWolfMan/egpu-painel/issues/new?template=meu-dock.yml&title=%5BMeu%20dock%5D%20Meu%20dock%20%C3%A9%20um%20Razer%20Core%20X"));
         assert!(u.contains("&o-que-acontece=") && u.contains("&relatorio=%23%23%20Sistema"));
+        // só a mensagem e o relatório: nenhum campo paralelo que a prévia não mostra
+        assert!(!u.contains("modelo=") && !u.contains("placa=") && !u.contains("notebook="));
         let big: String = (0..2000).map(|i| format!("linha {i} com acentuação\n")).collect();
         for k in FbKind::ALL {
-            let (u, cut) = issue_url(k, "oi", &big, &h);
-            assert!(cut, "{k:?}");
+            let (u, mc, rc) = issue_url(k, "oi", &big);
+            assert!(!mc && rc, "{k:?}");
             assert!(u.len() <= URL_MAX, "{k:?}: {}", u.len());
             assert!(u.len() > URL_MAX - 400, "{k:?} aproveita o espaço: {}", u.len());
             assert!(u.contains(&pct(CUT_NOTE)), "{k:?}");
         }
-        let (u, cut) = issue_url(FbKind::Problem, &"m".repeat(9000), &big, &h);
-        assert!(cut && u.len() <= URL_MAX);
-        let (u, _) = issue_url(FbKind::Idea, "uma ideia", "r", &h);
-        assert!(u.contains("?title=%5BIdeia%5D%20uma%20ideia&body=uma%20ideia"));
+        let (u, mc, rc) = issue_url(FbKind::Problem, &"m".repeat(9000), &big);
+        assert!(mc && rc && u.len() <= URL_MAX);
+        let (u, _, _) = issue_url(FbKind::Idea, "uma ideia", "r");
+        assert!(u.contains("?template=ideia.yml&title=%5BIdeia%5D%20uma%20ideia&ideia=uma%20ideia&relatorio=r"));
     }
 
     #[test]
     fn title_cut() {
-        let h = Hints::default();
-        let t = title(FbKind::Problem, &"palavra ".repeat(20), &h);
+        let t = title(FbKind::Problem, &"palavra ".repeat(20));
         assert!(t.starts_with("[Problema] palavra") && t.ends_with('…') && t.chars().count() <= 72);
-        assert_eq!(title(FbKind::OtherDock, "", &Hints { dock: Some("Razer Core X".into()), ..Default::default() }), "[Meu dock] Razer Core X");
+        assert_eq!(title(FbKind::OtherDock, ""), "[Meu dock]");
+    }
+
+    #[test]
+    fn instance_and_usb4_allowlist() {
+        assert_eq!(strip_instance(r"USB\VID_1&PID_2\AB(12)CD"), r"USB\VID_1&PID_2\…");
+        assert_eq!(strip_instance(r"FOO\BAR\x'y"), r"FOO\BAR\…");
+        assert_eq!(strip_instance("sem barra"), "sem barra");
+        let p = |pid, val| Usb4Prop { pid, val, meaning: "", confidence: "", decoded: "VALOR".into() };
+        assert_eq!(usb4_value(&p(10, PVal::Str("Module 2".into()))), "VALOR");
+        assert_eq!(usb4_value(&p(17, PVal::U32(0x15EF))), "VALOR");
+        assert_eq!(usb4_value(&p(3, PVal::Str("SERIAL123".into()))), "texto, 9 bytes (removido)");
+        assert_eq!(usb4_value(&p(4, PVal::U64(0x1234_5678_9ABC))), "inteiro de 64 bits (removido)");
+        assert_eq!(usb4_value(&p(5, PVal::Bin(vec![1, 2]))), "binário, 2 bytes (removido)");
+        assert_eq!(usb4_value(&p(6, PVal::List(vec!["a".into()]))), "lista, 1 itens (removida)");
+    }
+
+    #[test]
+    fn ago_buckets() {
+        assert_eq!(ago(7 * 60_000), "nas últimas 24 h");
+        assert_eq!(ago(30 * 3_600_000), "ontem");
+        assert_eq!(ago(5 * 86_400_000 + 1), "há 5 dias");
     }
 }

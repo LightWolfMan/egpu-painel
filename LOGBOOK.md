@@ -185,9 +185,25 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   (egui::Modal) com tipo (Problema / Ideia / Meu dock é outro modelo), mensagem, seções ligáveis
   (Sistema, Dock e topologia, Placa de vídeo, Quedas recentes) e prévia exata. "Abrir no GitHub" copia o
   texto completo e abre `issues/new` com o formulário certo pré-preenchido (`.github/ISSUE_TEMPLATE/`
-  bug.yml e meu-dock.yml; Ideia vai como issue em branco). URL limitada a 7000 bytes: o relatório é
+  bug.yml e meu-dock.yml; Ideia vai como issue em branco). URL limitada a 7000 bytes (revisto abaixo): o relatório é
   cortado com aviso para colar o completo. Limpeza em `src/feedback.rs` (`sanitize`): perfil, usuário,
   nome do PC, e-mail, MAC, instância dos IDs PnP (`…`), GUIDs (menos a chave USB4 do Windows), bytes
   longos; usuário igual a palavra do fabricante do notebook ("Dell") fica no texto solto, sai dos
   caminhos. `--relatorio` imprime o relatório; `EGPU_FEEDBACK=1` abre o painel (capturas). Sem rede
   nova. Falta: conferir com clique real o fluxo até o GitHub (templates só valem depois do push).
+- 2026-11-16 (branch `feedback`, revisão): rebase sobre o i18n do master (rodapé com `t()`, `foot_link`
+  recebe `Option<&str>`). Painel saiu de ui.rs para `src/ui/feedback_panel.rs` (módulo filho, usa
+  `pal`/`chip` direto). O que vai = o que a prévia mostra: os pré-preenchimentos modelo/placa/notebook
+  saíram da URL; a mensagem passa por `sanitize` uma vez e a mesma versão vai à prévia, ao link e à
+  área de transferência. "Abrir no GitHub" só toca a área de transferência se algo não coube. Ideia
+  ganhou `ideia.yml` (mesmo caminho dos outros dois); meu-dock e ideia usam o rótulo `enhancement` (já
+  existe no repo; `bug` também). Limpeza: instância cortada na origem (`strip_instance`), USB4 por lista
+  de permissão, nome dos aparelhos atrás do dock pelo `DeviceDesc` (novo `Node::desc`; o FriendlyName
+  de um celular é o nome dado pelo dono), quedas em baldes de dia e sem rotina (liga/dorme) fora de
+  queda, usuário igual a palavra do fabricante só fica dentro do nome exato do produto, `replace_word`
+  por char. Tela: Esc com o campo em foco não fecha, rascunho sobrevive ao fechar, foco no campo ao
+  abrir, relatório sai após 3 s mesmo sem amostra, Ideia marca só Sistema, uma só ScrollArea com os
+  botões fixos embaixo (`right_to_left(Align::Center)` fazia o Modal nunca encolher ao reduzir a janela).
+  URL_MAX 7000 → 6000: medido sem login, o GitHub dá 302 até ~6900 bytes e 500 a partir de ~7000; uma
+  URL de ~6000 chegou inteira ao navegador padrão via ShellExecute (servidor local). Falta: testar os
+  três links logado, depois do push (os formulários só valem no branch padrão), e em Edge e Chrome.
