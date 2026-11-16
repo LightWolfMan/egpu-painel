@@ -1030,25 +1030,37 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
     let _ = resp;
 }
 
-/// Barra de ocupação com o texto por cima, nas cores do tema.
-fn meter_bar(ui: &mut Ui, frac: f32, text: &str, color: Color32) -> egui::Response {
-    meter_bar_fit(ui, frac, &[text], color)
-}
-
-/// Barra com o primeiro texto de `texts` que cabe dentro dela (o último é o mais curto; nunca vaza da barra).
-fn meter_bar_fit(ui: &mut Ui, frac: f32, texts: &[&str], color: Color32) -> egui::Response {
-    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
-    let room = r.width() - 20.0;
-    let text = texts.iter().copied().find(|t| ui.painter().layout_no_wrap(t.to_string(), FontId::proportional(13.5), pal::fg()).size().x <= room).unwrap_or(texts[texts.len() - 1]);
-    let rad = CornerRadius::same(pal::radius().min(6));
+/// Medidor de ocupação: rótulo à esquerda e valor à direita EM CIMA, barra fina embaixo (como a
+/// barra de carga da fonte), para a borda do preenchimento nunca cortar o texto. O rótulo usado é o
+/// primeiro de `labels` que cabe ao lado do valor (o último é o mais curto).
+fn meter_bar(ui: &mut Ui, frac: f32, labels: &[&str], value: &str, color: Color32) -> egui::Response {
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 18.0 + 4.0 + 7.0), Sense::hover());
     let p = ui.painter();
-    p.rect_filled(r, rad, pal::well());
+    let vg = p.layout_no_wrap(value.to_string(), FontId::proportional(13.5), pal::fg());
+    let room = r.width() - vg.size().x - 10.0;
+    let label = labels.iter().copied().find(|t| p.layout_no_wrap(t.to_string(), FontId::proportional(12.5), pal::dim()).size().x <= room);
+    if let Some(l) = label {
+        p.text(pos2(r.left(), r.top() + 9.0), egui::Align2::LEFT_CENTER, l, FontId::proportional(12.5), pal::dim());
+    }
+    p.galley(pos2(r.right() - vg.size().x, r.top() + 9.0 - vg.size().y / 2.0), vg, pal::fg());
+    let track = Rect::from_min_max(pos2(r.left(), r.bottom() - 7.0), r.max);
+    let rad = CornerRadius::same(3);
+    // trilho com contraste nos dois temas (no claro o `well` some sobre o cartão)
+    if pal::current().is_light() {
+        p.rect_filled(track, rad, pal::grid());
+    } else {
+        p.rect_filled(track, rad, pal::well());
+    }
     let f = ui.ctx().animate_value_with_time(resp.id, frac.clamp(0.0, 1.0), 0.4);
     if f > 0.0 {
-        p.rect_filled(Rect::from_min_size(r.min, vec2((r.width() * f).max(4.0), r.height())), rad, color.gamma_multiply(0.75));
+        p.rect_filled(Rect::from_min_size(track.min, vec2((track.width() * f).max(4.0), track.height())), rad, color);
     }
-    p.text(r.left_center() + vec2(10.0, 0.0), egui::Align2::LEFT_CENTER, text, FontId::proportional(13.5), pal::fg());
     resp
+}
+
+/// "2,2 de 16 GB": usado com 1 casa, total arredondado (mesmo formato em todo o painel).
+fn gb_of(used_mb: f64, total_mb: f64) -> String {
+    format!("{} de {:.0} GB", dec(used_mb / 1024.0, 1), total_mb / 1024.0)
 }
 
 fn data_empty(s: &[(Color32, &str, Vec<f32>)]) -> bool {
@@ -1739,13 +1751,25 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let f = l.frac.clamp(0.0, 1.0);
         let wf = l.worst / w;
         let st = psu_state(l, ps.watts);
-        let title = if ps.model.trim().is_empty() { "Fonte do dock" } else { ps.model.trim() };
-        let lines = [format!("≈ {:.0} W de {} W", l.now, ps.watts)];
-        node_box_r(&p, psu_r, title, &lines, pal::bolt(), st.col, *sel == Some(Sel::Psu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
-        // mini medidor: ▮ carga agora · ┆ uso pesado · ▼ picos rápidos
+        // compacto (nó estreito): o número vem antes do nome — modelo curto ("SF750") e "≈ 61 / 750 W"
+        let compact = psu_r.width() < 210.0;
         let aw = if psu_r.width() < 170.0 { (psu_r.width() * 0.24).clamp(30.0, 44.0) } else { (psu_r.width() * 0.3).clamp(44.0, 74.0) }; // mesma regra do node_box
+        let room = psu_r.width() - aw - 22.0 - 26.0;
+        let model = ps.model.trim();
+        let title = if model.is_empty() {
+            "Fonte do dock"
+        } else if !compact && p.layout_no_wrap(model.to_string(), FontId::proportional(13.0), pal::fg()).size().x <= room {
+            model
+        } else {
+            short_model(model)
+        };
+        let lines = [if compact { format!("≈ {:.0} / {} W", l.now, ps.watts) } else { format!("≈ {:.0} W de {} W", l.now, ps.watts) }];
+        node_box_r(&p, psu_r, title, &lines, pal::bolt(), st.col, *sel == Some(Sel::Psu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
+        // mini medidor: ▮ carga agora · ┆ uso pesado · ▼ picos rápidos (o ▼ some no compacto)
         let x0 = psu_r.left() + aw + 22.0;
-        let track = Rect::from_min_max(pos2(x0, psu_r.bottom() - 15.0), pos2(psu_r.right() - 46.0, psu_r.bottom() - 9.0));
+        let pct = format!("≈ {:.0}\u{A0}%", f * 100.0);
+        let pw = p.layout_no_wrap(pct.clone(), FontId::proportional(12.5), pal::fg()).size().x;
+        let track = Rect::from_min_max(pos2(x0, psu_r.bottom() - 15.0), pos2((psu_r.right() - pw - 18.0).max(x0 + 16.0), psu_r.bottom() - 9.0));
         let fc = load_col(f);
         // trilho com contraste nos dois temas (no claro o `well` some sobre o nó)
         let (tf, ts) = if pal::current().is_light() { (pal::grid(), pal::faint().gamma_multiply(0.7)) } else { (pal::well(), pal::border()) };
@@ -1757,10 +1781,12 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let wx = track.left() + track.width() * wf.clamp(0.0, 1.0);
         let wc = if wf > 0.85 { pal::amber() } else { pal::dim() };
         p.extend(egui::Shape::dashed_line(&[pos2(wx, track.top() - 3.0), pos2(wx, track.bottom() + 3.0)], Stroke::new(1.5, wc), 2.0, 2.0));
-        let kx = (track.left() + track.width() * (l.spike / w).clamp(0.0, 1.0)).min(track.right() - 3.0);
-        let kc = if l.spike > w { pal::amber() } else { pal::dim() };
-        p.text(pos2(kx, track.top() - 1.0), egui::Align2::CENTER_BOTTOM, "▼", FontId::proportional(9.0), kc);
-        p.text(pos2(track.right() + 8.0, track.center().y), egui::Align2::LEFT_CENTER, format!("{:.0} %", f * 100.0), FontId::proportional(12.5), fc);
+        if !compact {
+            let kx = (track.left() + track.width() * (l.spike / w).clamp(0.0, 1.0)).min(track.right() - 3.0);
+            let kc = if l.spike > w { pal::amber() } else { pal::dim() };
+            p.text(pos2(kx, track.top() - 1.0), egui::Align2::CENTER_BOTTOM, "▼", FontId::proportional(9.0), kc);
+        }
+        p.text(pos2(psu_r.right() - 10.0, track.center().y), egui::Align2::RIGHT_CENTER, pct, FontId::proportional(12.5), fc);
         let r = psr.on_hover_text(format!(
             "{}
 Estimativa: placa (medida) + notebook + dock. A fonte não manda dados ao PC.
@@ -3503,10 +3529,10 @@ impl App {
                 }
                 ui.vertical(|ui| {
                     ui.add_space(14.0);
-                    meter_bar_fit(ui, last.ded_mb as f32 / 16368.0, &[&format!("Memória da placa (VRAM) · {:.0} MB", last.ded_mb), &format!("VRAM · {:.0} MB", last.ded_mb)], pal::data())
+                    meter_bar(ui, last.ded_mb as f32 / 16368.0, &["Memória da placa (VRAM)", "VRAM"], &gb_of(last.ded_mb as f64, 16368.0), pal::data())
                         .on_hover_text("Memória dedicada da GPU em uso (PDH GPU Adapter Memory)");
                     ui.add_space(6.0);
-                    meter_bar_fit(ui, last.shared_mb as f32 / 8192.0, &[&format!("RAM do notebook usada pela placa · {:.0} MB", last.shared_mb), &format!("RAM do note · {:.0} MB", last.shared_mb)], pal::violet())
+                    meter_bar(ui, last.shared_mb as f32 / 8192.0, &["RAM do notebook usada pela placa", "RAM do notebook", "RAM do note"], &gb_of(last.shared_mb as f64, 8192.0), pal::violet())
                         .on_hover_text("RAM do note mapeada pela GPU — cada acesso atravessa o túnel TB");
                 });
             });
@@ -3567,7 +3593,7 @@ impl App {
             if let Some(s) = st {
                 let vram = g.vram.unwrap_or(0) as f32;
                 let frac = if s.vram_total_mb > 0 { vram / s.vram_total_mb as f32 } else { 0.0 };
-                meter_bar(ui, frac, &format!("VRAM {} de {} MB", g.vram.unwrap_or(0), s.vram_total_mb), pal::data());
+                meter_bar(ui, frac, &["Memória da placa (VRAM)", "VRAM"], &gb_of(vram as f64, s.vram_total_mb as f64), pal::data());
             }
         });
         self.sel = sel;
@@ -4038,11 +4064,11 @@ impl App {
                         )),
                         tl("📈", Some(format!("{:.0}", l.worst)), "W", "Uso pesado (≈)", pal::bolt()).vc_if(l.worst > w * 0.85, pal::amber()).bar((l.worst / w).min(1.0)).tip("Sustentado: placa no limite de potência + notebook carregando no máximo + portas em uso."),
                         tl("▼", Some(format!("{:.0}", l.spike)), "W", "Picos rápidos (≈)", pal::bolt()).vc_if(l.spike > w, pal::amber()).bar((l.spike / w).min(1.0)).tip("Transientes de milissegundos da placa (~1,6× o limite) somados ao resto."),
-                        tl("🔌", Some(format!("{:.0}", l.wall)), "W", "Na tomada (≈)", pal::data()).tip(format!("Eficiência estimada {:.0}%", l.eff * 100.0)),
+                        tl("🔌", Some(format!("{:.0}", l.wall)), "W", "Na tomada (≈)", pal::data()).bar((l.wall / w).min(1.0)).tip(format!("Eficiência estimada {:.0}%", l.eff * 100.0)),
                         if rail > 0.0 {
                             tl("⎓", Some(dec(l.amps12 as f64, 1)), "A", "Linha +12 V (≈)", pal::bolt()).vc_if(l.amps12 > rail * 0.85, pal::amber()).bar((l.amps12 / rail).min(1.0)).tip(format!("Contra os {} A da etiqueta", dec(rail as f64, 1)))
                         } else {
-                            tl("⎓", None, "A", "+12 V: falta informar", pal::faint()).tip("Preencha a corrente da linha +12 V (está na etiqueta da fonte).")
+                            tl("⎓", None, "A", "+12 V: falta informar", pal::faint()).bar(0.0).tip("Preencha a corrente da linha +12 V (está na etiqueta da fonte).")
                         },
                     ];
                     tile_grid(ui, &tiles, sel_at);
@@ -4346,6 +4372,12 @@ fn pcie_tile(gst: Option<&crate::collect::GpuStatic>, chip: Option<(u32, u32, u3
 /// "Gen4 x8" a partir do código de velocidade e da largura.
 fn pcie_short(code: u32, w: u32) -> String {
     format!("{} x{w}", pnp::pcie_speed_name(code).split(' ').next().unwrap_or("?"))
+}
+
+/// Nome curto do modelo da fonte: a última palavra com número ("Corsair SF750" → "SF750").
+fn short_model(m: &str) -> &str {
+    let m = m.trim();
+    m.split_whitespace().rev().find(|w| w.chars().any(|c| c.is_ascii_digit())).or_else(|| m.split_whitespace().last()).unwrap_or(m)
 }
 
 fn dec(v: f64, n: usize) -> String {
