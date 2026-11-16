@@ -40,13 +40,13 @@ pub fn fmt_local(ms: i64, with_ms: bool) -> String {
 pub fn fmt_ago(ms: i64) -> String {
     let d = (now_ms() - ms).max(0) / 1000;
     if d < 60 {
-        format!("há {d}\u{A0}s")
+        crate::tf!("há {d}\u{A0}s", "{d}\u{A0}s ago")
     } else if d < 3600 {
-        format!("há {}\u{A0}min", d / 60)
+        crate::tf!("há {}\u{A0}min", "{}\u{A0}min ago", d / 60)
     } else if d < 86400 {
-        format!("há {}\u{A0}h\u{A0}{}\u{A0}min", d / 3600, (d % 3600) / 60)
+        crate::tf!("há {}\u{A0}h\u{A0}{}\u{A0}min", "{}\u{A0}h\u{A0}{}\u{A0}min ago", d / 3600, (d % 3600) / 60)
     } else {
-        format!("há {}\u{A0}d\u{A0}{}\u{A0}h", d / 86400, (d % 86400) / 3600)
+        crate::tf!("há {}\u{A0}d\u{A0}{}\u{A0}h", "{}\u{A0}d\u{A0}{}\u{A0}h ago", d / 86400, (d % 86400) / 3600)
     }
 }
 

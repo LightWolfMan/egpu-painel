@@ -18,6 +18,9 @@ pub struct Config {
     /// Início (ms) da última queda marcada como "Ciente": o aviso some até haver uma queda mais nova.
     #[serde(default)]
     pub ack_ts: i64,
+    /// Idioma da interface: 0 = automático (idioma do Windows), 1 = português, 2 = inglês.
+    #[serde(default)]
+    pub lang: u8,
 }
 
 fn one() -> f32 {
@@ -26,7 +29,7 @@ fn one() -> f32 {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { notify: true, eco: false, theme: 0, zoom: 1.0, ack_ts: 0 }
+        Self { notify: true, eco: false, theme: 0, zoom: 1.0, ack_ts: 0, lang: 0 }
     }
 }
 
@@ -41,6 +44,18 @@ pub fn get() -> Config {
     *g.get_or_insert_with(|| {
         std::fs::read_to_string(path()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
     })
+}
+
+/// Relê o arquivo do disco e atualiza o cache (a bandeja é longa e o painel, outro processo, grava o arquivo).
+pub fn reload() -> Config {
+    let c: Config = std::fs::read_to_string(path()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    *CFG.lock().unwrap() = Some(c);
+    c
+}
+
+/// Segue o idioma atual do config.json (a bandeja chama antes de gerar textos).
+pub fn refresh_lang() {
+    crate::i18n::apply(reload().lang);
 }
 
 pub fn set(c: Config) {
@@ -90,7 +105,10 @@ pub fn set_autostart(on: bool) -> Result<(), String> {
 /// Exporta a linha do tempo inteira em CSV na pasta de dados e devolve o caminho.
 pub fn export_csv() -> Result<std::path::PathBuf, String> {
     let evs = crate::history::get().snapshot();
-    let mut out = String::from("data_local;tipo;categoria;fonte;mensagem;dispositivo;estado_no_instante\n");
+    let mut out = String::from(crate::i18n::t(
+        "data_local;tipo;categoria;fonte;mensagem;dispositivo;estado_no_instante\n",
+        "local_time;type;category;source;message;device;state_at_the_time\n",
+    ));
     let esc = |s: &str| s.replace(';', ",").replace('\n', " ");
     for e in evs {
         out.push_str(&format!(

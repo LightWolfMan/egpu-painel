@@ -136,10 +136,11 @@ fn copy_into(dst: &mut [u16], s: &str) {
 }
 
 fn tip_text() -> String {
+    crate::i18n::apply(crate::config::reload().lang); // o painel (outro processo) pode ter trocado o idioma
     if DOCK_ON.load(Ordering::SeqCst) {
-        "eGPU Painel — dock conectado".into()
+        crate::i18n::t("eGPU Painel — dock conectado", "eGPU Painel — dock connected").into()
     } else {
-        "eGPU Painel — dock DESCONECTADO".into()
+        crate::i18n::t("eGPU Painel — dock DESCONECTADO", "eGPU Painel — dock DISCONNECTED").into()
     }
 }
 
@@ -166,6 +167,7 @@ fn update_icon() {
 }
 
 fn show_balloon(title: &str, text: &str) {
+    crate::i18n::apply(crate::config::reload().lang);
     let mut n = nid();
     n.uFlags = NIF_INFO;
     n.dwInfoFlags = NIIF_WARNING;
@@ -177,10 +179,11 @@ fn show_balloon(title: &str, text: &str) {
 }
 
 fn menu(h: HWND) {
+    crate::i18n::apply(crate::config::reload().lang); // menu montado a cada abertura, no idioma atual
     unsafe {
         let m = CreatePopupMenu().unwrap();
-        let open = wide("Abrir painel");
-        let quit = wide("Sair");
+        let open = wide(crate::i18n::t("Abrir painel", "Open panel"));
+        let quit = wide(crate::i18n::t("Sair", "Quit"));
         let _ = AppendMenuW(m, MF_STRING, ID_OPEN, PCWSTR(open.as_ptr()));
         let _ = AppendMenuW(m, MF_SEPARATOR, 0, PCWSTR::null());
         let _ = AppendMenuW(m, MF_STRING, ID_QUIT, PCWSTR(quit.as_ptr()));

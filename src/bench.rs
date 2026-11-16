@@ -65,9 +65,9 @@ pub fn run(progress: impl Fn(&str)) -> Result<BenchResult, String> {
     const CHUNK: u64 = 128 << 20; // 128 MiB
     const REPS_PER_RUN: u32 = 8; // 1 GiB por medição
     const RUNS: usize = 4;
-    let (adapter, desc) = amd_adapter().ok_or("nenhum adaptador AMD encontrado via DXGI (a GPU do dock está conectada?)")?;
+    let (adapter, desc) = amd_adapter().ok_or(crate::i18n::t("nenhum adaptador AMD encontrado via DXGI (a GPU do dock está conectada?)", "no AMD adapter found via DXGI (is the dock GPU connected?)"))?;
     let name = crate::util::from_wide(&desc.Description);
-    progress("criando dispositivo D3D12…");
+    progress(crate::i18n::t("criando dispositivo D3D12…", "creating D3D12 device…"));
     unsafe {
         let mut dev: Option<ID3D12Device> = None;
         D3D12CreateDevice(&adapter, D3D_FEATURE_LEVEL_11_0, &mut dev).map_err(|e| format!("D3D12CreateDevice: {e}"))?;
@@ -83,7 +83,7 @@ pub fn run(progress: impl Fn(&str)) -> Result<BenchResult, String> {
         let ev = CreateEventW(None, false, false, None).map_err(|e| e.to_string())?;
         let mut fv = 0u64;
 
-        progress("alocando 128 MiB no host e na VRAM…");
+        progress(crate::i18n::t("alocando 128 MiB no host e na VRAM…", "allocating 128 MiB on the host and in VRAM…"));
         let up = buffer(&dev, D3D12_HEAP_TYPE_UPLOAD, CHUNK, D3D12_RESOURCE_STATE_GENERIC_READ).map_err(|e| e.to_string())?;
         let vram = buffer(&dev, D3D12_HEAP_TYPE_DEFAULT, CHUNK, D3D12_RESOURCE_STATE_COMMON).map_err(|e| e.to_string())?;
         let rb = buffer(&dev, D3D12_HEAP_TYPE_READBACK, CHUNK, D3D12_RESOURCE_STATE_COPY_DEST).map_err(|e| e.to_string())?;
@@ -114,17 +114,17 @@ pub fn run(progress: impl Fn(&str)) -> Result<BenchResult, String> {
             Ok((CHUNK * REPS_PER_RUN as u64) as f64 / secs / 1e9)
         };
 
-        progress("aquecendo…");
+        progress(crate::i18n::t("aquecendo…", "warming up…"));
         measure(&vram, &up)?;
         measure(&rb, &vram)?;
         let mut h2d = vec![];
         let mut d2h = vec![];
         for i in 0..RUNS {
-            progress(&format!("host → GPU, medição {}/{RUNS}…", i + 1));
+            progress(&crate::tf!("host → GPU, medição {}/{RUNS}…", "host → GPU, run {}/{RUNS}…", i + 1));
             h2d.push(measure(&vram, &up)?);
         }
         for i in 0..RUNS {
-            progress(&format!("GPU → host, medição {}/{RUNS}…", i + 1));
+            progress(&crate::tf!("GPU → host, medição {}/{RUNS}…", "GPU → host, run {}/{RUNS}…", i + 1));
             d2h.push(measure(&rb, &vram)?);
         }
         let _ = CloseHandle(ev);

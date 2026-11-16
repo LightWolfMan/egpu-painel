@@ -162,3 +162,19 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   `assets/pix-qr.png` (BR Code estático gerado e conferido decodificando o QR de volta) e seção "Apoie" no
   README; o botão Pix do rodapé e o `FUNDING.yml` apontam para `README#apoie`. Falta o dono escanear
   com o app do banco para confirmar que abre o pagamento.
+
+## 2026-11-16 — interface em inglês + português (idioma escolhível)
+
+- Novo `src/i18n.rs`: `t("pt", "en")` e `tf!("pt {x}", "en {x}", ..)` com as duas frases lado a lado no
+  próprio lugar (sem tabela de chaves). Decimais seguem o idioma via `dec()`/`i18n::dec_sep` (vírgula em pt,
+  ponto em en).
+- Escolha: `EGPU_LANG=pt|en` (teste) > `config.json` `lang` (0 auto, 1 pt, 2 en; `#[serde(default)]`) >
+  `GetUserDefaultUILanguage` (pt-* → português, resto → inglês). Cartão **Idioma** em Opções troca na hora.
+- Traduzidos: ui.rs inteiro, rótulos/mensagens de evento (history), psu, bandeja (menu, dica, balões — relê
+  o config a cada uso, então segue a troca feita no painel), collect, pnp, bench, cabeçalho do CSV.
+- Ficam em pt de propósito: chaves comparadas em código (`"Tipo de dispositivo PCIe"`, confiança USB4,
+  `src` "PnP ao vivo") — traduzidas só na exibição; saída de console (`--dump` etc.); nome "eGPU Painel".
+- Eventos já gravados no `historico.jsonl` mantêm o texto (`msg`) no idioma em que foram gravados; o
+  rótulo do tipo de evento é calculado na exibição e segue o idioma.
+- Conferido em captura real (en e pt): Visão geral, Cabo e energia, Histórico, Opções — sem texto cortado.
+- Pendente: linha sobre idioma no README (fica com a sessão que está reescrevendo o README).

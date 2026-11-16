@@ -116,9 +116,10 @@ pub fn snapshot_text() -> Option<String> {
     unsafe {
         let mut ps = windows::Win32::System::Power::SYSTEM_POWER_STATUS::default();
         if windows::Win32::System::Power::GetSystemPowerStatus(&mut ps).is_ok() {
-            parts.push(format!(
+            parts.push(crate::tf!(
                 "energia externa {} , bateria {}%",
-                match ps.ACLineStatus { 1 => "SIM", 0 => "NÃO", _ => "?" },
+                "external power {} , battery {}%",
+                match ps.ACLineStatus { 1 => crate::i18n::t("SIM", "YES"), 0 => crate::i18n::t("NÃO", "NO"), _ => "?" },
                 ps.BatteryLifePercent
             ));
         }
@@ -268,7 +269,7 @@ fn refresh_states(t: &mut Topology) -> bool {
 impl Collector {
     fn new() -> Self {
         let luid = crate::bench::amd_adapter_luid();
-        let adlx = Adlx::new().map_err(|e| note(format!("ADLX indisponível: {e}"))).ok();
+        let adlx = Adlx::new().map_err(|e| note(crate::tf!("ADLX indisponível: {e}", "ADLX unavailable: {e}"))).ok();
         if let Some(a) = &adlx {
             let mut st = a.stat.clone();
             st.luid = luid.clone();
@@ -278,10 +279,10 @@ impl Collector {
         }
         let pdh = Pdh::new(luid.clone());
         if luid.is_none() {
-            note("Adaptador AMD não encontrado via DXGI: contadores do motor Copy indisponíveis".into());
+            note(crate::i18n::t("Adaptador AMD não encontrado via DXGI: contadores do motor Copy indisponíveis", "AMD adapter not found via DXGI: Copy engine counters unavailable").into());
         }
         let wmi = wmi::WMIConnection::with_namespace_path("root\\wmi")
-            .map_err(|e| note(format!("WMI root\\wmi indisponível: {e}")))
+            .map_err(|e| note(crate::tf!("WMI root\\wmi indisponível: {e}", "WMI root\\wmi unavailable: {e}")))
             .ok();
         Self { t0: Instant::now(), adlx, pdh, wmi, last_cpu: crate::util::process_usage().2, last_t: Instant::now(), tick: 0, topo: None, power: None, full_mwh: None }
     }
@@ -518,7 +519,7 @@ impl Adlx {
             }
         }
         drop(list);
-        let gpu = pick.ok_or_else(|| anyhow::anyhow!("nenhuma GPU AMD"))?;
+        let gpu = pick.ok_or_else(|| anyhow::anyhow!(crate::i18n::t("nenhuma GPU AMD", "no AMD GPU")))?;
         let (bus, lanes) = match gpu.cast::<adlx::Gpu1>() {
             Ok(g1) => (
                 match g1.pci_bus_type() {
@@ -526,7 +527,7 @@ impl Adlx {
                     Ok(4) => "PCIe 2.0".into(),
                     Ok(5) => "PCIe 3.0".into(),
                     Ok(6) => "PCIe 4.0".into(),
-                    Ok(x) => format!("tipo {x}"),
+                    Ok(x) => crate::tf!("tipo {x}", "type {x}"),
                     Err(_) => "?".into(),
                 },
                 g1.pci_bus_lane_width().unwrap_or(0),

@@ -18,6 +18,8 @@ mod bench;
 mod collect;
 mod config;
 mod history;
+#[macro_use]
+mod i18n;
 mod pnp;
 mod psu;
 mod titlebar;
@@ -135,6 +137,7 @@ fn close_panel() {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |a: &str| args.iter().any(|x| x == a);
+    i18n::init();
 
     if has("--dump") {
         attach_console();

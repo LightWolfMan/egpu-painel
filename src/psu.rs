@@ -56,9 +56,9 @@ fn fetch(url: &str) -> Result<String, String> {
         .args(["-sL", "--compressed", "--max-time", "15", "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) eGPU-Painel", url])
         .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
         .output()
-        .map_err(|e| format!("curl indisponível: {e}"))?;
+        .map_err(|e| crate::tf!("curl indisponível: {e}", "curl unavailable: {e}"))?;
     if !out.status.success() {
-        return Err(format!("sem resposta da busca (curl {})", out.status.code().unwrap_or(-1)));
+        return Err(crate::tf!("sem resposta da busca (curl {})", "no response from the search (curl {})", out.status.code().unwrap_or(-1)));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
@@ -170,7 +170,7 @@ pub fn lookup(model: &str) -> Result<Found, String> {
         ("DuckDuckGo", format!("https://html.duckduckgo.com/html/?q={q}")),
         ("Bing", format!("https://www.bing.com/search?q={q}&setlang=en")),
     ];
-    let mut last_err = String::from("nenhum resultado");
+    let mut last_err = crate::i18n::t("nenhum resultado", "no results").to_string();
     for (name, url) in engines {
         match fetch(&url) {
             Ok(html) => {
@@ -207,7 +207,7 @@ pub fn lookup(model: &str) -> Result<Found, String> {
                     f.engine = name;
                     return Ok(f);
                 }
-                last_err = format!("{name} não trouxe specs reconhecíveis");
+                last_err = crate::tf!("{name} não trouxe specs reconhecíveis", "{name} returned no recognizable specs");
             }
             Err(e) => last_err = e,
         }

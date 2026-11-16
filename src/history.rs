@@ -56,31 +56,31 @@ impl Kind {
     pub fn label(self) -> &'static str {
         use Kind::*;
         match self {
-            DockOn => "Dock conectado",
-            DockOff => "Dock desconectado",
-            DockFail => "O dock caiu",
-            GpuOn => "Placa de vídeo pronta",
-            GpuOff => "Placa de vídeo sumiu",
-            UsbAOn => "Porta USB-A pronta",
-            UsbAOff => "Porta USB-A sumiu",
-            UsbADev => "Algo conectado na USB-A",
-            PcieErr => "Erro na conexão PCIe",
-            PcieInfo => "Aviso do PCIe",
-            Whea => "Erro de hardware",
-            Tdr => "Driver de vídeo travou",
-            TdrGame => "Jogo avisou travamento do vídeo",
-            GpuDriver => "Aviso do driver de vídeo",
-            AcOn => "Notebook passou a carregar",
-            AcOff => "Notebook parou de carregar",
-            Sleep => "Notebook suspenso",
-            Wake => "Notebook voltou da suspensão",
-            StandbyIn => "Notebook dormiu",
-            StandbyOut => "Notebook acordou",
-            Boot => "Windows ligou",
-            Shutdown => "Windows desligou",
-            Crash => "Desligamento inesperado",
-            Bench => "Teste de banda",
-            Note => "Aviso do painel",
+            DockOn => crate::i18n::t("Dock conectado", "Dock connected"),
+            DockOff => crate::i18n::t("Dock desconectado", "Dock disconnected"),
+            DockFail => crate::i18n::t("O dock caiu", "The dock dropped"),
+            GpuOn => crate::i18n::t("Placa de vídeo pronta", "Graphics card ready"),
+            GpuOff => crate::i18n::t("Placa de vídeo sumiu", "Graphics card gone"),
+            UsbAOn => crate::i18n::t("Porta USB-A pronta", "USB-A port ready"),
+            UsbAOff => crate::i18n::t("Porta USB-A sumiu", "USB-A port gone"),
+            UsbADev => crate::i18n::t("Algo conectado na USB-A", "Something on USB-A"),
+            PcieErr => crate::i18n::t("Erro na conexão PCIe", "PCIe link error"),
+            PcieInfo => crate::i18n::t("Aviso do PCIe", "PCIe notice"),
+            Whea => crate::i18n::t("Erro de hardware", "Hardware error"),
+            Tdr => crate::i18n::t("Driver de vídeo travou", "Video driver hung"),
+            TdrGame => crate::i18n::t("Jogo avisou travamento do vídeo", "Game reported a video hang"),
+            GpuDriver => crate::i18n::t("Aviso do driver de vídeo", "Video driver notice"),
+            AcOn => crate::i18n::t("Notebook passou a carregar", "Laptop started charging"),
+            AcOff => crate::i18n::t("Notebook parou de carregar", "Laptop stopped charging"),
+            Sleep => crate::i18n::t("Notebook suspenso", "Laptop suspended"),
+            Wake => crate::i18n::t("Notebook voltou da suspensão", "Laptop resumed from sleep"),
+            StandbyIn => crate::i18n::t("Notebook dormiu", "Laptop went to sleep"),
+            StandbyOut => crate::i18n::t("Notebook acordou", "Laptop woke up"),
+            Boot => crate::i18n::t("Windows ligou", "Windows started"),
+            Shutdown => crate::i18n::t("Windows desligou", "Windows shut down"),
+            Crash => crate::i18n::t("Desligamento inesperado", "Unexpected shutdown"),
+            Bench => crate::i18n::t("Teste de banda", "Bandwidth test"),
+            Note => crate::i18n::t("Aviso do painel", "Panel notice"),
         }
     }
     pub fn cat(self) -> Cat {
@@ -347,11 +347,11 @@ pub fn dev_role(id: &str) -> DevRole {
 
 fn role_text(r: DevRole) -> &'static str {
     match r {
-        DevRole::DockRouter => "roteador Thunderbolt do dock",
-        DevRole::DockSwitch => "switch PCIe do dock",
+        DevRole::DockRouter => crate::i18n::t("roteador Thunderbolt do dock", "dock Thunderbolt router"),
+        DevRole::DockSwitch => crate::i18n::t("switch PCIe do dock", "dock PCIe switch"),
         DevRole::Gpu => "Radeon RX 7600 XT",
-        DevRole::UsbA => "controlador USB-A do dock",
-        DevRole::Other => "dispositivo",
+        DevRole::UsbA => crate::i18n::t("controlador USB-A do dock", "dock USB-A controller"),
+        DevRole::Other => crate::i18n::t("dispositivo", "device"),
     }
 }
 
@@ -467,19 +467,19 @@ fn classify(r: &Raw, hist: &History) -> Option<Ev> {
             let count = d(r, "DeviceCount");
             let role = dev_role(&dev);
             let failing = r.id == 1011;
-            let why = if failing { "removido inesperadamente: o Windows o relatou como FALHANDO" } else { "removido: ausente no barramento" };
-            let extra = if count.parse::<u32>().unwrap_or(1) > 1 { format!(" ({count} dispositivos dependentes caíram junto)") } else { String::new() };
+            let why = if failing { crate::i18n::t("removido inesperadamente: o Windows o relatou como FALHANDO", "unexpectedly removed: Windows reported it as FAILING") } else { crate::i18n::t("removido: ausente no barramento", "removed: missing from the bus") };
+            let extra = if count.parse::<u32>().unwrap_or(1) > 1 { crate::tf!(" ({count} dispositivos dependentes caíram junto)", " ({count} dependent devices dropped with it)") } else { String::new() };
             match role {
                 DevRole::DockRouter | DevRole::DockSwitch => mk(
                     if failing { Kind::DockFail } else { Kind::DockOff },
                     format!("{} {}{}", cap(role_text(role)), why, extra),
                     Some(dev),
                 ),
-                DevRole::Gpu => mk(Kind::GpuOff, format!("GPU {why}{extra}"), Some(dev)),
-                DevRole::UsbA => mk(Kind::UsbAOff, format!("Controlador USB-A do dock {why}{extra}"), Some(dev)),
+                DevRole::Gpu => mk(Kind::GpuOff, crate::tf!("GPU {why}{extra}", "GPU {why}{extra}"), Some(dev)),
+                DevRole::UsbA => mk(Kind::UsbAOff, crate::tf!("Controlador USB-A do dock {why}{extra}", "Dock USB-A controller {why}{extra}"), Some(dev)),
                 DevRole::Other => {
                     let name = hist.usb_a_name(&dev)?;
-                    mk(Kind::UsbADev, format!("{name} (porta USB-A do dock) {why}"), Some(dev))
+                    mk(Kind::UsbADev, crate::tf!("{name} (porta USB-A do dock) {why}", "{name} (dock USB-A port) {why}"), Some(dev))
                 }
             }
         }
@@ -487,23 +487,23 @@ fn classify(r: &Raw, hist: &History) -> Option<Ev> {
             let on = d(r, "AcOnline") == "true";
             let cap_now: f64 = d(r, "RemainingCapacity").parse().unwrap_or(0.0);
             let full: f64 = d(r, "FullChargeCapacity").parse().unwrap_or(0.0);
-            let pct = if full > 0.0 { format!(", bateria {:.0}%", cap_now / full * 100.0) } else { String::new() };
+            let pct = if full > 0.0 { crate::tf!(", bateria {:.0}%", ", battery {:.0}%", cap_now / full * 100.0) } else { String::new() };
             if on {
-                mk(Kind::AcOn, format!("Note voltou a receber energia externa (PD){pct}"), None)
+                mk(Kind::AcOn, crate::tf!("Note voltou a receber energia externa (PD){pct}", "Laptop is getting external power again (PD){pct}"), None)
             } else {
-                mk(Kind::AcOff, format!("Note passou para a bateria: a energia externa (PD do dock) sumiu{pct}"), None)
+                mk(Kind::AcOff, crate::tf!("Note passou para a bateria: a energia externa (PD do dock) sumiu{pct}", "Laptop switched to battery: external power (dock PD) is gone{pct}"), None)
             }
         }
-        ("Microsoft-Windows-Kernel-Power", 42) => mk(Kind::Sleep, format!("Sistema entrando em suspensão ({})", compact_data(r, 2)), None),
-        ("Microsoft-Windows-Kernel-Power", 107) => mk(Kind::Wake, "Sistema saiu da suspensão".into(), None),
-        ("Microsoft-Windows-Kernel-Power", 506) => mk(Kind::StandbyIn, format!("Espera moderna (motivo {}, monitor externo={})", d(r, "Reason"), d(r, "ExternalMonitorConnectedState")), None),
-        ("Microsoft-Windows-Kernel-Power", 507) => mk(Kind::StandbyOut, format!("Saiu da espera moderna (motivo {})", d(r, "Reason")), None),
-        ("Microsoft-Windows-Kernel-Power", 41) => mk(Kind::Crash, "Reinício sem desligamento limpo (Kernel-Power 41)".into(), None),
-        ("EventLog", 6008) => mk(Kind::Crash, "O desligamento anterior foi inesperado (EventLog 6008)".into(), None),
-        ("Microsoft-Windows-Kernel-General", 12) => mk(Kind::Boot, "Windows iniciou".into(), None),
-        ("Microsoft-Windows-Kernel-General", 13) => mk(Kind::Shutdown, "Windows desligou".into(), None),
-        ("Display", 4101) => mk(Kind::Tdr, format!("O driver de vídeo parou de responder e foi recuperado ({})", compact_data(r, 2)), None),
-        (p, _) if p.starts_with("amd") => mk(Kind::GpuDriver, format!("{p} #{} nível {}: {}", r.id, r.level, compact_data(r, 3)), None),
+        ("Microsoft-Windows-Kernel-Power", 42) => mk(Kind::Sleep, crate::tf!("Sistema entrando em suspensão ({})", "System entering sleep ({})", compact_data(r, 2)), None),
+        ("Microsoft-Windows-Kernel-Power", 107) => mk(Kind::Wake, crate::i18n::t("Sistema saiu da suspensão", "System resumed from sleep").into(), None),
+        ("Microsoft-Windows-Kernel-Power", 506) => mk(Kind::StandbyIn, crate::tf!("Espera moderna (motivo {}, monitor externo={})", "Modern standby (reason {}, external monitor={})", d(r, "Reason"), d(r, "ExternalMonitorConnectedState")), None),
+        ("Microsoft-Windows-Kernel-Power", 507) => mk(Kind::StandbyOut, crate::tf!("Saiu da espera moderna (motivo {})", "Left modern standby (reason {})", d(r, "Reason")), None),
+        ("Microsoft-Windows-Kernel-Power", 41) => mk(Kind::Crash, crate::i18n::t("Reinício sem desligamento limpo (Kernel-Power 41)", "Restart without a clean shutdown (Kernel-Power 41)").into(), None),
+        ("EventLog", 6008) => mk(Kind::Crash, crate::i18n::t("O desligamento anterior foi inesperado (EventLog 6008)", "The previous shutdown was unexpected (EventLog 6008)").into(), None),
+        ("Microsoft-Windows-Kernel-General", 12) => mk(Kind::Boot, crate::i18n::t("Windows iniciou", "Windows started").into(), None),
+        ("Microsoft-Windows-Kernel-General", 13) => mk(Kind::Shutdown, crate::i18n::t("Windows desligou", "Windows shut down").into(), None),
+        ("Display", 4101) => mk(Kind::Tdr, crate::tf!("O driver de vídeo parou de responder e foi recuperado ({})", "The video driver stopped responding and was recovered ({})", compact_data(r, 2)), None),
+        (p, _) if p.starts_with("amd") => mk(Kind::GpuDriver, crate::tf!("{p} #{} nível {}: {}", "{p} #{} level {}: {}", r.id, r.level, compact_data(r, 3)), None),
         ("Microsoft-Windows-WHEA-Logger", id) => mk(Kind::Whea, format!("WHEA-Logger {id}: {}", compact_data(r, 4)), None),
         ("Microsoft-Windows-Kernel-WHEA", id) => mk(Kind::Whea, format!("Kernel-WHEA {id}: {}", compact_data(r, 4)), None),
         ("Microsoft-Windows-PCI", 2) => {
@@ -511,7 +511,7 @@ fn classify(r: &Raw, hist: &History) -> Option<Ev> {
             let msg = r.data.iter().find(|(n, _)| n.is_empty() || n == "Message").map(|(_, v)| v.clone()).unwrap_or_else(|| compact_data(r, 3));
             mk(Kind::PcieInfo, msg, None)
         }
-        ("Microsoft-Windows-PCI", id) => mk(Kind::PcieErr, format!("PCI #{id} nível {}: {}", r.level, compact_data(r, 4)), None),
+        ("Microsoft-Windows-PCI", id) => mk(Kind::PcieErr, crate::tf!("PCI #{id} nível {}: {}", "PCI #{id} level {}: {}", r.level, compact_data(r, 4)), None),
         _ => None,
     }
 }
@@ -558,6 +558,9 @@ fn handle_event(h: EVT_HANDLE) {
 
 unsafe extern "system" fn on_evt(action: EVT_SUBSCRIBE_NOTIFY_ACTION, _ctx: *const core::ffi::c_void, ev: EVT_HANDLE) -> u32 {
     if action == EvtSubscribeActionDeliver {
+        if !is_panel() {
+            crate::config::refresh_lang(); // bandeja: segue o idioma escolhido no painel
+        }
         handle_event(ev);
     }
     0
@@ -648,16 +651,19 @@ unsafe extern "system" fn on_pnp(
 }
 
 fn pnp_event(id: &str, arrived: bool) {
+    if !is_panel() {
+        crate::config::refresh_lang(); // bandeja: segue o idioma escolhido no painel
+    }
     let hist = get();
     let role = dev_role(id);
     let now = util::now_ms();
     let (kind, msg) = match (role, arrived) {
-        (DevRole::DockRouter | DevRole::DockSwitch, true) => (Kind::DockOn, format!("{} iniciado", cap(role_text(role)))),
-        (DevRole::DockRouter | DevRole::DockSwitch, false) => (Kind::DockOff, format!("{} saiu do sistema", cap(role_text(role)))),
-        (DevRole::Gpu, true) => (Kind::GpuOn, "GPU iniciada pelo driver".into()),
-        (DevRole::Gpu, false) => (Kind::GpuOff, "GPU saiu do sistema".into()),
-        (DevRole::UsbA, true) => (Kind::UsbAOn, "Controlador USB-A do dock iniciado".into()),
-        (DevRole::UsbA, false) => (Kind::UsbAOff, "Controlador USB-A do dock saiu do sistema".into()),
+        (DevRole::DockRouter | DevRole::DockSwitch, true) => (Kind::DockOn, crate::tf!("{} iniciado", "{} started", cap(role_text(role)))),
+        (DevRole::DockRouter | DevRole::DockSwitch, false) => (Kind::DockOff, crate::tf!("{} saiu do sistema", "{} left the system", cap(role_text(role)))),
+        (DevRole::Gpu, true) => (Kind::GpuOn, crate::i18n::t("GPU iniciada pelo driver", "GPU started by the driver").into()),
+        (DevRole::Gpu, false) => (Kind::GpuOff, crate::i18n::t("GPU saiu do sistema", "GPU left the system").into()),
+        (DevRole::UsbA, true) => (Kind::UsbAOn, crate::i18n::t("Controlador USB-A do dock iniciado", "Dock USB-A controller started").into()),
+        (DevRole::UsbA, false) => (Kind::UsbAOff, crate::i18n::t("Controlador USB-A do dock saiu do sistema", "Dock USB-A controller left the system").into()),
         (DevRole::Other, _) => {
             let up = id.to_uppercase();
             if !up.starts_with("USB\\") || up.contains("&MI_") {
@@ -685,10 +691,10 @@ fn pnp_event(id: &str, arrived: bool) {
                 }
                 let name = crate::pnp::read_node(dn).name;
                 hist.remember_usb_a(&[(id.to_string(), name.clone())]);
-                (Kind::UsbADev, format!("{name} conectado na USB-A do dock"))
+                (Kind::UsbADev, crate::tf!("{name} conectado na USB-A do dock", "{name} connected to the dock USB-A"))
             } else {
                 let Some(name) = hist.usb_a_name(id) else { return };
-                (Kind::UsbADev, format!("{name} desconectado da USB-A do dock"))
+                (Kind::UsbADev, crate::tf!("{name} desconectado da USB-A do dock", "{name} disconnected from the dock USB-A"))
             }
         }
     };
@@ -731,7 +737,7 @@ pub fn record_arrivals(t: &crate::pnp::Topology) {
                     ts,
                     kind,
                     src: "DEVPKEY_Device_LastArrivalDate".into(),
-                    msg: format!("{what} chegou (data registrada pelo PnP)"),
+                    msg: crate::tf!("{what} chegou (data registrada pelo PnP)", "{what} arrived (date recorded by PnP)"),
                     dev: Some(n.id.clone()),
                     key: Some(format!("arr#{}#{}", n.id.to_uppercase(), ts / 1000)),
                     snap: None,
@@ -739,7 +745,7 @@ pub fn record_arrivals(t: &crate::pnp::Topology) {
             }
         }
     };
-    put(&t.dock_router, Kind::DockOn, "Roteador Thunderbolt do dock");
+    put(&t.dock_router, Kind::DockOn, crate::i18n::t("Roteador Thunderbolt do dock", "Dock Thunderbolt router"));
     put(&t.gpu, Kind::GpuOn, "GPU");
     let devs: Vec<(String, String)> = t.usb_a.iter().map(|n| (n.id.clone(), n.name.clone())).collect();
     if !devs.is_empty() {
@@ -763,7 +769,7 @@ pub fn scan_overwatch() {
                     ts: secs * 1000,
                     kind: Kind::TdrGame,
                     src: "Overwatch Settings_v0.ini".into(),
-                    msg: "Overwatch gravou LastTDR: o jogo perdeu o dispositivo D3D (TDR ou GPU removida)".into(),
+                    msg: crate::i18n::t("Overwatch gravou LastTDR: o jogo perdeu o dispositivo D3D (TDR ou GPU removida)", "Overwatch logged LastTDR: the game lost the D3D device (TDR or GPU removed)").into(),
                     dev: None,
                     key: Some(format!("ow#{secs}")),
                     snap: None,

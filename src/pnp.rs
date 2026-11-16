@@ -79,11 +79,11 @@ impl PVal {
             PVal::U16(v) => format!("{v} (0x{v:04X})"),
             PVal::U8(v) => format!("{v}"),
             PVal::U64(v) => format!("{v}"),
-            PVal::Bool(b) => if *b { "verdadeiro".into() } else { "falso".into() },
+            PVal::Bool(b) => if *b { crate::i18n::t("verdadeiro", "true").into() } else { crate::i18n::t("falso", "false").into() },
             PVal::Bin(b) => b.iter().map(|x| format!("{x:02X}")).collect::<Vec<_>>().join(" "),
             PVal::Time(t) => crate::util::fmt_local(*t, false),
             PVal::Guid(g) => g.clone(),
-            PVal::Other(t, n) => format!("tipo 0x{t:X}, {n} bytes"),
+            PVal::Other(t, n) => crate::tf!("tipo 0x{t:X}, {n} bytes", "type 0x{t:X}, {n} bytes"),
         }
     }
 }
@@ -291,10 +291,10 @@ pub fn read_node(dn: u32) -> Node {
 
 pub fn dstate_name(d: u32) -> &'static str {
     match d {
-        1 => "D0 (ativo)",
+        1 => crate::i18n::t("D0 (ativo)", "D0 (active)"),
         2 => "D1",
         3 => "D2",
-        4 => "D3 (economia)",
+        4 => crate::i18n::t("D3 (economia)", "D3 (low power)"),
         _ => "?",
     }
 }
@@ -302,28 +302,28 @@ pub fn dstate_name(d: u32) -> &'static str {
 pub fn pci_type_name(t: u32) -> &'static str {
     // DevProp_PciDevice_DeviceType_* (pciprop.h)
     match t {
-        0 => "PCI convencional",
+        0 => crate::i18n::t("PCI convencional", "Conventional PCI"),
         1 => "PCI-X",
-        2 => "Endpoint PCIe",
-        3 => "Endpoint PCIe legado",
-        4 => "Endpoint integrado ao root complex",
-        5 => "PCIe tratado como PCI",
-        6 => "Ponte PCI",
-        7 => "Ponte PCI-X",
-        8 => "Porta raiz PCIe",
-        9 => "Porta upstream de switch",
-        10 => "Porta downstream de switch",
-        11 => "Ponte PCIe→PCI-X",
-        12 => "Ponte PCI-X→PCIe",
-        13 => "Ponte PCIe tratada como PCI",
-        14 => "Coletor de eventos",
+        2 => crate::i18n::t("Endpoint PCIe", "PCIe endpoint"),
+        3 => crate::i18n::t("Endpoint PCIe legado", "Legacy PCIe endpoint"),
+        4 => crate::i18n::t("Endpoint integrado ao root complex", "Root complex integrated endpoint"),
+        5 => crate::i18n::t("PCIe tratado como PCI", "PCIe treated as PCI"),
+        6 => crate::i18n::t("Ponte PCI", "PCI bridge"),
+        7 => crate::i18n::t("Ponte PCI-X", "PCI-X bridge"),
+        8 => crate::i18n::t("Porta raiz PCIe", "PCIe root port"),
+        9 => crate::i18n::t("Porta upstream de switch", "Switch upstream port"),
+        10 => crate::i18n::t("Porta downstream de switch", "Switch downstream port"),
+        11 => crate::i18n::t("Ponte PCIe→PCI-X", "PCIe→PCI-X bridge"),
+        12 => crate::i18n::t("Ponte PCI-X→PCIe", "PCI-X→PCIe bridge"),
+        13 => crate::i18n::t("Ponte PCIe tratada como PCI", "PCIe bridge treated as PCI"),
+        14 => crate::i18n::t("Coletor de eventos", "Event collector"),
         _ => "?",
     }
 }
 
 pub fn pcie_speed_name(code: u32) -> &'static str {
     match code {
-        1 => "Gen1\u{A0}2,5\u{A0}GT/s",
+        1 => crate::i18n::t("Gen1\u{A0}2,5\u{A0}GT/s", "Gen1\u{A0}2.5\u{A0}GT/s"),
         2 => "Gen2\u{A0}5\u{A0}GT/s",
         3 => "Gen3\u{A0}8\u{A0}GT/s",
         4 => "Gen4\u{A0}16\u{A0}GT/s",
@@ -351,35 +351,35 @@ pub struct Usb4Prop {
 pub fn decode_usb4(pid: u32, v: &PVal) -> (&'static str, &'static str, String) {
     let n = v.as_u32();
     match pid {
-        9 => ("Fabricante (DROM)", "certo", v.show()),
-        10 => ("Modelo (DROM)", "certo", v.show()),
+        9 => (crate::i18n::t("Fabricante (DROM)", "Manufacturer (DROM)"), "certo", v.show()),
+        10 => (crate::i18n::t("Modelo (DROM)", "Model (DROM)"), "certo", v.show()),
         13 => ("Vendor ID (DROM)", "forte", n.map(|x| format!("0x{x:04X}{}", vendor(x))).unwrap_or_default()),
         14 => ("Model ID (DROM)", "forte", n.map(|x| format!("0x{x:04X}")).unwrap_or_default()),
-        16 => ("Vendor ID do roteador", "certo", n.map(|x| format!("0x{x:04X}{}", vendor(x))).unwrap_or_default()),
-        17 => ("Device ID do roteador", "certo", n.map(|x| format!("0x{x:04X}{}", chip(x))).unwrap_or_default()),
-        18 => ("Revisão do roteador", "certo", n.map(|x| format!("REV_{x:04X}")).unwrap_or_default()),
-        11 => ("Route string (porta por nível)", "forte", match v {
+        16 => (crate::i18n::t("Vendor ID do roteador", "Router vendor ID"), "certo", n.map(|x| format!("0x{x:04X}{}", vendor(x))).unwrap_or_default()),
+        17 => (crate::i18n::t("Device ID do roteador", "Router device ID"), "certo", n.map(|x| format!("0x{x:04X}{}", chip(x))).unwrap_or_default()),
+        18 => (crate::i18n::t("Revisão do roteador", "Router revision"), "certo", n.map(|x| format!("REV_{x:04X}")).unwrap_or_default()),
+        11 => (crate::i18n::t("Route string (porta por nível)", "Route string (port per level)"), "forte", match v {
             PVal::Bin(b) => {
-                let hops: Vec<String> = b.iter().take_while(|&&x| x != 0).map(|x| format!("porta {x}")).collect();
-                if hops.is_empty() { "raiz (o próprio host)".into() } else { format!("host → {}", hops.join(" → ")) }
+                let hops: Vec<String> = b.iter().take_while(|&&x| x != 0).map(|x| crate::tf!("porta {x}", "port {x}")).collect();
+                if hops.is_empty() { crate::i18n::t("raiz (o próprio host)", "root (the host itself)").into() } else { crate::tf!("host → {}", "host → {}", hops.join(" → ")) }
             }
             _ => v.show(),
         }),
-        15 => ("Profundidade na árvore USB4", "forte", n.map(|x| format!("nível {x}")).unwrap_or_default()),
-        8 => ("Roteador TBT3 legado", "forte", v.show()),
-        20 => ("Velocidade por faixa (código)", "hipótese", n.map(link_speed_code).unwrap_or_default()),
-        21 => ("Faixas ativas no enlace", "hipótese", n.map(|x| format!("{x} faixa(s)")).unwrap_or_default()),
-        19 => ("Desconhecida (dock 16 / host 32)", "desconhecido", v.show()),
-        2 => ("Desconhecida — máscara? (dock 7 / host 15)", "desconhecido", v.show()),
-        12 => ("Desconhecida (igual em host e dock: 0x4D0001)", "desconhecido", v.show()),
-        _ => ("Desconhecida", "desconhecido", v.show()),
+        15 => (crate::i18n::t("Profundidade na árvore USB4", "Depth in the USB4 tree"), "forte", n.map(|x| crate::tf!("nível {x}", "level {x}")).unwrap_or_default()),
+        8 => (crate::i18n::t("Roteador TBT3 legado", "Legacy TBT3 router"), "forte", v.show()),
+        20 => (crate::i18n::t("Velocidade por faixa (código)", "Speed per lane (code)"), "hipótese", n.map(link_speed_code).unwrap_or_default()),
+        21 => (crate::i18n::t("Faixas ativas no enlace", "Active lanes on the link"), "hipótese", n.map(|x| crate::tf!("{x} faixa(s)", "{x} lane(s)")).unwrap_or_default()),
+        19 => (crate::i18n::t("Desconhecida (dock 16 / host 32)", "Unknown (dock 16 / host 32)"), "desconhecido", v.show()),
+        2 => (crate::i18n::t("Desconhecida — máscara? (dock 7 / host 15)", "Unknown — mask? (dock 7 / host 15)"), "desconhecido", v.show()),
+        12 => (crate::i18n::t("Desconhecida (igual em host e dock: 0x4D0001)", "Unknown (same on host and dock: 0x4D0001)"), "desconhecido", v.show()),
+        _ => (crate::i18n::t("Desconhecida", "Unknown"), "desconhecido", v.show()),
     }
 }
 
 fn vendor(x: u32) -> &'static str {
     match x {
         0x8086 => " (Intel)",
-        0x8087 => " (Intel, ID USB4 do host)",
+        0x8087 => crate::i18n::t(" (Intel, ID USB4 do host)", " (Intel, host USB4 ID)"),
         _ => "",
     }
 }
@@ -387,7 +387,7 @@ fn vendor(x: u32) -> &'static str {
 fn chip(x: u32) -> &'static str {
     match x {
         0x15EF => " (JHL7440 Titan Ridge DD)",
-        0xA73E => " (controlador TBT4 integrado Intel)",
+        0xA73E => crate::i18n::t(" (controlador TBT4 integrado Intel)", " (Intel integrated TBT4 controller)"),
         _ => "",
     }
 }
@@ -398,10 +398,10 @@ fn chip(x: u32) -> &'static str {
 /// teste de banda (ver LOGBOOK).
 pub fn link_speed_code(x: u32) -> String {
     match x {
-        0x8 => "0x8 → Gen2/TB3 10\u{A0}Gb/s por faixa (se for o campo do spec USB4)".into(),
-        0x4 => "0x4 → Gen3/TB3 20\u{A0}Gb/s por faixa".into(),
-        0x2 => "0x2 → Gen4 40\u{A0}Gb/s por faixa".into(),
-        x => format!("{x} (código desconhecido)"),
+        0x8 => crate::i18n::t("0x8 → Gen2/TB3 10\u{A0}Gb/s por faixa (se for o campo do spec USB4)", "0x8 → Gen2/TB3 10\u{A0}Gb/s per lane (if it is the USB4 spec field)").into(),
+        0x4 => crate::i18n::t("0x4 → Gen3/TB3 20\u{A0}Gb/s por faixa", "0x4 → Gen3/TB3 20\u{A0}Gb/s per lane").into(),
+        0x2 => crate::i18n::t("0x2 → Gen4 40\u{A0}Gb/s por faixa", "0x2 → Gen4 40\u{A0}Gb/s per lane").into(),
+        x => crate::tf!("{x} (código desconhecido)", "{x} (unknown code)"),
     }
 }
 

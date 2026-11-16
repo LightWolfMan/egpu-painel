@@ -1,6 +1,7 @@
 //! Interface egui/eframe (renderizador glow). Foco na placa do dock: topologia animada,
 //! enlace USB4/TB, switch PCIe e portas, PD, estabilidade e linha do tempo de quedas.
 
+use crate::i18n::t;
 use crate::bench::BenchResult;
 use crate::collect::{self, Sample};
 use crate::history::{self, Cat, Ev, Kind};
@@ -40,8 +41,8 @@ mod pal {
         }
         pub fn name(self) -> &'static str {
             match self {
-                Th::Light => "Claro",
-                Th::Dark => "Escuro",
+                Th::Light => crate::i18n::t("Claro", "Light"),
+                Th::Dark => crate::i18n::t("Escuro", "Dark"),
                 Th::Amd => "AMD",
                 Th::Nvidia => "NVIDIA",
                 Th::Intel => "Intel",
@@ -287,7 +288,7 @@ pub fn run() {
     };
     let r = eframe::run_native("eGPU Painel", opts, Box::new(|cc| Ok(Box::new(App::new(cc)))));
     if let Err(e) = r {
-        crate::history::note(Kind::Note, format!("Falha ao abrir a janela: {e}"));
+        crate::history::note(Kind::Note, tf!("Falha ao abrir a janela: {e}", "Failed to open the window: {e}"));
     }
     *UI_CTX.lock().unwrap() = None;
 }
@@ -333,9 +334,9 @@ impl Range {
     fn label(self) -> &'static str {
         match self {
             Range::H24 => "24\u{A0}h",
-            Range::D7 => "7\u{A0}dias",
-            Range::D30 => "30\u{A0}dias",
-            Range::All => "tudo",
+            Range::D7 => t("7\u{A0}dias", "7\u{A0}days"),
+            Range::D30 => t("30\u{A0}dias", "30\u{A0}days"),
+            Range::All => t("tudo", "all"),
         }
     }
 }
@@ -480,7 +481,7 @@ impl App {
     fn start_bench(&self, ctx: &egui::Context) {
         let st = self.bench.clone();
         let ctx = ctx.clone();
-        *st.lock().unwrap() = BenchState::Running("iniciando…".into());
+        *st.lock().unwrap() = BenchState::Running(t("iniciando…", "starting…").into());
         std::thread::spawn(move || {
             let p = |s: &str| {
                 *st.lock().unwrap() = BenchState::Running(s.to_string());
@@ -491,8 +492,9 @@ impl App {
                 Ok(r) => {
                     history::note(
                         Kind::Bench,
-                        format!(
+                        tf!(
                             "host→GPU {:.2}\u{A0}GB/s · GPU→host {:.2}\u{A0}GB/s ({} MiB por medição, fila COPY D3D12)",
+                            "host→GPU {:.2}\u{A0}GB/s · GPU→host {:.2}\u{A0}GB/s ({} MiB per run, D3D12 COPY queue)",
                             r.h2d_gbs, r.d2h_gbs, r.per_run_mb
                         ),
                     );
@@ -733,12 +735,12 @@ fn lerp_color(a: Color32, b: Color32, k: f32) -> Color32 {
 /// Botão "Ciente" do aviso de instabilidade (reconhecer, estilo Zabbix).
 fn ack_button(ui: &mut Ui, col: Color32) -> bool {
     ui.add(
-        egui::Button::new(egui::RichText::new("✔ Ciente").size(14.0).color(pal::fg()))
+        egui::Button::new(egui::RichText::new(t("✔ Ciente", "✔ Got it")).size(14.0).color(pal::fg()))
             .fill(pal::card())
             .stroke(Stroke::new(1.0, col.gamma_multiply(0.7)))
             .corner_radius(CornerRadius::same(6)),
     )
-    .on_hover_text("Esconde este aviso até a próxima queda. As quedas continuam registradas no Histórico.")
+    .on_hover_text(t("Esconde este aviso até a próxima queda. As quedas continuam registradas no Histórico.", "Hides this warning until the next drop. Drops stay recorded in History."))
     .clicked()
 }
 
@@ -746,7 +748,7 @@ fn footer(ui: &mut Ui) {
     let full = ui.max_rect().expand2(vec2(16.0, 0.0));
     ui.painter().hline(full.x_range(), full.top() + 0.5, Stroke::new(1.0, pal::grid()));
     let ver = concat!("v", env!("CARGO_PKG_VERSION"));
-    let long = format!("eGPU Painel {ver} · código aberto (GPL-3.0)");
+    let long = tf!("eGPU Painel {ver} · código aberto (GPL-3.0)", "eGPU Painel {ver} · open source (GPL-3.0)");
     let font = egui::FontId::proportional(12.0);
     let lw = ui.painter().layout_no_wrap(long.clone(), font.clone(), pal::faint()).size().x;
     // largura dos três botões com texto (ícone 14 + 5 + texto + 16 de folga, ~8 entre eles)
@@ -756,12 +758,12 @@ fn footer(ui: &mut Ui) {
     let left = if avail < lw + 3.0 * 30.0 + 40.0 { format!("{ver} · GPL-3.0") } else { long };
     ui.horizontal_centered(|ui| {
         ui.label(egui::RichText::new(left).font(font).color(pal::faint()))
-            .on_hover_text("Código aberto sob a GPL-3.0: use, estude, modifique e compartilhe à vontade. Quem distribuir uma versão modificada mantém o código aberto também.");
+            .on_hover_text(t("Código aberto sob a GPL-3.0: use, estude, modifique e compartilhe à vontade. Quem distribuir uma versão modificada mantém o código aberto também.", "Open source under the GPL-3.0: use, study, modify and share freely. Anyone who distributes a modified version must keep it open source too."));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            foot_link(ui, FootIcon::Pix, "Pix", "Pix (QR Code ou copia e cola), para quem está no Brasil", URL_PIX, compact);
-            foot_link(ui, FootIcon::Text("❤"), "Apoiar", "GitHub Sponsors — de qualquer país, cartão internacional", URL_SPONSORS, compact);
-            foot_link(ui, FootIcon::Text("💬"), "Feedback", "Feedback — relatar um problema ou sugerir uma melhoria (GitHub)", URL_FEEDBACK, compact);
+            foot_link(ui, FootIcon::Pix, "Pix", t("Pix (QR Code ou copia e cola), para quem está no Brasil", "Pix (QR Code or copy-and-paste), for people in Brazil"), URL_PIX, compact);
+            foot_link(ui, FootIcon::Text("❤"), t("Apoiar", "Support"), t("GitHub Sponsors — de qualquer país, cartão internacional", "GitHub Sponsors — from any country, international card"), URL_SPONSORS, compact);
+            foot_link(ui, FootIcon::Text("💬"), "Feedback", t("Feedback — relatar um problema ou sugerir uma melhoria (GitHub)", "Feedback — report a problem or suggest an improvement (GitHub)"), URL_FEEDBACK, compact);
         });
     });
 }
@@ -788,11 +790,11 @@ impl Tab {
     }
     fn label(self) -> &'static str {
         match self {
-            Tab::Geral => "Visão geral",
-            Tab::Enlace => "Cabo e energia",
-            Tab::Fluxo => "Desempenho",
-            Tab::Historico => "Histórico",
-            Tab::Opcoes => "Opções",
+            Tab::Geral => t("Visão geral", "Overview"),
+            Tab::Enlace => t("Cabo e energia", "Cable & power"),
+            Tab::Fluxo => t("Desempenho", "Performance"),
+            Tab::Historico => t("Histórico", "History"),
+            Tab::Opcoes => t("Opções", "Options"),
         }
     }
 }
@@ -1085,12 +1087,12 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
         p.galley(pos2(rect.left() + lx, rect.top() + 6.0 + 17.0 * r as f32), g, color);
     }
     // "máx" só quando sobra lugar depois da legenda (nunca encosta nela)
-    let mg = p.layout_no_wrap(format!("máx {maxv:.0}\u{A0}{}", unit.trim()).trim_end().to_string(), FontId::proportional(12.0), pal::faint());
+    let mg = p.layout_no_wrap(tf!("máx {maxv:.0}\u{A0}{}", "max {maxv:.0}\u{A0}{}", unit.trim()).trim_end().to_string(), FontId::proportional(12.0), pal::faint());
     if legend_end + 14.0 + mg.size().x <= rect.right() - 8.0 {
         p.galley(pos2(rect.right() - 8.0 - mg.size().x, rect.top() + 4.0), mg, pal::faint());
     }
     if data_empty(series) {
-        p.text(rect.center(), egui::Align2::CENTER_CENTER, "aguardando amostras…", FontId::proportional(13.5), pal::faint());
+        p.text(rect.center(), egui::Align2::CENTER_CENTER, t("aguardando amostras…", "waiting for samples…"), FontId::proportional(13.5), pal::faint());
     }
     let _ = resp;
 }
@@ -1125,7 +1127,7 @@ fn meter_bar(ui: &mut Ui, frac: f32, labels: &[&str], value: &str, color: Color3
 
 /// "2,2 de 16 GB": usado com 1 casa, total arredondado (mesmo formato em todo o painel).
 fn gb_of(used_mb: f64, total_mb: f64) -> String {
-    format!("{} de {:.0}\u{A0}GB", dec(used_mb / 1024.0, 1), total_mb / 1024.0)
+    tf!("{} de {:.0}\u{A0}GB", "{} of {:.0}\u{A0}GB", dec(used_mb / 1024.0, 1), total_mb / 1024.0)
 }
 
 fn data_empty(s: &[(Color32, &str, Vec<f32>)]) -> bool {
@@ -1618,21 +1620,21 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let mid = pos2((a.x + b.x) / 2.0, a.y);
     let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
     let cable_txt = match speed {
-        Some(0x8) => format!("Cabo a {}\u{A0}Gb/s · o dock aceita 40", lanes * 10),
-        Some(0x4) => format!("Cabo a {}\u{A0}Gb/s", lanes * 20),
-        Some(x) => format!("Cabo conectado (código {x})"),
-        None if dock_ok => "Cabo conectado".into(),
-        None => "Sem conexão".into(),
+        Some(0x8) => tf!("Cabo a {}\u{A0}Gb/s · o dock aceita 40", "Cable at {}\u{A0}Gb/s · the dock supports 40", lanes * 10),
+        Some(0x4) => tf!("Cabo a {}\u{A0}Gb/s", "Cable at {}\u{A0}Gb/s", lanes * 20),
+        Some(x) => tf!("Cabo conectado (código {x})", "Cable connected (code {x})"),
+        None if dock_ok => crate::i18n::t("Cabo conectado", "Cable connected").into(),
+        None => crate::i18n::t("Sem conexão", "No connection").into(),
     };
     // rótulos do cabo: usa a versão mais longa que cabe no vão entre o note e o dock (nunca fica escondida atrás deles)
     let room = b.x - a.x - 10.0;
     let fit = |cands: &[String], size: f32| -> Option<String> { cands.iter().find(|c| p.layout_no_wrap(c.to_string(), FontId::proportional(size), pal::fg()).size().x <= room).cloned() };
     let short = cable_txt.split(" · ").next().unwrap_or_default().to_string();
-    let tiny = short.trim_start_matches("Cabo a ").to_string();
+    let tiny = short.trim_start_matches(crate::i18n::t("Cabo a ", "Cable at ")).to_string();
     if let Some(s) = fit(&[cable_txt.clone(), short, tiny], 13.5) {
         p.text(mid + vec2(0.0, -30.0), egui::Align2::CENTER_BOTTOM, s, FontId::proportional(13.5), if !dock_ok { pal::red() } else if speed == Some(0x8) { pal::amber() } else { pal::bolt() });
     }
-    let pd_c: Vec<String> = if flow.pd_on { vec!["Carregando o notebook · até 85\u{A0}W".into(), "Carregando".into(), "⚡".into()] } else { vec!["O dock não está carregando o notebook".into(), "Sem carga".into()] };
+    let pd_c: Vec<String> = if flow.pd_on { vec![crate::i18n::t("Carregando o notebook · até 85\u{A0}W", "Charging the laptop · up to 85\u{A0}W").into(), crate::i18n::t("Carregando", "Charging").into(), "⚡".into()] } else { vec![crate::i18n::t("O dock não está carregando o notebook", "The dock isn't charging the laptop").into(), crate::i18n::t("Sem carga", "Not charging").into()] };
     if let Some(s) = fit(&pd_c, 12.5) {
         p.text(mid + vec2(0.0, 34.0), egui::Align2::CENTER_TOP, s, FontId::proportional(12.5), if flow.pd_on { pal::bolt().gamma_multiply(0.8) } else { pal::amber() });
     }
@@ -1714,7 +1716,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let hostn = topo.host_router.as_ref();
     let host_lines = vec!["Thunderbolt\u{A0}4".to_string(), format!("Firmware\u{A0}{}", hostn.and_then(|n| n.firmware.clone()).unwrap_or("?".into()))];
     let (hr, lift) = hover(ui, host, ui.id().with("host"));
-    node_box(&p, host, "Notebook", &host_lines, pal::pcie(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
+    node_box(&p, host, crate::i18n::t("Notebook", "Laptop"), &host_lines, pal::pcie(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
     if hr.clicked() {
         *sel = Some(Sel::Host);
     }
@@ -1725,12 +1727,12 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let mut dock_lines = vec![format!("Thunderbolt\u{A0}3 · firmware\u{A0}{fw}")];
     let _ = &model;
     match dr.and_then(|n| n.last_arrival) {
-        Some(ts) => dock_lines.push(format!("Conectado há {}", fmt_dur(now_ms() - ts))),
-        None => dock_lines.push("Não encontrado".into()),
+        Some(ts) => dock_lines.push(tf!("Conectado há {}", "Connected for {}", fmt_dur(now_ms() - ts))),
+        None => dock_lines.push(crate::i18n::t("Não encontrado", "Not found").into()),
     }
     if let Some(br) = bench {
         // notebook → placa: o sentido que pesa em jogo (o mesmo do medidor "Banda" da visão geral)
-        dock_lines.push(format!("Banda medida: {}\u{A0}Gb/s", gbit(br.h2d_gbs)));
+        dock_lines.push(tf!("Banda medida: {}\u{A0}Gb/s", "Bandwidth: {}\u{A0}Gb/s", gbit(br.h2d_gbs)));
     }
     let (dkr, lift) = hover(ui, dock, ui.id().with("dock"));
     let dock_state = if !(dock_ok && switch_ok) || dock_lvl >= 2 { pal::red() } else if dock_lvl == 1 { pal::amber() } else { pal::green() };
@@ -1752,7 +1754,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         };
         p.text(c + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, icon, FontId::proportional(11.5), pal::dim());
         let hit = Rect::from_center_size(c + vec2(6.0, 0.0), vec2(26.0, 18.0));
-        ui.interact(hit, ui.id().with(("dport", i)), Sense::hover()).on_hover_text(format!("porta downstream {} · {}", i + 1, dname(&dp.node)));
+        ui.interact(hit, ui.id().with(("dport", i)), Sense::hover()).on_hover_text(tf!("porta downstream {} · {}", "downstream port {} · {}", i + 1, dname(&dp.node)));
     }
     if dkr.clicked() {
         *sel = Some(Sel::Dock);
@@ -1766,7 +1768,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
             format!("{:.0}\u{A0}°C · {:.0}\u{A0}W", gm.temp.unwrap_or(0.0), gm.tbp.unwrap_or(0.0)),
             match gpu_static {
                 // ADLX: o enlace da placa com o slot do dock, que segue pelo túnel até o notebook
-                Some(s) if s.lanes > 0 => format!("Túnel {}\u{A0}x{}", s.bus.replace(' ', "\u{A0}"), s.lanes),
+                Some(s) if s.lanes > 0 => tf!("Túnel {}\u{A0}x{}", "Tunnel {}\u{A0}x{}", s.bus.replace(' ', "\u{A0}"), s.lanes),
                 Some(_) => String::new(),
                 None => "…".into(),
             },
@@ -1775,7 +1777,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         .filter(|l| !l.is_empty())
         .collect()
     } else {
-        vec!["Não encontrada".into()]
+        vec![crate::i18n::t("Não encontrada", "Not found").into()]
     };
     let gm = flow.gpu.unwrap_or_default();
     let spin = gm.fan.map(|f| f as f32 / 3200.0).unwrap_or(gm.usage.unwrap_or(0.0) as f32 / 100.0);
@@ -1794,7 +1796,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
                 let _ = x;
                 let mut l = vec![];
                 if topo.usb_a.is_empty() {
-                    l.push("Livre".into());
+                    l.push(crate::i18n::t("Livre", "Free").into());
                 } else {
                     for d in topo.usb_a.iter().take(2) {
                         l.push(d.name.clone());
@@ -1804,7 +1806,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
             }
             _ => (
                 "TB extra 15\u{A0}W",
-                vec![if dp.child.is_some() { "Em uso".into() } else { "Livre".into() }],
+                vec![if dp.child.is_some() { crate::i18n::t("Em uso", "In use").into() } else { crate::i18n::t("Livre", "Free").into() }],
                 pal::faint(),
             ),
         };
@@ -1817,10 +1819,10 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         }
     }
     if ports.iter().all(|(d, _)| d.role != PortRole::UsbA) {
-        node_box(&p, usb_r, "USB-A 10\u{A0}Gb/s", &["não detectada".into()], pal::pcie(), pal::red(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_a(p, r, false)));
+        node_box(&p, usb_r, "USB-A 10\u{A0}Gb/s", &[crate::i18n::t("não detectada", "not detected").into()], pal::pcie(), pal::red(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_a(p, r, false)));
     }
     if ports.iter().all(|(d, _)| d.role != PortRole::TbExtra) {
-        node_box(&p, tb_r, "TB extra 15\u{A0}W", &["não detectada".into()], pal::faint(), pal::amber(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
+        node_box(&p, tb_r, "TB extra 15\u{A0}W", &[crate::i18n::t("não detectada", "not detected").into()], pal::faint(), pal::amber(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
     }
 
     // Fonte do dock (ou o nó fantasma "+ Informar a fonte")
@@ -1836,13 +1838,13 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let room = psu_r.width() - aw - 22.0 - 26.0;
         let model = ps.model.trim();
         let title = if model.is_empty() {
-            "Fonte do dock"
+            crate::i18n::t("Fonte do dock", "Dock PSU")
         } else if !compact && p.layout_no_wrap(model.to_string(), FontId::proportional(13.0), pal::fg()).size().x <= room {
             model
         } else {
             short_model(model)
         };
-        let lines = [if compact { format!("≈ {:.0} / {}\u{A0}W", l.now, ps.watts) } else { format!("≈ {:.0}\u{A0}W de {}\u{A0}W", l.now, ps.watts) }];
+        let lines = [if compact { format!("≈ {:.0} / {}\u{A0}W", l.now, ps.watts) } else { tf!("≈ {:.0}\u{A0}W de {}\u{A0}W", "≈ {:.0}\u{A0}W of {}\u{A0}W", l.now, ps.watts) }];
         node_box_r(&p, psu_r, title, &lines, pal::bolt(), st.col, *sel == Some(Sel::Psu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::psu(p, r, true, t, &ps.rating, f)), 16.0);
         // mini medidor: ▮ carga agora · ┆ uso pesado · ▼ picos rápidos (o ▼ some no compacto)
         let x0 = psu_r.left() + aw + 22.0;
@@ -1866,10 +1868,9 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
             p.text(pos2(kx, track.top() - 1.0), egui::Align2::CENTER_BOTTOM, "▼", FontId::proportional(9.0), kc);
         }
         p.text(pos2(psu_r.right() - 10.0, track.center().y), egui::Align2::RIGHT_CENTER, pct, FontId::proportional(12.5), fc);
-        let r = psr.on_hover_text(format!(
-            "{}
-Estimativa: placa (medida) + notebook + dock. A fonte não manda dados ao PC.
-▮ agora ≈ {:.0}\u{A0}W · ┆ uso pesado ≈ {:.0}\u{A0}W · ▼ picos rápidos ≈ {:.0}\u{A0}W",
+        let r = psr.on_hover_text(tf!(
+            "{}\nEstimativa: placa (medida) + notebook + dock. A fonte não manda dados ao PC.\n▮ agora ≈ {:.0}\u{A0}W · ┆ uso pesado ≈ {:.0}\u{A0}W · ▼ picos rápidos ≈ {:.0}\u{A0}W",
+            "{}\nEstimate: GPU (measured) + laptop + dock. The PSU doesn't send data to the PC.\n▮ now ≈ {:.0}\u{A0}W · ┆ heavy use ≈ {:.0}\u{A0}W · ▼ quick spikes ≈ {:.0}\u{A0}W",
             st.pill, l.now, l.worst, l.spike
         ));
         if r.clicked() {
@@ -1890,11 +1891,11 @@ Estimativa: placa (medida) + notebook + dock. A fonte não manda dados ao PC.
         let tx = psu_r.left() + aw + 22.0;
         let wrap = (psu_r.right() - 12.0 - tx).max(40.0);
         // não cabendo numa linha, quebra em "+ Informar / a fonte" (nunca deixa "fonte" sozinha)
-        let t1 = if p.layout_no_wrap("+ Informar a fonte".into(), FontId::proportional(15.0), pal::dim()).size().x <= wrap { "+ Informar a fonte" } else { "+ Informar
-a fonte" };
+        let full_t1 = crate::i18n::t("+ Informar a fonte", "+ Add your PSU");
+        let t1 = if p.layout_no_wrap(full_t1.into(), FontId::proportional(15.0), pal::dim()).size().x <= wrap { full_t1 } else { crate::i18n::t("+ Informar\na fonte", "+ Add\nyour PSU") };
         let g1 = p.layout(t1.into(), FontId::proportional(15.0), pal::dim().lerp_to_gamma(pal::fg(), lift), wrap);
         // a 2ª linha usa a versão que cabe numa linha só (nunca sobra uma palavra sozinha embaixo)
-        let sub = ["Para ver a carga ao vivo", "Carga ao vivo"].into_iter().find(|c| p.layout_no_wrap(c.to_string(), FontId::proportional(12.5), pal::faint()).size().x <= wrap);
+        let sub = [crate::i18n::t("Para ver a carga ao vivo", "To see the live load"), crate::i18n::t("Carga ao vivo", "Live load")].into_iter().find(|c| p.layout_no_wrap(c.to_string(), FontId::proportional(12.5), pal::faint()).size().x <= wrap);
         let g2 = p.layout_no_wrap(sub.unwrap_or_default().to_string(), FontId::proportional(12.5), pal::faint());
         let two = sub.is_some() && g1.size().y + 4.0 + g2.size().y <= psu_r.height() - 16.0;
         let hgt = if two { g1.size().y + 4.0 + g2.size().y } else { g1.size().y };
@@ -1904,7 +1905,7 @@ a fonte" };
         if two {
             p.galley(pos2(tx, y0 + g1h + 4.0), g2, pal::faint());
         }
-        if psr.on_hover_text("Informe a fonte do dock (aba Cabo e energia) para ver a carga estimada, o uso pesado e os picos rápidos.").clicked() {
+        if psr.on_hover_text(crate::i18n::t("Informe a fonte do dock (aba Cabo e energia) para ver a carga estimada, o uso pesado e os picos rápidos.", "Tell the app which PSU your dock uses (Cable & power tab) to see the estimated load, heavy use and quick spikes.")).clicked() {
             *add_psu = true;
         }
     }
@@ -1957,7 +1958,7 @@ impl eframe::App for App {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(egui::RichText::new(format!("{:.0}\u{A0}MB · {}%", last.ws_mb, dec(last.cpu_pct as f64, 1))).color(pal::faint()).size(12.5))
-                        .on_hover_text("Consumo do próprio painel (RAM e CPU). Fechando a janela, ele volta para a bandeja e para de coletar.");
+                        .on_hover_text(crate::i18n::t("Consumo do próprio painel (RAM e CPU). Fechando a janela, ele volta para a bandeja e para de coletar.", "The panel's own usage (RAM and CPU). Closing the window sends it back to the tray and it stops collecting."));
                     ui.add_space(pal::gap());
                     // pílula curta quando o cabeçalho aperta (sem quebrar a linha)
                     let compact = ui.available_width() < 560.0;
@@ -2059,7 +2060,7 @@ impl eframe::App for App {
                         self.verdict_banner(ui, &topo);
                         ui.add_space(pal::gap());
                         let dock_lvl = self.verdict(&topo).0;
-                        card(ui, "🔗  Topologia", pal::cyan(), |ui| {
+                        card(ui, crate::i18n::t("🔗  Topologia", "🔗  Topology"), pal::cyan(), |ui| {
                             let mut sel = self.sel;
                             let pl = self.psu_load.map(|l| (&self.psu, l));
                             let mut add_psu = false;
@@ -2235,7 +2236,7 @@ impl App {
         let right = Rect::from_min_max(pos2(x + 10.0, full.top()), full.max - vec2(16.0, 0.0));
         ui.scope_builder(egui::UiBuilder::new().max_rect(right).layout(egui::Layout::right_to_left(egui::Align::Center)), |ui| {
             ui.label(egui::RichText::new(format!("{:.0}\u{A0}MB · {}%", last.ws_mb, dec(last.cpu_pct as f64, 1))).color(Color32::from_gray(130)).size(12.5))
-                .on_hover_text("Consumo do próprio painel (RAM e CPU).");
+                .on_hover_text(crate::i18n::t("Consumo do próprio painel (RAM e CPU).", "The panel's own usage (RAM and CPU)."));
             ui.add_space(12.0);
             self.header_status(ui, &topo, t, compact);
         });
@@ -2267,9 +2268,9 @@ impl App {
                         }
                         self.psu.origin = "web".into();
                         psu::save(&self.psu);
-                        self.psu_msg = Some((true, format!("Achei no {}: {}. Confira na etiqueta da fonte e corrija se precisar.", f.engine, got.join(" · "))));
+                        self.psu_msg = Some((true, tf!("Achei no {}: {}. Confira na etiqueta da fonte e corrija se precisar.", "Found it on {}: {}. Check it against the PSU label and correct it if needed.", f.engine, got.join(" · "))));
                     }
-                    Err(e) => self.psu_msg = Some((false, format!("Não achei as specs ({e}). Preencha à mão, a etiqueta da fonte tem tudo."))),
+                    Err(e) => self.psu_msg = Some((false, tf!("Não achei as specs ({e}). Preencha à mão, a etiqueta da fonte tem tudo.", "Couldn't find the specs ({e}). Fill them in by hand, the PSU label has it all."))),
                 }
             }
         }
@@ -2280,7 +2281,7 @@ impl App {
         use crate::psu;
         let before = self.psu.clone();
         let load = self.psu_load;
-        card(ui, "🔌  Fonte do dock", pal::bolt(), |ui| {
+        card(ui, crate::i18n::t("🔌  Fonte do dock", "🔌  Dock PSU"), pal::bolt(), |ui| {
             let avail = ui.available_width();
             let (n, cw) = psu_cols(avail);
             let gap = pal::gap();
@@ -2293,7 +2294,7 @@ impl App {
             let mut go = false;
             let mut enter = false;
             let search_btn = |ui: &mut Ui, w: f32| {
-                let txt = if busy { "      Buscando…" } else { "🔍  Buscar specs" };
+                let txt = if busy { crate::i18n::t("      Buscando…", "      Searching…") } else { crate::i18n::t("🔍  Buscar specs", "🔍  Look up specs") };
                 let b = ui.add_enabled(can, egui::Button::new(egui::RichText::new(txt).size(14.0)).min_size(vec2(w, 32.0)));
                 if busy {
                     let c = b.rect.center() - vec2(44.0, 0.0);
@@ -2302,10 +2303,10 @@ impl App {
                 b.clicked()
             };
             ui.allocate_ui_with_layout(vec2(avail, 54.0), egui::Layout::left_to_right(egui::Align::Max), |ui| {
-                field(ui, model_w, "🏷", "Modelo", |ui| {
+                field(ui, model_w, "🏷", crate::i18n::t("Modelo", "Model"), |ui| {
                     let te = ui.add(
                         egui::TextEdit::singleline(&mut self.psu.model)
-                            .hint_text("ex.: Corsair RM650x, MSI MAG A650BN")
+                            .hint_text(crate::i18n::t("ex.: Corsair RM650x, MSI MAG A650BN", "e.g. Corsair RM650x, MSI MAG A650BN"))
                             .desired_width(f32::INFINITY)
                             .min_size(vec2(model_w, 32.0))
                             .vertical_align(egui::Align::Center),
@@ -2335,37 +2336,37 @@ impl App {
             // ── linha 2: ficha da fonte, uma célula por coluna. 0 = falta informar (dica esmaecida, nunca "0 W")
             let psu_v = &mut self.psu;
             let mut cell = |ui: &mut Ui, i: usize| match i {
-                0 => field(ui, cw, "⚡", "Potência", |ui| {
+                0 => field(ui, cw, "⚡", crate::i18n::t("Potência", "Power"), |ui| {
                     if let Some(v) = num_field(ui, "psu-w", cw, psu_v.watts as f32, 0, "W", "— W") {
                         psu_v.watts = v.round().clamp(0.0, 2000.0) as u32;
                     }
                 }),
-                1 => field(ui, cw, "⎓", "Linha +12\u{A0}V", |ui| {
-                    if let Some(v) = num_field(ui, "psu-a", cw, psu_v.rail12_a, 1, "A", "ex.: 62,5\u{A0}A") {
+                1 => field(ui, cw, "⎓", crate::i18n::t("Linha +12\u{A0}V", "+12\u{A0}V rail"), |ui| {
+                    if let Some(v) = num_field(ui, "psu-a", cw, psu_v.rail12_a, 1, "A", crate::i18n::t("ex.: 62,5\u{A0}A", "e.g. 62.5\u{A0}A")) {
                         psu_v.rail12_a = (v * 10.0).round().clamp(0.0, 1700.0) / 10.0;
                     }
                 }),
-                2 => field(ui, cw, "★", "Selo 80 PLUS", |ui| {
+                2 => field(ui, cw, "★", crate::i18n::t("Selo 80 PLUS", "80 PLUS rating"), |ui| {
                     // largura exata da célula
                     egui::ComboBox::from_id_salt("psu-rating")
                         .width(cw)
                         .height(320.0)
-                        .selected_text(if psu_v.rating.is_empty() { "sem selo / não sei" } else { psu_v.rating.as_str() })
+                        .selected_text(if psu_v.rating.is_empty() { crate::i18n::t("sem selo / não sei", "no rating / not sure") } else { psu_v.rating.as_str() })
                         .show_ui(ui, |ui| {
                             for r in psu::RATINGS {
-                                ui.selectable_value(&mut psu_v.rating, r.to_string(), if r.is_empty() { "sem selo / não sei" } else { r });
+                                ui.selectable_value(&mut psu_v.rating, r.to_string(), if r.is_empty() { crate::i18n::t("sem selo / não sei", "no rating / not sure") } else { r });
                             }
                         });
                 }),
-                _ => field(ui, cw, "ⓘ", "Origem", |ui| {
+                _ => field(ui, cw, "ⓘ", crate::i18n::t("Origem", "Source"), |ui| {
                     // selo (não parece campo editável), na altura dos campos
                     let (r, _) = ui.allocate_exact_size(vec2(cw, 32.0), Sense::hover());
                     let (t, c) = if psu_v.origin == "web" {
-                        ("🌐  Da internet", pal::data())
+                        (crate::i18n::t("🌐  Da internet", "🌐  From the web"), pal::data())
                     } else if psu_v.watts == 0 && psu_v.model.trim().is_empty() {
-                        ("…  Ainda não informada", pal::faint())
+                        (crate::i18n::t("…  Ainda não informada", "…  Not set yet"), pal::faint())
                     } else {
-                        ("✍  Preenchida à mão", pal::dim())
+                        (crate::i18n::t("✍  Preenchida à mão", "✍  Filled in by hand"), pal::dim())
                     };
                     let g = ui.painter().layout_no_wrap(t.to_string(), FontId::proportional(13.5), c);
                     let chip = Rect::from_min_size(r.min, vec2((g.size().x + 28.0).min(cw), 32.0));
@@ -2403,30 +2404,32 @@ impl App {
             ui.add_space(10.0);
             // ── medidores: o centro de cada um cai no centro da coluna dos campos acima
             let rail = before.rail12_a;
-            let rating = if before.rating.is_empty() { "sem selo".to_string() } else { before.rating.clone() };
+            let rating = if before.rating.is_empty() { crate::i18n::t("sem selo", "no rating").to_string() } else { before.rating.clone() };
             let gauge_at = |ui: &mut Ui, i: usize| {
                 ui.vertical_centered(|ui| match i {
                     0 => {
-                        gauge(ui, "⚡", l.now, w, &format!("W · {:.0}%", l.frac * 100.0), "Carga agora (≈)", load_col(l.frac)).on_hover_text(format!(
+                        gauge(ui, "⚡", l.now, w, &format!("W · {:.0}%", l.frac * 100.0), crate::i18n::t("Carga agora (≈)", "Load now (≈)"), load_col(l.frac)).on_hover_text(tf!(
                             "≈ {:.0}\u{A0}W = placa {:.0}\u{A0}W (medido) + notebook pelo PD {:.0}\u{A0}W + dock {:.0}\u{A0}W + portas {:.0}\u{A0}W (estimados)",
+                            "≈ {:.0}\u{A0}W = GPU {:.0}\u{A0}W (measured) + laptop via PD {:.0}\u{A0}W + dock {:.0}\u{A0}W + ports {:.0}\u{A0}W (estimated)",
                             l.now, l.gpu, l.pd, l.dock, l.usb
                         ));
                     }
                     1 => {
-                        gauge(ui, "▼", l.spike, w, "W", "Picos rápidos (≈)", if l.spike > w { pal::amber() } else { pal::green() }).on_hover_text(format!(
+                        gauge(ui, "▼", l.spike, w, "W", crate::i18n::t("Picos rápidos (≈)", "Quick spikes (≈)"), if l.spike > w { pal::amber() } else { pal::green() }).on_hover_text(tf!(
                             "Transientes de milissegundos: a placa pode puxar ~1,6× o limite ({:.0}\u{A0}W), somados ao resto. Fonte fraca desarma nesses picos.",
+                            "Millisecond transients: the GPU can draw ~1.6× its limit ({:.0}\u{A0}W), on top of everything else. A weak PSU trips on these spikes.",
                             psu::GPU_TBP_MAX
                         ));
                     }
                     2 => {
-                        gauge(ui, "🔌", l.wall, w, "W", "Na tomada (≈)", pal::data()).on_hover_text(format!("Eficiência estimada {:.0}% ({rating})", l.eff * 100.0));
+                        gauge(ui, "🔌", l.wall, w, "W", crate::i18n::t("Na tomada (≈)", "At the wall (≈)"), pal::data()).on_hover_text(tf!("Eficiência estimada {:.0}% ({rating})", "Estimated efficiency {:.0}% ({rating})", l.eff * 100.0));
                     }
                     _ => {
                         if rail > 0.0 {
-                            let gw = gauge_nat(ui, "⎓", "Linha +12\u{A0}V (≈)");
-                            gauge_wd(ui, gw, "⎓", l.amps12, rail, "A", "Linha +12\u{A0}V (≈)", load_col(l.amps12 / rail), 1).on_hover_text("Corrente estimada na linha de +12\u{A0}V, contra o máximo da etiqueta da fonte.");
+                            let gw = gauge_nat(ui, "⎓", crate::i18n::t("Linha +12\u{A0}V (≈)", "+12\u{A0}V rail (≈)"));
+                            gauge_wd(ui, gw, "⎓", l.amps12, rail, "A", crate::i18n::t("Linha +12\u{A0}V (≈)", "+12\u{A0}V rail (≈)"), load_col(l.amps12 / rail), 1).on_hover_text(crate::i18n::t("Corrente estimada na linha de +12\u{A0}V, contra o máximo da etiqueta da fonte.", "Estimated current on the +12\u{A0}V rail, against the maximum on the PSU label."));
                         } else {
-                            gauge(ui, "⎓", f32::NAN, 1.0, "A", "+12\u{A0}V: falta informar", pal::faint()).on_hover_text("Preencha a corrente da linha +12\u{A0}V (está na etiqueta da fonte) para ver este medidor.");
+                            gauge(ui, "⎓", f32::NAN, 1.0, "A", crate::i18n::t("+12\u{A0}V: falta informar", "+12\u{A0}V: not set"), pal::faint()).on_hover_text(crate::i18n::t("Preencha a corrente da linha +12\u{A0}V (está na etiqueta da fonte) para ver este medidor.", "Enter the +12\u{A0}V rail current (it's on the PSU label) to see this gauge."));
                         }
                     }
                 });
@@ -2439,7 +2442,7 @@ impl App {
                 });
             }
             ui.add_space(4.0);
-            ui.add(egui::Label::new(egui::RichText::new("ⓘ Placa: medida. Notebook, dock e portas: estimados (≈), a fonte não manda dados.").color(pal::faint()).size(12.0)).wrap());
+            ui.add(egui::Label::new(egui::RichText::new(crate::i18n::t("ⓘ Placa: medida. Notebook, dock e portas: estimados (≈), a fonte não manda dados.", "ⓘ GPU: measured. Laptop, dock and ports: estimated (≈), the PSU doesn't send data.")).color(pal::faint()).size(12.0)).wrap());
         });
         if self.psu != before {
             if self.psu.model != before.model {
@@ -2453,35 +2456,35 @@ impl App {
     fn verdict(&self, topo: &Topology) -> (u8, String, String) {
         let now = now_ms();
         if topo.read_ms == 0 {
-            return (0, "Lendo o estado do dock…".into(), String::new());
+            return (0, crate::i18n::t("Lendo o estado do dock…", "Reading the dock status…").into(), String::new());
         }
         let drops: Vec<&Incident> = self.incidents.iter().filter(|i| i.is_drop).collect();
         let last = drops.last();
         if topo.dock_router.is_none() {
-            return (2, "O dock está desconectado".into(), "Confira o cabo e se a fonte do dock está ligada na tomada.".into());
+            return (2, crate::i18n::t("O dock está desconectado", "The dock is disconnected").into(), crate::i18n::t("Confira o cabo e se a fonte do dock está ligada na tomada.", "Check the cable and whether the dock's power supply is plugged into the wall.").into());
         }
         let d24 = drops.iter().filter(|i| now - i.start <= 86_400_000).count();
         // "Ciente": quedas já reconhecidas não mantêm o aviso; uma queda nova o traz de volta
         let acked = last.is_some_and(|i| i.start <= crate::config::get().ack_ts);
         if d24 > 0 && acked {
-            let n = if d24 == 1 { "A queda das últimas 24\u{A0}h foi marcada".to_string() } else { format!("As {d24} quedas das últimas 24\u{A0}h foram marcadas") };
-            return (0, "Tudo certo com o dock".into(), format!("{n} como ciente. Elas continuam no Histórico."));
+            let n = if d24 == 1 { crate::i18n::t("A queda das últimas 24\u{A0}h foi marcada", "The drop in the last 24\u{A0}h was marked").to_string() } else { tf!("As {d24} quedas das últimas 24\u{A0}h foram marcadas", "The {d24} drops in the last 24\u{A0}h were marked") };
+            return (0, crate::i18n::t("Tudo certo com o dock", "The dock is all good").into(), tf!("{n} como ciente. Elas continuam no Histórico.", "{n} as acknowledged. They're still in History."));
         }
         if d24 > 0 {
             let cause = match last {
-                Some(i) if i.pd_lost => "Na última queda a energia do dock caiu junto: suspeite da fonte ou da tomada.",
-                Some(_) => "Na última queda só a conexão caiu, a energia continuou: suspeite do cabo.",
+                Some(i) if i.pd_lost => crate::i18n::t("Na última queda a energia do dock caiu junto: suspeite da fonte ou da tomada.", "In the last drop the dock's power went down too: suspect the PSU or the outlet."),
+                Some(_) => crate::i18n::t("Na última queda só a conexão caiu, a energia continuou: suspeite do cabo.", "In the last drop only the connection went down, power stayed on: suspect the cable."),
                 None => "",
             };
             let lvl = if d24 >= 3 { 2 } else { 1 };
-            let vezes = if d24 == 1 { "1 vez".to_string() } else { format!("{d24} vezes") };
-            return (lvl, format!("Instável: o dock caiu {vezes} nas últimas 24\u{A0}h"), cause.into());
+            let vezes = if d24 == 1 { crate::i18n::t("1 vez", "once").to_string() } else { tf!("{d24} vezes", "{d24} times") };
+            return (lvl, tf!("Instável: o dock caiu {vezes} nas últimas 24\u{A0}h", "Unstable: the dock dropped {vezes} in the last 24\u{A0}h"), cause.into());
         }
         let sub = match last {
-            Some(i) => format!("Sem quedas há {}.", fmt_dur(now - i.start)),
-            None => "Nenhuma queda registrada.".into(),
+            Some(i) => tf!("Sem quedas há {}.", "No drops for {}.", fmt_dur(now - i.start)),
+            None => crate::i18n::t("Nenhuma queda registrada.", "No drops recorded.").into(),
         };
-        (0, "Tudo certo com o dock".into(), sub)
+        (0, crate::i18n::t("Tudo certo com o dock", "The dock is all good").into(), sub)
     }
 
     fn verdict_banner(&mut self, ui: &mut Ui, topo: &Topology) {
@@ -2508,8 +2511,8 @@ impl App {
                 ui.set_width(ui.available_width());
                 // o link é medido: o bloco de texto fica com o resto da largura; se sobrar pouco
                 // (< 300 pt), o link desce para baixo do texto em vez de quebrar letra por letra
-                let link = "Ver o que aconteceu ›";
-                let bw = if ackable { ui.painter().layout_no_wrap("✔ Ciente".into(), FontId::proportional(14.0), col).size().x + 2.0 * ui.spacing().button_padding.x + 12.0 } else { 0.0 };
+                let link = crate::i18n::t("Ver o que aconteceu ›", "See what happened ›");
+                let bw = if ackable { ui.painter().layout_no_wrap(crate::i18n::t("✔ Ciente", "✔ Got it").into(), FontId::proportional(14.0), col).size().x + 2.0 * ui.spacing().button_padding.x + 12.0 } else { 0.0 };
                 let lw = ui.painter().layout_no_wrap(link.into(), FontId::proportional(14.0), col).size().x + bw;
                 let full = ui.available_width();
                 let iw = 36.0 + 2.0 * ui.spacing().item_spacing.x; // ícone (30) + respiro (6) + 2 espaçamentos
@@ -2569,10 +2572,10 @@ impl App {
         let now = now_ms();
         let d24 = self.incidents.iter().filter(|i| i.is_drop && now - i.start <= 86_400_000).count();
         let (txt, col, pulse) = match (&topo.dock_router, lvl) {
-            (None, _) if topo.read_ms == 0 => ("Procurando o dock…".to_string(), pal::dim(), false),
-            (None, _) => ("✖ Dock desconectado".to_string(), pal::red(), true),
-            (Some(n), 0) => (format!("✔ Dock conectado · {}", n.last_arrival.map(|a| fmt_dur(now - a)).unwrap_or_default()), pal::green(), false),
-            (Some(_), l) => (format!("▲ Instável · {d24} queda{} em 24\u{A0}h", if d24 == 1 { "" } else { "s" }), if l >= 2 { pal::red() } else { pal::amber() }, false),
+            (None, _) if topo.read_ms == 0 => (crate::i18n::t("Procurando o dock…", "Looking for the dock…").to_string(), pal::dim(), false),
+            (None, _) => (crate::i18n::t("✖ Dock desconectado", "✖ Dock disconnected").to_string(), pal::red(), true),
+            (Some(n), 0) => (tf!("✔ Dock conectado · {}", "✔ Dock connected · {}", n.last_arrival.map(|a| fmt_dur(now - a)).unwrap_or_default()), pal::green(), false),
+            (Some(_), l) => (tf!("▲ Instável · {d24} queda{} em 24\u{A0}h", "▲ Unstable · {d24} drop{} in 24\u{A0}h", if d24 == 1 { "" } else { "s" }), if l >= 2 { pal::red() } else { pal::amber() }, false),
         };
         // compacto: só o ícone e o número ("▲ 3"); o texto inteiro vai para a dica
         let short = match (&topo.dock_router, lvl) {
@@ -2644,12 +2647,12 @@ impl App {
                 let pd_col = if online { pal::green() } else { pal::amber() };
                 let heat = heat(temp, pal::temp());
                 let gs: [(&str, f32, f32, &str, &str, Color32, &str, Tab); 6] = [
-                    ("⚡", gbps, 40.0, "Gb/s", "Conexão", link_col, "Velocidade do enlace TB (chaves USB4\u{A0}20 e 21)", Tab::Enlace),
-                    ("⇅", up * 8.0, 22.4, "Gb/s", "Banda", if up >= 2.4 { pal::green() } else { pal::amber() }, "Banda notebook → placa (o sentido que pesa em jogo: texturas e comandos descem por ele), medida no último teste, em Gb/s como a conexão. Esperado com 40\u{A0}Gb/s: ≈ 20–22\u{A0}Gb/s", Tab::Fluxo),
-                    ("🔌", pct, 100.0, "%", if online { "Carregando" } else { "Bateria" }, pd_col, "Bateria do note; verde = recebendo energia PD do dock", Tab::Enlace),
-                    ("💥", drops24, 10.0, "24\u{A0}h", "Quedas", if drops24 >= 3.0 { pal::red() } else if drops24 > 0.0 { pal::amber() } else { pal::green() }, "Quedas do dock/GPU nas últimas 24\u{A0}h", Tab::Historico),
-                    ("🌡", temp, 100.0, "°C", "Temperatura", heat, "Temperatura da placa", Tab::Fluxo),
-                    ("⇄", last.copy, 100.0, "%", "Tráfego", pal::data(), "Motor Copy da GPU: proxy do tráfego no túnel", Tab::Fluxo),
+                    ("⚡", gbps, 40.0, "Gb/s", t("Conexão", "Link"), link_col, t("Velocidade do enlace TB (chaves USB4\u{A0}20 e 21)", "Thunderbolt link speed (USB4 keys\u{A0}20 and 21)"), Tab::Enlace),
+                    ("⇅", up * 8.0, 22.4, "Gb/s", t("Banda", "Bandwidth"), if up >= 2.4 { pal::green() } else { pal::amber() }, t("Banda notebook → placa (o sentido que pesa em jogo: texturas e comandos descem por ele), medida no último teste, em Gb/s como a conexão. Esperado com 40\u{A0}Gb/s: ≈ 20–22\u{A0}Gb/s", "Laptop → GPU bandwidth (the direction that matters in games: textures and commands travel down it), measured in the last test, in Gb/s like the link. Expected at 40\u{A0}Gb/s: ≈ 20–22\u{A0}Gb/s"), Tab::Fluxo),
+                    ("🔌", pct, 100.0, "%", if online { t("Carregando", "Charging") } else { t("Bateria", "Battery") }, pd_col, t("Bateria do note; verde = recebendo energia PD do dock", "Laptop battery; green = receiving PD power from the dock"), Tab::Enlace),
+                    ("💥", drops24, 10.0, "24\u{A0}h", t("Quedas", "Drops"), if drops24 >= 3.0 { pal::red() } else if drops24 > 0.0 { pal::amber() } else { pal::green() }, t("Quedas do dock/GPU nas últimas 24\u{A0}h", "Dock/GPU drops in the last 24\u{A0}h"), Tab::Historico),
+                    ("🌡", temp, 100.0, "°C", t("Temperatura", "Temperature"), heat, t("Temperatura da placa", "GPU temperature"), Tab::Fluxo),
+                    ("⇄", last.copy, 100.0, "%", t("Tráfego", "Traffic"), pal::data(), t("Motor Copy da GPU: proxy do tráfego no túnel", "GPU Copy engine: a proxy for tunnel traffic"), Tab::Fluxo),
                 ];
                 let labels: Vec<(&str, &str)> = gs.iter().map(|x| (x.0, x.4)).collect();
                 gauge_grid(ui, &labels, |ui, i, w| {
@@ -2665,67 +2668,79 @@ impl App {
     fn page_options(&mut self, ui: &mut Ui, ctx: &egui::Context, th: Th) {
         let mut cfg = crate::config::get();
         let before = cfg;
-        card(ui, "🎨  Tema", pal::cyan(), |ui| {
+        card(ui, t("🎨  Tema", "🎨  Theme"), pal::cyan(), |ui| {
             ui.horizontal_wrapped(|ui| {
                 let auto_name = match self.vendor {
-                    Some(v) => format!("🔍 Automático · {}", v.name()),
-                    None => "🔍 Automático (pela placa)".into(),
+                    Some(v) => tf!("🔍 Automático · {}", "🔍 Automatic · {}", v.name()),
+                    None => t("🔍 Automático (pela placa)", "🔍 Automatic (by GPU)").into(),
                 };
-                for (val, name, preview) in [(0u8, auto_name, self.vendor.unwrap_or(Th::Dark)), (1, "☀ Claro".into(), Th::Light), (2, "🌙 Escuro".into(), Th::Dark)] {
+                for (val, name, preview) in [(0u8, auto_name, self.vendor.unwrap_or(Th::Dark)), (1, t("☀ Claro", "☀ Light").into(), Th::Light), (2, t("🌙 Escuro", "🌙 Dark").into(), Th::Dark)] {
                     if theme_card(ui, &name, preview, cfg.theme == val).clicked() {
                         cfg.theme = val;
                     }
                 }
             });
             ui.add_space(4.0);
-            ui.label(egui::RichText::new("O automático detecta a GPU do dock (AMD, NVIDIA ou Intel) e aplica a paleta do fabricante. AMD usa abas no topo; NVIDIA e Intel, menu à esquerda.").color(pal::dim()).size(13.5));
+            ui.label(egui::RichText::new(t("O automático detecta a GPU do dock (AMD, NVIDIA ou Intel) e aplica a paleta do fabricante. AMD usa abas no topo; NVIDIA e Intel, menu à esquerda.", "Automatic detects the dock's GPU (AMD, NVIDIA or Intel) and applies the vendor's palette. AMD uses tabs at the top; NVIDIA and Intel, a menu on the left.")).color(pal::dim()).size(13.5));
         });
         ui.add_space(pal::gap());
-        card(ui, "🖥  Tela", pal::cyan(), |ui| {
+        card(ui, t("🌐  Idioma", "🌐  Language"), pal::cyan(), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                // os nomes das línguas ficam sempre na própria língua
+                for (val, name) in [(0u8, t("Automático (idioma do Windows)", "Automatic (Windows language)")), (1, "Português"), (2, "English")] {
+                    if ui.selectable_value(&mut cfg.lang, val, name).clicked() {
+                        // troca na hora; o config::set no fim da função grava (cfg != before)
+                        crate::i18n::apply(cfg.lang);
+                    }
+                }
+            });
+        });
+        ui.add_space(pal::gap());
+        card(ui, t("🖥  Tela", "🖥  Display"), pal::cyan(), |ui| {
             let ppp = ctx.native_pixels_per_point().unwrap_or(1.0);
             // informação, não controle: texto apagado sem moldura
-            ui.add(egui::Label::new(egui::RichText::new(format!("Escala do Windows {:.0}%\u{A0}·\u{A0}{:.0}\u{A0}DPI   ·   Tema ativo: {}", ppp * 100.0, ppp * 96.0, th.name())).color(pal::dim()).size(13.5)).wrap());
+            ui.add(egui::Label::new(egui::RichText::new(tf!("Escala do Windows {:.0}%\u{A0}·\u{A0}{:.0}\u{A0}DPI   ·   Tema ativo: {}", "Windows scale {:.0}%\u{A0}·\u{A0}{:.0}\u{A0}DPI   ·   Active theme: {}", ppp * 100.0, ppp * 96.0, th.name())).color(pal::dim()).size(13.5)).wrap());
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.label("🔎 Tamanho da interface");
+                ui.label(t("🔎 Tamanho da interface", "🔎 Interface size"));
                 // trilho visível no escuro (card3) e a parte preenchida até o pegador
                 ui.visuals_mut().widgets.inactive.bg_fill = rail_col();
                 ui.add(egui::Slider::new(&mut cfg.zoom, 0.8..=1.6).step_by(0.05).trailing_fill(true).custom_formatter(|v, _| format!("{:.0}%", v * 100.0)));
-                if ui.small_button("↺ padrão").clicked() {
+                if ui.small_button(t("↺ padrão", "↺ default")).clicked() {
                     cfg.zoom = 1.0;
                 }
             });
         });
         ui.add_space(pal::gap());
-        card(ui, "🔔  Comportamento", pal::cyan(), |ui| {
+        card(ui, t("🔔  Comportamento", "🔔  Behavior"), pal::cyan(), |ui| {
             // caixas desmarcadas com borda visível no escuro
             check_style(ui);
             let mut auto = crate::config::autostart_enabled();
-            if ui.checkbox(&mut auto, "🚀 Iniciar com o Windows (direto na bandeja)").changed() {
+            if ui.checkbox(&mut auto, t("🚀 Iniciar com o Windows (direto na bandeja)", "🚀 Start with Windows (straight to the tray)")).changed() {
                 if let Err(e) = crate::config::set_autostart(auto) {
-                    self.flash = Some(format!("Não consegui alterar a inicialização: {e}"));
+                    self.flash = Some(tf!("Não consegui alterar a inicialização: {e}", "Couldn't change the startup setting: {e}"));
                 }
             }
-            ui.checkbox(&mut cfg.notify, "🔔 Avisar na bandeja quando o dock cair");
-            ui.checkbox(&mut cfg.eco, "🍃 Animação econômica (5 qps)");
+            ui.checkbox(&mut cfg.notify, t("🔔 Avisar na bandeja quando o dock cair", "🔔 Notify in the tray when the dock drops"));
+            ui.checkbox(&mut cfg.eco, t("🍃 Animação econômica (5 qps)", "🍃 Eco animation (5 fps)"));
         });
         ui.add_space(pal::gap());
-        card(ui, "🧰  Ferramentas", pal::cyan(), |ui| {
+        card(ui, t("🧰  Ferramentas", "🧰  Tools"), pal::cyan(), |ui| {
             ui.horizontal_wrapped(|ui| {
-                if ui.button("📏 Teste de banda").clicked() {
+                if ui.button(t("📏 Teste de banda", "📏 Bandwidth test")).clicked() {
                     self.start_bench(ctx);
                     self.tab = Tab::Fluxo;
                 }
-                if ui.button("📄 Exportar histórico (CSV)").clicked() {
+                if ui.button(t("📄 Exportar histórico (CSV)", "📄 Export history (CSV)")).clicked() {
                     match crate::config::export_csv() {
                         Ok(p) => {
                             crate::config::open_folder(p.parent().unwrap_or(&p));
-                            self.flash = Some(format!("Exportado: {}", p.display()));
+                            self.flash = Some(tf!("Exportado: {}", "Exported: {}", p.display()));
                         }
-                        Err(e) => self.flash = Some(format!("Falha ao exportar: {e}")),
+                        Err(e) => self.flash = Some(tf!("Falha ao exportar: {e}", "Export failed: {e}")),
                     }
                 }
-                if ui.button("📂 Pasta de dados").clicked() {
+                if ui.button(t("📂 Pasta de dados", "📂 Data folder")).clicked() {
                     crate::config::open_folder(&crate::util::data_dir());
                 }
             });
@@ -2841,7 +2856,7 @@ fn brand(ui: &mut Ui, v: Th, cache: &mut Option<(Th, bool, u32, egui::TextureHan
         let r = Rect::from_center_size(rect.center(), size);
         ui.painter().image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     }
-    resp.on_hover_text(format!("GPU {} detectada no dock", v.name()));
+    resp.on_hover_text(tf!("GPU {} detectada no dock", "{} GPU detected on the dock", v.name()));
 }
 
 fn logo(ui: &mut Ui, ok: bool) {
@@ -3035,20 +3050,22 @@ fn card_i<R>(ui: &mut Ui, title: &str, accent: Color32, sel: &mut Option<Sel>, t
     card_shell(ui, title, accent, Some((sel, topic, tip)), |ui, sel| add(ui, sel.unwrap()))
 }
 
-const HIDDEN: [(&str, &str, &str); 6] = [
-    ("🔌", "Fonte ATX", "Tensões, temperatura e potência: a fonte não tem barramento de dados (PMBus) ligado ao dock."),
-    ("🌀", "Ventoinha", "Sem sensor de RPM ligado a um controlador visível pelo host."),
-    ("🌡", "Temp. JHL7440", "O controlador Titan Ridge não publica sensor térmico ao Windows."),
-    ("⚡", "Contrato PD", "Tensão/corrente negociadas ficam no controlador PD do dock; o Windows só vê energia externa sim/não e a taxa de carga."),
-    ("📶", "Tráfego real", "Nenhum contador de bytes por adaptador USB4/TB. O painel usa o motor Copy da GPU como proxy."),
-    ("📉", "Erros do enlace", "Contadores de erro/retreino das faixas não são publicados. Só aparecem quedas (PnP) e erros PCIe (WHEA/AER)."),
-];
+fn hidden() -> [(&'static str, &'static str, &'static str); 6] {
+    [
+        ("🔌", t("Fonte ATX", "ATX PSU"), t("Tensões, temperatura e potência: a fonte não tem barramento de dados (PMBus) ligado ao dock.", "Voltages, temperature and power: the PSU has no data bus (PMBus) connected to the dock.")),
+        ("🌀", t("Ventoinha", "Fan"), t("Sem sensor de RPM ligado a um controlador visível pelo host.", "No RPM sensor wired to a controller the host can see.")),
+        ("🌡", t("Temp. JHL7440", "JHL7440 temp."), t("O controlador Titan Ridge não publica sensor térmico ao Windows.", "The Titan Ridge controller doesn't expose a thermal sensor to Windows.")),
+        ("⚡", t("Contrato PD", "PD contract"), t("Tensão/corrente negociadas ficam no controlador PD do dock; o Windows só vê energia externa sim/não e a taxa de carga.", "Negotiated voltage/current stay in the dock's PD controller; Windows only sees external power yes/no and the charge rate.")),
+        ("📶", t("Tráfego real", "Real traffic"), t("Nenhum contador de bytes por adaptador USB4/TB. O painel usa o motor Copy da GPU como proxy.", "No per-adapter byte counter for USB4/TB. The panel uses the GPU's Copy engine as a proxy.")),
+        ("📉", t("Erros do enlace", "Link errors"), t("Contadores de erro/retreino das faixas não são publicados. Só aparecem quedas (PnP) e erros PCIe (WHEA/AER).", "Lane error/retrain counters aren't published. Only drops (PnP) and PCIe errors (WHEA/AER) show up.")),
+    ]
+}
 
 fn hidden_strip(ui: &mut Ui, sel: &mut Option<Sel>) {
     ui.add_space(4.0);
     ui.horizontal_wrapped(|ui| {
-        ui.label(egui::RichText::new("Não dá para medir:").color(pal::dim()).size(13.0)).on_hover_text("Coisas do dock que o Windows não enxerga. Passe o mouse em cada ícone.");
-        for (icon, name, why) in HIDDEN {
+        ui.label(egui::RichText::new(t("Não dá para medir:", "Can't be measured:")).color(pal::dim()).size(13.0)).on_hover_text(t("Coisas do dock que o Windows não enxerga. Passe o mouse em cada ícone.", "Dock things Windows can't see. Hover each icon."));
+        for (icon, name, why) in hidden() {
             // medido antes de alocar, para a linha quebrar entre os ícones em vez de vazar
             let g = ui.painter().layout_no_wrap(icon.to_string(), FontId::proportional(14.0), pal::faint());
             let (r, _) = ui.allocate_exact_size(g.size() + vec2(18.0, 6.0), Sense::hover());
@@ -3075,7 +3092,7 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64, extra: f32
     let (rect, resp) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let p = ui.painter_at(rect);
     // colunas medidas: rótulo "Canal N" à esquerda, valor "20/20 Gb/s" à direita, pista no meio
-    let lw = p.layout_no_wrap("Canal 8".into(), FontId::proportional(12.5), pal::dim()).size().x;
+    let lw = p.layout_no_wrap(crate::i18n::t("Canal 8", "Lane 8").into(), FontId::proportional(12.5), pal::dim()).size().x;
     let vw = p.layout_no_wrap("20/20\u{A0}Gb/s".into(), FontId::proportional(13.0), pal::dim()).size().x;
     let x0 = rect.left() + lw + 10.0;
     let x1 = rect.right() - vw - 10.0;
@@ -3083,7 +3100,7 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64, extra: f32
         let y = rect.top() + 4.0 + l as f32 * pitch;
         let track = Rect::from_min_max(pos2(x0, y), pos2(x1, y + th));
         p.rect_filled(track, CornerRadius::same(5), pal::well());
-        p.text(pos2(rect.left(), y + th / 2.0), egui::Align2::LEFT_CENTER, format!("Canal {}", l + 1), FontId::proportional(12.5), pal::dim());
+        p.text(pos2(rect.left(), y + th / 2.0), egui::Align2::LEFT_CENTER, tf!("Canal {}", "Lane {}", l + 1), FontId::proportional(12.5), pal::dim());
         if let Some(v) = per_lane {
             let frac = (v / 20.0).clamp(0.0, 1.0);
             let fill = Rect::from_min_max(track.min, pos2(x0 + (x1 - x0) * frac, track.bottom()));
@@ -3098,7 +3115,7 @@ fn lanes_view(ui: &mut Ui, lanes: u32, per_lane: Option<f32>, t: f64, extra: f32
     let total = per_lane.map(|v| v * lanes as f32);
     if let Some(t) = total {
         // linha própria, alinhada à direita sob os valores: nunca sai cortado
-        p.text(pos2(rect.right(), rect.bottom() - 2.0), egui::Align2::RIGHT_BOTTOM, format!("Total {t:.0} de 40\u{A0}Gb/s"), FontId::proportional(12.5), pal::dim());
+        p.text(pos2(rect.right(), rect.bottom() - 2.0), egui::Align2::RIGHT_BOTTOM, tf!("Total {t:.0} de 40\u{A0}Gb/s", "Total {t:.0} of 40\u{A0}Gb/s"), FontId::proportional(12.5), pal::dim());
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -3160,9 +3177,9 @@ fn drops_chart(ui: &mut Ui, incidents: &[&Incident], h: f32) -> egui::Response {
             p.text(pos2(x + bw / 2.0, base - h1 - h2 - 1.0), egui::Align2::CENTER_BOTTOM, format!("{}", link + pd), FontId::proportional(11.5), pal::dim());
         }
     }
-    p.text(rect.left_bottom(), egui::Align2::LEFT_BOTTOM, "14\u{A0}dias atrás", FontId::proportional(9.5), pal::faint());
-    p.text(rect.right_bottom(), egui::Align2::RIGHT_BOTTOM, "hoje", FontId::proportional(9.5), pal::faint());
-    resp.on_hover_text("Quedas por dia. Âmbar: o PD caiu junto (o dock inteiro apagou). Vermelho: só o enlace caiu.")
+    p.text(rect.left_bottom(), egui::Align2::LEFT_BOTTOM, t("14\u{A0}dias atrás", "14\u{A0}days ago"), FontId::proportional(9.5), pal::faint());
+    p.text(rect.right_bottom(), egui::Align2::RIGHT_BOTTOM, t("hoje", "today"), FontId::proportional(9.5), pal::faint());
+    resp.on_hover_text(t("Quedas por dia. Âmbar: o PD caiu junto (o dock inteiro apagou). Vermelho: só o enlace caiu.", "Drops per day. Amber: PD dropped too (the whole dock went dark). Red: only the link dropped."))
 }
 
 /// Medidor circular (arco de 270 graus) com valor animado.
@@ -3262,24 +3279,41 @@ fn psu_state(l: &crate::psu::Load, watts: u32) -> PsuState {
         Verdict::Risk => PsuState {
             col: pal::amber(),
             icon: "⚠",
-            pill: "Risco (estimado)",
+            pill: t("Risco (estimado)", "Risk (estimated)"),
             msg: if l.spike > w {
-                format!("Risco (estimado): os picos rápidos da placa (≈ {:.0}\u{A0}W) passam dos {watts}\u{A0}W da fonte. O dock pode desligar inteiro, e o notebook para de carregar junto.", l.spike)
+                tf!(
+                    "Risco (estimado): os picos rápidos da placa (≈ {:.0}\u{A0}W) passam dos {watts}\u{A0}W da fonte. O dock pode desligar inteiro, e o notebook para de carregar junto.",
+                    "Risk (estimated): the card's quick spikes (≈ {:.0}\u{A0}W) go past the PSU's {watts}\u{A0}W. The whole dock may shut off, and the laptop stops charging with it.",
+                    l.spike
+                )
             } else {
-                format!("Risco (estimado): no uso pesado a carga (≈ {:.0}\u{A0}W) passa dos {watts}\u{A0}W da fonte.", l.worst)
+                tf!(
+                    "Risco (estimado): no uso pesado a carga (≈ {:.0}\u{A0}W) passa dos {watts}\u{A0}W da fonte.",
+                    "Risk (estimated): under heavy use the load (≈ {:.0}\u{A0}W) goes past the PSU's {watts}\u{A0}W.",
+                    l.worst
+                )
             },
         },
         Verdict::Tight => PsuState {
             col: pal::amber(),
             icon: "▲",
-            pill: "Pouca folga",
-            msg: format!("Pouca folga: no uso pesado a fonte chega a ≈ {:.0}%. Funciona, mas com pouca margem.", l.worst / w * 100.0),
+            pill: t("Pouca folga", "Low headroom"),
+            msg: tf!(
+                "Pouca folga: no uso pesado a fonte chega a ≈ {:.0}%. Funciona, mas com pouca margem.",
+                "Low headroom: under heavy use the PSU reaches ≈ {:.0}%. It works, but with little margin.",
+                l.worst / w * 100.0
+            ),
         },
         Verdict::Ok => PsuState {
             col: pal::green(),
             icon: "✔",
-            pill: "Folga boa",
-            msg: format!("Folga boa: no uso pesado a fonte fica em ≈ {:.0}%, e os picos rápidos (≈ {:.0}\u{A0}W) cabem nela.", l.worst / w * 100.0, l.spike),
+            pill: t("Folga boa", "Good headroom"),
+            msg: tf!(
+                "Folga boa: no uso pesado a fonte fica em ≈ {:.0}%, e os picos rápidos (≈ {:.0}\u{A0}W) cabem nela.",
+                "Good headroom: under heavy use the PSU sits at ≈ {:.0}%, and the quick spikes (≈ {:.0}\u{A0}W) fit within it.",
+                l.worst / w * 100.0,
+                l.spike
+            ),
         },
     }
 }
@@ -3294,7 +3328,7 @@ fn load_col(f: f32) -> Color32 {
 fn num_field(ui: &mut Ui, key: &str, w: f32, v: f32, dec: usize, unit: &str, hint: &str) -> Option<f32> {
     let id = ui.id().with(key);
     let bid = id.with("buf");
-    let shown = if v > 0.0 { format!("{v:.dec$}").replace('.', ",") } else { String::new() };
+    let shown = if v > 0.0 { crate::i18n::dec_sep(format!("{v:.dec$}")) } else { String::new() };
     let mut buf = ui.data(|d| d.get_temp::<String>(bid)).unwrap_or(shown);
     let r = ui.add(
         egui::TextEdit::singleline(&mut buf)
@@ -3361,9 +3395,9 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
     let id = ui.id().with("psu-bar");
     // cabeçalho
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("Carga agora").size(12.5).color(pal::dim()));
+        ui.label(egui::RichText::new(t("Carga agora", "Load now")).size(12.5).color(pal::dim()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(egui::RichText::new(format!("≈ {:.0} de {:.0}\u{A0}W", l.now, w)).size(14.0).strong().color(pal::fg()));
+            ui.label(egui::RichText::new(tf!("≈ {:.0} de {:.0}\u{A0}W", "≈ {:.0} of {:.0}\u{A0}W", l.now, w)).size(14.0).strong().color(pal::fg()));
         });
     });
     let (area, _) = ui.allocate_exact_size(vec2(width, 16.0 + 24.0 + 22.0), Sense::hover());
@@ -3379,10 +3413,10 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
     }
     let sx = |v: f32| track.left() + (v / w).clamp(0.0, 1.0) * track.width();
     let segs = [
-        ("🎮 Placa", l.gpu, pal::data(), true),
-        ("💻 Notebook pelo PD", l.pd, pal::violet(), false),
+        (t("🎮 Placa", "🎮 GPU"), l.gpu, pal::data(), true),
+        (t("💻 Notebook pelo PD", "💻 Laptop via PD"), l.pd, pal::violet(), false),
         ("▣ Dock", l.dock, pal::dim(), false),
-        ("🖴 Portas", l.usb, pal::faint(), false),
+        (t("🖴 Portas", "🖴 Ports"), l.usb, pal::faint(), false),
     ];
     let mut acc = 0.0;
     let mut end_x = track.left();
@@ -3406,7 +3440,7 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
             hatch(p, r);
         }
         end_x = x1;
-        let tip = format!("{name}: {}{v:.0}\u{A0}W ({})", if *measured { "" } else { "≈ " }, if *measured { "medido" } else { "estimado" });
+        let tip = format!("{name}: {}{v:.0}\u{A0}W ({})", if *measured { "" } else { "≈ " }, if *measured { t("medido", "measured") } else { t("estimado", "estimated") });
         ui.interact(r, id.with(("seg", k)), Sense::hover()).on_hover_text(tip);
     }
     let p = ui.painter();
@@ -3419,7 +3453,7 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
     // folga no espaço livre (desviando do tracejado do uso pesado)
     let free = track.right() - end_x;
     if free >= 90.0 {
-        let txt = format!("folga {:.0}\u{A0}W", (w - l.now).max(0.0));
+        let txt = tf!("folga {:.0}\u{A0}W", "{:.0}\u{A0}W free", (w - l.now).max(0.0));
         let (a, b) = if wx > end_x + 1.0 && wx < track.right() - 1.0 {
             if wx - end_x >= track.right() - wx { (end_x, wx) } else { (wx, track.right()) }
         } else {
@@ -3435,7 +3469,7 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
     let kx = sx(l.spike).min(track.right() - 6.0);
     let kc = if over { pal::amber() } else { pal::dim() };
     p.text(pos2(kx, track.top() - 1.0), egui::Align2::CENTER_BOTTOM, "▼", FontId::proportional(12.0), kc);
-    let klabel = if over { "⚠ picos rápidos passam da fonte".to_string() } else { format!("picos rápidos ≈ {:.0}\u{A0}W", l.spike) };
+    let klabel = if over { t("⚠ picos rápidos passam da fonte", "⚠ quick spikes exceed the PSU").to_string() } else { tf!("picos rápidos ≈ {:.0}\u{A0}W", "quick spikes ≈ {:.0}\u{A0}W", l.spike) };
     p.text(pos2(kx - 10.0, track.top() - 2.0), egui::Align2::RIGHT_BOTTOM, klabel, FontId::proportional(11.5), kc);
     if over {
         p.line_segment([pos2(track.right() - 1.0, track.top()), pos2(track.right() - 1.0, track.bottom())], Stroke::new(2.0, pal::amber()));
@@ -3445,7 +3479,7 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
     let f11 = FontId::proportional(11.0);
     let r0 = p.text(pos2(track.left(), ry), egui::Align2::LEFT_TOP, "0", f11.clone(), pal::faint());
     let r1 = p.text(pos2(track.right(), ry), egui::Align2::RIGHT_TOP, format!("{:.0}\u{A0}W", w), f11.clone(), pal::faint());
-    let g = p.layout_no_wrap(format!("uso pesado ≈ {:.0}\u{A0}W", l.worst), FontId::proportional(11.5), wc);
+    let g = p.layout_no_wrap(tf!("uso pesado ≈ {:.0}\u{A0}W", "heavy use ≈ {:.0}\u{A0}W", l.worst), FontId::proportional(11.5), wc);
     let gx = (wx - g.size().x / 2.0).clamp(r0.right() + 8.0, (r1.left() - 8.0 - g.size().x).max(r0.right() + 8.0));
     p.galley(pos2(gx, ry), g, wc);
     // legenda
@@ -3459,7 +3493,7 @@ fn load_bar(ui: &mut Ui, l: &crate::psu::Load, w: f32, width: f32) {
                 continue;
             }
             // item inteiro como um widget só, para a quebra de linha não separar o quadradinho do texto
-            let short = if k == 1 { "💻 Notebook" } else { name };
+            let short = if k == 1 { t("💻 Notebook", "💻 Laptop") } else { name };
             let g = ui.painter().layout_no_wrap(format!("{short} {}{v:.0}\u{A0}W", if *measured { "" } else { "≈ " }), FontId::proportional(13.0), pal::dim());
             let (r, _) = ui.allocate_exact_size(vec2(16.0 + g.size().x, g.size().y.max(18.0)), Sense::hover());
             let sq = Rect::from_center_size(pos2(r.left() + 5.0, r.center().y), vec2(10.0, 10.0));
@@ -3482,7 +3516,7 @@ fn empty_psu(ui: &mut Ui, width: f32) {
     let pts = [e.left_top(), e.right_top(), e.right_bottom(), e.left_bottom(), e.left_top()];
     p.add(egui::Shape::dashed_line(&pts, Stroke::new(1.0, pal::grid()), 6.0, 4.0));
     p.text(pos2(r.left() + 34.0, r.center().y), egui::Align2::CENTER_CENTER, "🔌", FontId::proportional(26.0), pal::dim());
-    let g = p.layout("Informe o modelo ou a potência para ver a carga ao vivo.".into(), FontId::proportional(14.5), pal::dim(), (r.width() - 80.0).max(60.0));
+    let g = p.layout(t("Informe o modelo ou a potência para ver a carga ao vivo.", "Enter the model or wattage to see the live load.").into(), FontId::proportional(14.5), pal::dim(), (r.width() - 80.0).max(60.0));
     p.galley(pos2(r.left() + 62.0, r.center().y - g.size().y / 2.0), g, pal::dim());
 }
 
@@ -3530,10 +3564,11 @@ fn chip(ui: &mut Ui, on: bool, text: &str, color: Color32) -> bool {
 
 impl App {
     fn card_link(&mut self, ui: &mut Ui, topo: &Topology, bench: Option<&BenchResult>) {
+        use crate::i18n::t as tr;
         let mut sel = self.sel;
-        card_i(ui, "⚡  Enlace Thunderbolt", pal::bolt(), &mut sel, Topic::Link, "Como a velocidade foi decodificada", |ui, sel| {
+        card_i(ui, tr("⚡  Enlace Thunderbolt", "⚡  Thunderbolt link"), pal::bolt(), &mut sel, Topic::Link, tr("Como a velocidade foi decodificada", "How the speed was decoded"), |ui, sel| {
             let Some(dr) = &topo.dock_router else {
-                ui.label(egui::RichText::new("⛓ enlace desconectado").color(pal::red()).size(16.0));
+                ui.label(egui::RichText::new(tr("⛓ enlace desconectado", "⛓ link disconnected")).color(pal::red()).size(16.0));
                 return;
             };
             let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
@@ -3547,27 +3582,27 @@ impl App {
             let t = ui.input(|i| i.time);
             // sobra do cartão (linha eq_cols): faixas mais espaçadas, respiro e blocos mais altos
             let lx = flex(0.5, 14.0 * lanes.max(1) as f32);
-            if lanes_view(ui, lanes, per_lane, t, lx).on_hover_text("Chaves USB4\u{A0}20 (velocidade) e 21 (faixas). Clique para ver a decodificação.").clicked() {
+            if lanes_view(ui, lanes, per_lane, t, lx).on_hover_text(tr("Chaves USB4\u{A0}20 (velocidade) e 21 (faixas). Clique para ver a decodificação.", "USB4 keys\u{A0}20 (speed) and 21 (lanes). Click to see the decoding.")).clicked() {
                 *sel = Some(Sel::Info(Topic::Link));
             }
             if speed == Some(8) {
                 let low = bench.map(|b| b.h2d_gbs < 2.2).unwrap_or(false);
-                let txt = if low { "ℹ O cabo está na metade da velocidade" } else { "ℹ O cabo parece estar na metade da velocidade" };
+                let txt = if low { tr("ℹ O cabo está na metade da velocidade", "ℹ The cable is running at half speed") } else { tr("ℹ O cabo parece estar na metade da velocidade", "ℹ The cable seems to be at half speed") };
                 if ui.add(egui::Label::new(egui::RichText::new(txt).color(pal::amber()).size(14.0)).sense(Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                     *sel = Some(Sel::Info(Topic::Link));
                 }
             }
             ui.add_space(4.0 + flex(0.4, 16.0));
             let (st, stc) = match dr.dstate {
-                Some(1) => ("Ativo", pal::green()),
-                Some(4) => ("☾ Em repouso", pal::dim()),
+                Some(1) => (tr("Ativo", "Active"), pal::green()),
+                Some(4) => (tr("☾ Em repouso", "☾ Idle"), pal::dim()),
                 _ => ("?", pal::dim()),
             };
-            let mut tiles = vec![(ti("💾", dr.firmware.clone().unwrap_or("?".into()), "", "Firmware", pal::fg()).tip("Firmware do roteador Titan Ridge do dock"), Sel::Dock)];
+            let mut tiles = vec![(ti("💾", dr.firmware.clone().unwrap_or("?".into()), "", "Firmware", pal::fg()).tip(tr("Firmware do roteador Titan Ridge do dock", "Firmware of the dock's Titan Ridge router")), Sel::Dock)];
             if let Some(ts) = dr.last_arrival {
-                tiles.push((ti("🕒", fmt_dur(now_ms() - ts), "", "Conectado há", pal::green()).tip(format!("desde {}", fmt_local(ts, false))), Sel::Info(Topic::Stability)));
+                tiles.push((ti("🕒", fmt_dur(now_ms() - ts), "", tr("Conectado há", "Connected for"), pal::green()).tip(tf!("desde {}", "since {}", fmt_local(ts, false))), Sel::Info(Topic::Stability)));
             }
-            tiles.push((ti("🔀", st, "", "Estado", stc).tip("Estado de energia do roteador do dock (D0 ativo, D3 economia — o USB4 dorme quando ocioso)"), Sel::Dock));
+            tiles.push((ti("🔀", st, "", tr("Estado", "State"), stc).tip(tr("Estado de energia do roteador do dock (D0 ativo, D3 economia — o USB4 dorme quando ocioso)", "Power state of the dock's router (D0 active, D3 saving — USB4 sleeps when idle)")), Sel::Dock));
             let (items, dest): (Vec<TileItem>, Vec<Sel>) = tiles.into_iter().unzip();
             if let Some(i) = tile_row_x(ui, "enlace", &items, flex(1.0, 28.0)) {
                 *sel = Some(dest[i]);
@@ -3577,8 +3612,9 @@ impl App {
     }
 
     fn card_power(&mut self, ui: &mut Ui, samples: &[Sample]) {
+        use crate::i18n::t as tr;
         let mut sel = self.sel;
-        card_i(ui, "🔌  Energia PD", pal::bolt(), &mut sel, Topic::Power, "O que dá e o que não dá para saber do PD", |ui, sel| {
+        card_i(ui, tr("🔌  Energia PD", "🔌  PD power"), pal::bolt(), &mut sel, Topic::Power, tr("O que dá e o que não dá para saber do PD", "What you can and can't know about PD"), |ui, sel| {
             let Some(pw) = samples.last().and_then(|s| s.power) else {
                 ui.spinner();
                 return;
@@ -3589,26 +3625,27 @@ impl App {
                 battery_icon(ui, pct, pw.online, pw.charging, t);
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new(format!("{pct:.0}%")).size(22.0).strong().color(pal::fg()));
-                    ui.label(egui::RichText::new(if pw.online { "🔌 PD" } else { "🔋 bateria" }).color(if pw.online { pal::green() } else { pal::amber() }).size(13.0));
+                    ui.label(egui::RichText::new(if pw.online { "🔌 PD" } else { tr("🔋 bateria", "🔋 battery") }).color(if pw.online { pal::green() } else { pal::amber() }).size(13.0));
                 });
             });
             let w = if pw.charge_mw > 0 { pw.charge_mw as f64 / 1000.0 } else { -(pw.discharge_mw as f64) / 1000.0 };
-            let wtxt = if w.abs() < 0.05 { "0".into() } else { format!("{w:+.1}").replace('.', ",") };
+            let wtxt = if w.abs() < 0.05 { "0".into() } else { crate::i18n::dec_sep(format!("{w:+.1}")) };
             let items = [
-                ti("🔋", wtxt, "W", "Carga da bateria", if w >= 0.0 { pal::bolt() } else { pal::amber() }).tip("Taxa de carga (+) ou descarga (−) da bateria — WMI root\\wmi BatteryStatus"),
-                ti("〰", dec(pw.mv as f64 / 1000.0, 2), "V", "Tensão da bateria", pal::fg()).tip("Tensão da bateria (não é a tensão do PD)"),
-                ti("⚡", "85", "W", "Carregador oferece", pal::dim()).tip("Valor do DROM do dock (\"Module 2 PD 85W\"). O contrato negociado não é exposto."),
+                ti("🔋", wtxt, "W", tr("Carga da bateria", "Battery charge"), if w >= 0.0 { pal::bolt() } else { pal::amber() }).tip(tr("Taxa de carga (+) ou descarga (−) da bateria — WMI root\\wmi BatteryStatus", "Battery charge (+) or discharge (−) rate — WMI root\\wmi BatteryStatus")),
+                ti("〰", dec(pw.mv as f64 / 1000.0, 2), "V", tr("Tensão da bateria", "Battery voltage"), pal::fg()).tip(tr("Tensão da bateria (não é a tensão do PD)", "Battery voltage (not the PD voltage)")),
+                ti("⚡", "85", "W", tr("Carregador oferece", "Charger offers"), pal::dim()).tip(tr("Valor do DROM do dock (\"Module 2 PD 85W\"). O contrato negociado não é exposto.", "Value from the dock's DROM (\"Module 2 PD 85W\"). The negotiated contract is not exposed.")),
             ];
             if tile_row(ui, "energia", &items).is_some() {
                 *sel = Some(Sel::Info(Topic::Power));
             }
             let series: Vec<f32> = samples.iter().filter_map(|s| s.power).map(|p| (p.charge_mw - p.discharge_mw) as f32 / 1000.0).collect();
-            chart(ui, "Carga da bateria (W)", &[(pal::bolt(), "agora", series)], 10.0, " W", 64.0 + flex(1.0, 150.0));
+            chart(ui, tr("Carga da bateria (W)", "Battery charge (W)"), &[(pal::bolt(), tr("agora", "now"), series)], 10.0, " W", 64.0 + flex(1.0, 150.0));
         });
         self.sel = sel;
     }
 
     fn card_stability(&mut self, ui: &mut Ui, topo: &Topology) {
+        use crate::i18n::t as tr;
         let mut sel = self.sel;
         // faixa do cartão na cor do veredito: vermelho só quando o problema foi medido
         let accent = match self.verdict(topo).0 {
@@ -3617,14 +3654,14 @@ impl App {
             _ => pal::red(),
         };
         let incidents = &self.incidents;
-        card_i(ui, "🛡  Estabilidade do dock", accent, &mut sel, Topic::Stability, "Como as quedas são classificadas", |ui, sel| {
+        card_i(ui, tr("🛡  Estabilidade do dock", "🛡  Dock stability"), accent, &mut sel, Topic::Stability, tr("Como as quedas são classificadas", "How drops are classified"), |ui, sel| {
             let now = now_ms();
             let drops: Vec<&Incident> = incidents.iter().filter(|i| i.is_drop && i.events.iter().any(|e| e.kind.cat() == Cat::Dock || e.kind == Kind::GpuOff)).collect();
             let count = |ms: i64| drops.iter().filter(|i| now - i.start <= ms).count();
             let c24 = count(86_400_000);
-            let items: Vec<TileItem> = [("💥", c24, "24\u{A0}h", if c24 > 0 { pal::red() } else { pal::green() }), ("📅", count(7 * 86_400_000), "7\u{A0}dias", pal::fg()), ("🗓", count(30 * 86_400_000), "30\u{A0}dias", pal::fg())]
+            let items: Vec<TileItem> = [("💥", c24, "24\u{A0}h", if c24 > 0 { pal::red() } else { pal::green() }), ("📅", count(7 * 86_400_000), tr("7\u{A0}dias", "7\u{A0}days"), pal::fg()), ("🗓", count(30 * 86_400_000), tr("30\u{A0}dias", "30\u{A0}days"), pal::fg())]
                 .into_iter()
-                .map(|(icon, v, l, c)| ti(icon, v.to_string(), "", format!("quedas {l}"), c))
+                .map(|(icon, v, l, c)| ti(icon, v.to_string(), "", tf!("quedas {}", "drops {}", l), c))
                 .collect();
             if tile_row(ui, "quedas", &items).is_some() {
                 self_open_timeline(sel);
@@ -3636,11 +3673,11 @@ impl App {
             if !d30.is_empty() {
                 let pd = d30.iter().filter(|i| i.pd_lost).count();
                 ui.horizontal_wrapped(|ui| {
-                    if chip(ui, true, &format!("🔋 {pd}/{} com PD caindo junto", d30.len()), pal::amber()) {
+                    if chip(ui, true, &tf!("🔋 {}/{} com PD caindo junto", "🔋 {}/{} with PD dropping too", pd, d30.len()), pal::amber()) {
                         *sel = Some(Sel::Info(Topic::Stability));
                     }
                     if let Some(ts) = topo.dock_router.as_ref().and_then(|n| n.last_arrival) {
-                        let _ = chip(ui, true, &format!("🕒 sem cair há {}", fmt_dur(now - ts)), pal::green());
+                        let _ = chip(ui, true, &tf!("🕒 sem cair há {}", "🕒 no drops for {}", fmt_dur(now - ts)), pal::green());
                     }
                 });
             }
@@ -3649,32 +3686,33 @@ impl App {
     }
 
     fn card_flow(&mut self, ui: &mut Ui, samples: &[Sample], bench: &BenchState, ctx: &egui::Context) {
+        use crate::i18n::t as tr;
         let mut sel = self.sel;
         let mut run = false;
-        card_i(ui, "📶  Fluxo de dados no túnel", pal::cyan(), &mut sel, Topic::Flow, "Por que o motor Copy é o proxy do tráfego", |ui, sel| {
+        card_i(ui, tr("📶  Fluxo de dados no túnel", "📶  Data flow in the tunnel"), pal::cyan(), &mut sel, Topic::Flow, tr("Por que o motor Copy é o proxy do tráfego", "Why the Copy engine is the traffic proxy"), |ui, sel| {
             let last = samples.last().copied().unwrap_or_default();
             ui.horizontal(|ui| {
-                if gauge(ui, "⇄", last.copy, 100.0, "%", "Tráfego", pal::data()).on_hover_text("Motor Copy: cópias DMA host↔GPU — o que mais passa pelo túnel").clicked() {
+                if gauge(ui, "⇄", last.copy, 100.0, "%", tr("Tráfego", "Traffic"), pal::data()).on_hover_text(tr("Motor Copy: cópias DMA host↔GPU — o que mais passa pelo túnel", "Copy engine: host↔GPU DMA copies — what mostly flows through the tunnel")).clicked() {
                     *sel = Some(Sel::Info(Topic::Flow));
                 }
-                if gauge(ui, "△", last.d3, 100.0, "%", "Gráficos 3D", pal::violet()).clicked() {
+                if gauge(ui, "△", last.d3, 100.0, "%", tr("Gráficos 3D", "3D graphics"), pal::violet()).clicked() {
                     *sel = Some(Sel::Info(Topic::Flow));
                 }
                 ui.vertical(|ui| {
                     ui.add_space(14.0);
-                    meter_bar(ui, last.ded_mb as f32 / 16368.0, &["Memória da placa (VRAM)", "VRAM"], &gb_of(last.ded_mb as f64, 16368.0), pal::data())
-                        .on_hover_text("Memória dedicada da GPU em uso (PDH GPU Adapter Memory)");
+                    meter_bar(ui, last.ded_mb as f32 / 16368.0, &[tr("Memória da placa (VRAM)", "Card memory (VRAM)"), "VRAM"], &gb_of(last.ded_mb as f64, 16368.0), pal::data())
+                        .on_hover_text(tr("Memória dedicada da GPU em uso (PDH GPU Adapter Memory)", "Dedicated GPU memory in use (PDH GPU Adapter Memory)"));
                     ui.add_space(6.0);
-                    meter_bar(ui, last.shared_mb as f32 / 8192.0, &["RAM do notebook usada pela placa", "RAM do notebook", "RAM do note"], &gb_of(last.shared_mb as f64, 8192.0), pal::violet())
-                        .on_hover_text("RAM do note mapeada pela GPU — cada acesso atravessa o túnel TB");
+                    meter_bar(ui, last.shared_mb as f32 / 8192.0, &[tr("RAM do notebook usada pela placa", "Laptop RAM used by the card"), tr("RAM do notebook", "Laptop RAM"), tr("RAM do note", "RAM")], &gb_of(last.shared_mb as f64, 8192.0), pal::violet())
+                        .on_hover_text(tr("RAM do note mapeada pela GPU — cada acesso atravessa o túnel TB", "Laptop RAM mapped by the GPU — every access crosses the TB tunnel"));
                 });
             });
             let copy: Vec<f32> = samples.iter().map(|s| s.copy).collect();
             let d3: Vec<f32> = samples.iter().map(|s| s.d3).collect();
-            chart(ui, "Uso da placa (5\u{A0}min)", &[(pal::data(), "Cópia de dados", copy), (pal::violet(), "Gráficos 3D", d3)], 100.0, "%", 84.0 + flex(1.0, 170.0));
+            chart(ui, tr("Uso da placa (5\u{A0}min)", "Card usage (5\u{A0}min)"), &[(pal::data(), tr("Cópia de dados", "Data copy"), copy), (pal::violet(), tr("Gráficos 3D", "3D graphics"), d3)], 100.0, "%", 84.0 + flex(1.0, 170.0));
             ui.horizontal(|ui| {
                 let running = matches!(bench, BenchState::Running(_));
-                if ui.add_enabled(!running, egui::Button::new("📏 Teste de banda")).on_hover_text("Cópias D3D12 de 1 GiB na fila COPY, host↔VRAM (~5\u{A0}s).").clicked() {
+                if ui.add_enabled(!running, egui::Button::new(tr("📏 Teste de banda", "📏 Bandwidth test"))).on_hover_text(tr("Cópias D3D12 de 1 GiB na fila COPY, host↔VRAM (~5\u{A0}s).", "D3D12 copies of 1 GiB on the COPY queue, host↔VRAM (~5\u{A0}s).")).clicked() {
                     run = true;
                 }
                 match bench {
@@ -3699,17 +3737,18 @@ impl App {
     }
 
     fn card_gpu(&mut self, ui: &mut Ui, samples: &[Sample], st: Option<&crate::collect::GpuStatic>) {
+        use crate::i18n::t as tr;
         let mut sel = self.sel;
-        card_i(ui, "🎮  GPU no dock", pal::data(), &mut sel, Topic::Gpu, "Dados via AMD ADLX", |ui, sel| {
+        card_i(ui, tr("🎮  GPU no dock", "🎮  GPU in the dock"), pal::data(), &mut sel, Topic::Gpu, tr("Dados via AMD ADLX", "Data via AMD ADLX"), |ui, sel| {
             let g = samples.last().and_then(|s| s.gpu).unwrap_or_default();
             let temp = g.temp.unwrap_or(0.0) as f32;
             let hot = g.hot.unwrap_or(0.0) as f32;
             let gs = [
-                ("🌡", temp, 100.0, "°C", "Temperatura", heat(temp, pal::temp())),
-                ("🔥", hot, 110.0, "°C", "Ponto mais quente", heat(hot - 10.0, pal::hot())),
-                ("⚡", g.tbp.unwrap_or(0.0) as f32, 190.0, "W", "Consumo", pal::bolt()),
-                ("⏱", g.clk.unwrap_or(0) as f32, 2900.0, "MHz", "Velocidade", pal::data()), // cor de dado, não de marca
-                ("🌀", g.fan.unwrap_or(0) as f32, 3300.0, "RPM", "Ventoinha", pal::violet()),
+                ("🌡", temp, 100.0, "°C", tr("Temperatura", "Temperature"), heat(temp, pal::temp())),
+                ("🔥", hot, 110.0, "°C", tr("Ponto mais quente", "Hot spot"), heat(hot - 10.0, pal::hot())),
+                ("⚡", g.tbp.unwrap_or(0.0) as f32, 190.0, "W", tr("Consumo", "Power"), pal::bolt()),
+                ("⏱", g.clk.unwrap_or(0) as f32, 2900.0, "MHz", tr("Velocidade", "Clock"), pal::data()), // cor de dado, não de marca
+                ("🌀", g.fan.unwrap_or(0) as f32, 3300.0, "RPM", tr("Ventoinha", "Fan"), pal::violet()),
             ];
             let labels: Vec<(&str, &str)> = gs.iter().map(|x| (x.0, x.4)).collect();
             gauge_grid(ui, &labels, |ui, i, w| {
@@ -3721,22 +3760,23 @@ impl App {
             let temp: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.temp)).map(|v| v as f32).collect();
             let hot: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.hot)).map(|v| v as f32).collect();
             let tbp: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.tbp)).map(|v| v as f32).collect();
-            chart(ui, "🌡 / ⚡", &[(pal::temp(), "Temperatura|°C", temp), (pal::hot(), "Ponto mais quente|°C", hot), (pal::bolt(), "Consumo|W", tbp)], 90.0, "", 70.0 + flex(1.0, 170.0));
+            chart(ui, "🌡 / ⚡", &[(pal::temp(), tr("Temperatura|°C", "Temperature|°C"), temp), (pal::hot(), tr("Ponto mais quente|°C", "Hot spot|°C"), hot), (pal::bolt(), tr("Consumo|W", "Power|W"), tbp)], 90.0, "", 70.0 + flex(1.0, 170.0));
             if let Some(s) = st {
                 let vram = g.vram.unwrap_or(0) as f32;
                 let frac = if s.vram_total_mb > 0 { vram / s.vram_total_mb as f32 } else { 0.0 };
-                meter_bar(ui, frac, &["Memória da placa (VRAM)", "VRAM"], &gb_of(vram as f64, s.vram_total_mb as f64), pal::data());
+                meter_bar(ui, frac, &[tr("Memória da placa (VRAM)", "Card memory (VRAM)"), "VRAM"], &gb_of(vram as f64, s.vram_total_mb as f64), pal::data());
             }
         });
         self.sel = sel;
     }
 
     fn card_timeline(&mut self, ui: &mut Ui, compact: bool) {
+        use crate::i18n::t as tr;
         let now = now_ms();
         let mut sel = self.sel;
         let mut go_all = false;
-        let title = if compact { "🕓  O que aconteceu" } else { "🕓  Linha do tempo" };
-        card_i(ui, title, pal::red(), &mut sel, Topic::Stability, "Fontes: Event Log, PnP ao vivo, Overwatch", |ui, _sel| {
+        let title = if compact { tr("🕓  O que aconteceu", "🕓  What happened") } else { tr("🕓  Linha do tempo", "🕓  Timeline") };
+        card_i(ui, title, pal::red(), &mut sel, Topic::Stability, tr("Fontes: Event Log, PnP ao vivo, Overwatch", "Sources: Event Log, live PnP, Overwatch"), |ui, _sel| {
             let enabled: Vec<Cat> = self.cats.iter().filter(|c| c.1).map(|c| c.0).collect();
             let t0 = if compact {
                 now - 30 * 86_400_000
@@ -3793,7 +3833,7 @@ impl App {
                     p.line_segment([pos2(x, y0), pos2(x, y1)], if e.kind.severity() == 2 { Stroke::new(2.0, pal::red()) } else { Stroke::new(1.0, cat_color(e.kind.cat())) });
                 }
                 p.text(rect.left_bottom() + vec2(8.0, -2.0), egui::Align2::LEFT_BOTTOM, fmt_local(t0, false), FontId::proportional(11.5), pal::faint());
-                p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, "agora", FontId::proportional(11.5), pal::faint());
+                p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, tr("agora", "now"), FontId::proportional(11.5), pal::faint());
                 if let Some(pos) = resp.hover_pos() {
                     let ts = t0 + (((pos.x - rect.left() - 8.0) / (rect.width() - 16.0)) as f64 * (now - t0) as f64) as i64;
                     p.line_segment([pos2(pos.x, rect.top()), pos2(pos.x, rect.bottom())], Stroke::new(1.0, pal::dim().gamma_multiply(0.5)));
@@ -3813,7 +3853,7 @@ impl App {
                 .collect();
             let total = all.len();
             if total == 0 {
-                ui.label(egui::RichText::new(if compact { "✔ nenhum problema em 30\u{A0}dias" } else { "✔ nada neste período" }).color(pal::green()));
+                ui.label(egui::RichText::new(if compact { tr("✔ nenhum problema em 30\u{A0}dias", "✔ no problems in 30\u{A0}days") } else { tr("✔ nada neste período", "✔ nothing in this period") }).color(pal::green()));
             }
             let mut open = self.open_inc;
             for inc in all.into_iter().take(limit) {
@@ -3822,13 +3862,13 @@ impl App {
             self.open_inc = open;
             ui.horizontal(|ui| {
                 if compact {
-                    if total > limit && ui.add(egui::Button::new(link_text(format!("Ver histórico completo ({total}) →"))).frame(false)).clicked() {
+                    if total > limit && ui.add(egui::Button::new(link_text(tf!("Ver histórico completo ({}) →", "See full history ({}) →", total))).frame(false)).clicked() {
                         go_all = true;
-                    } else if total <= limit && ui.add(egui::Button::new(link_text("Ver histórico completo →")).frame(false)).clicked() {
+                    } else if total <= limit && ui.add(egui::Button::new(link_text(tr("Ver histórico completo →", "See full history →"))).frame(false)).clicked() {
                         go_all = true;
                     }
                 } else if total > limit {
-                    if ui.button(format!("mostrar mais ({} restantes)", total - limit)).clicked() {
+                    if ui.button(tf!("mostrar mais ({} restantes)", "show more ({} left)", total - limit)).clicked() {
                         self.hist_limit += 30;
                     }
                 }
@@ -3843,6 +3883,7 @@ impl App {
     // ---------------- painel lateral
 
     fn details(&mut self, ui: &mut Ui, topo: &Topology, gst: Option<&crate::collect::GpuStatic>, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
+        use crate::i18n::t as tr;
         let t = ctx.input(|i| i.time);
         let k = ((t - self.sel_at) / 0.22).clamp(0.0, 1.0) as f32;
         let e = 1.0 - (1.0 - k).powi(3);
@@ -3867,7 +3908,7 @@ impl App {
                         p.text(r.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(40.0 * (r.height() / 88.0).min(1.0)), pal::fg());
                     },
                     name,
-                    "Como funciona",
+                    tr("Como funciona", "How it works"),
                     None,
                     &mut sel,
                 );
@@ -3877,22 +3918,22 @@ impl App {
             Some(Sel::Gpu) => {
                 let g = last.gpu.unwrap_or_default();
                 let node = topo.gpu.as_ref();
-                let (st, sc) = match node {
-                    None => ("Não encontrada", pal::amber()),
-                    Some(n) if n.problem != 0 => ("Com problema", pal::red()),
-                    Some(n) if n.dstate.is_some_and(|d| d != 1) => ("Dormindo", pal::faint()),
-                    _ => ("Funcionando", pal::green()),
+                let (st, sc, kind) = match node {
+                    None => (tr("Não encontrada", "Not found"), pal::amber(), 3),
+                    Some(n) if n.problem != 0 => (tr("Com problema", "Problem"), pal::red(), 2),
+                    Some(n) if n.dstate.is_some_and(|d| d != 1) => (tr("Dormindo", "Asleep"), pal::faint(), 1),
+                    _ => (tr("Funcionando", "Working"), pal::green(), 0),
                 };
                 let spin = (g.usage.unwrap_or(0.0) / 100.0) as f32;
-                let title = bind_num(gst.map(|s| s.name.trim()).filter(|s| !s.is_empty()).unwrap_or("Placa de vídeo"));
-                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, node.is_some(), t), &title, "Dentro do dock, ligada pelo Thunderbolt", Some((st, sc)), &mut sel);
+                let title = bind_num(gst.map(|s| s.name.trim()).filter(|s| !s.is_empty()).unwrap_or(tr("Placa de vídeo", "Graphics card")));
+                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, node.is_some(), t), &title, tr("Dentro do dock, ligada pelo Thunderbolt", "Inside the dock, linked over Thunderbolt"), Some((st, sc)), &mut sel);
                 side_hint(
                     ui,
-                    match st {
-                        "Funcionando" => "Tudo normal com a placa. Clique num bloco para ver os gráficos.",
-                        "Dormindo" => "A placa está em economia de energia. Ela acorda sozinha quando um programa usa.",
-                        "Com problema" => "O Windows relatou um problema com a placa. Veja os detalhes técnicos no fim.",
-                        _ => "A placa não apareceu no Windows. Confira se o dock está ligado e o cabo encaixado.",
+                    match kind {
+                        0 => tr("Tudo normal com a placa. Clique num bloco para ver os gráficos.", "All good with the card. Click a block to see the charts."),
+                        1 => tr("A placa está em economia de energia. Ela acorda sozinha quando um programa usa.", "The card is in power-saving mode. It wakes up on its own when a program uses it."),
+                        2 => tr("O Windows relatou um problema com a placa. Veja os detalhes técnicos no fim.", "Windows reported a problem with the card. See the technical details at the bottom."),
+                        _ => tr("A placa não apareceu no Windows. Confira se o dock está ligado e o cabo encaixado.", "The card didn't show up in Windows. Check that the dock is on and the cable is plugged in."),
                     },
                 );
                 let ser = |f: fn(&crate::collect::GpuM) -> Option<f32>| samples.iter().filter_map(|s| s.gpu.as_ref().and_then(f)).collect::<Vec<f32>>();
@@ -3908,27 +3949,27 @@ impl App {
                     }
                 });
                 let mut tiles = vec![
-                    tl("🌡", temp.map(|v| format!("{v:.0}")), "°C", "Temperatura", heat(temp.unwrap_or(0.0), pal::temp())).vc(heat(temp.unwrap_or(0.0), pal::temp())).sp(ser(|g| g.temp.map(|v| v as f32))),
-                    tl("🔥", hot.map(|v| format!("{v:.0}")), "°C", "Ponto mais quente", heat(hot.unwrap_or(0.0) - 10.0, pal::hot())).vc(heat(hot.unwrap_or(0.0) - 10.0, pal::hot())).sp(ser(|g| g.hot.map(|v| v as f32))),
-                    tl("⚡", g.tbp.map(|v| format!("{v:.0}")), "W", "Consumo da placa", pal::bolt()).sp(ser(|g| g.tbp.map(|v| v as f32))),
-                    tl("⏱", g.clk.map(|v| v.to_string()), "MHz", "Velocidade", pal::data()).sp(ser(|g| g.clk.map(|v| v as f32))),
-                    tl("🌀", fan.map(|v| v.to_string()), "RPM", if fan == Some(0) { "Ventoinha parada" } else { "Ventoinha" }, pal::violet()).sp(ser(|g| g.fan.map(|v| v as f32))),
+                    tl("🌡", temp.map(|v| format!("{v:.0}")), "°C", tr("Temperatura", "Temperature"), heat(temp.unwrap_or(0.0), pal::temp())).vc(heat(temp.unwrap_or(0.0), pal::temp())).sp(ser(|g| g.temp.map(|v| v as f32))),
+                    tl("🔥", hot.map(|v| format!("{v:.0}")), "°C", tr("Ponto mais quente", "Hot spot"), heat(hot.unwrap_or(0.0) - 10.0, pal::hot())).vc(heat(hot.unwrap_or(0.0) - 10.0, pal::hot())).sp(ser(|g| g.hot.map(|v| v as f32))),
+                    tl("⚡", g.tbp.map(|v| format!("{v:.0}")), "W", tr("Consumo da placa", "Card power"), pal::bolt()).sp(ser(|g| g.tbp.map(|v| v as f32))),
+                    tl("⏱", g.clk.map(|v| v.to_string()), "MHz", tr("Velocidade", "Clock"), pal::data()).sp(ser(|g| g.clk.map(|v| v as f32))),
+                    tl("🌀", fan.map(|v| v.to_string()), "RPM", if fan == Some(0) { tr("Ventoinha parada", "Fan stopped") } else { tr("Ventoinha", "Fan") }, pal::violet()).sp(ser(|g| g.fan.map(|v| v as f32))),
                     {
-                        let x = tl("💾", vram, "GB", "Memória de vídeo", pal::data());
+                        let x = tl("💾", vram, "GB", tr("Memória de vídeo", "Video memory"), pal::data());
                         match (g.vram, vram_total) {
                             (Some(v), t) if t > 0 => x.bar(v as f32 / t as f32),
                             _ => x,
                         }
                     },
-                    tl("📶", g.usage.map(|v| format!("{v:.0}")), "%", "Uso da GPU", pal::data()).sp(ser(|g| g.usage.map(|v| v as f32))),
+                    tl("📶", g.usage.map(|v| format!("{v:.0}")), "%", tr("Uso da GPU", "GPU usage"), pal::data()).sp(ser(|g| g.usage.map(|v| v as f32))),
                 ];
                 tiles.push(pcie_tile(gst, node.and_then(|n| n.pcie), neutral));
-                let tiles: Vec<Tile> = tiles.into_iter().map(|x| if x.tip.is_some() { x } else { x.tip("Ver no Desempenho") }).collect();
+                let tiles: Vec<Tile> = tiles.into_iter().map(|x| if x.tip.is_some() { x } else { x.tip(tr("Ver no Desempenho", "See in Performance")) }).collect();
                 if tile_grid(ui, &tiles, sel_at).is_some() {
                     self.tab = Tab::Fluxo;
                 }
                 ui.add_space(12.0);
-                if ui.button(egui::RichText::new("📈 Ver desempenho ›").size(14.0)).clicked() {
+                if ui.button(egui::RichText::new(tr("📈 Ver desempenho ›", "📈 See performance ›")).size(14.0)).clicked() {
                     self.tab = Tab::Fluxo;
                 }
                 side_tech(ui, "gpu", |ui| {
@@ -3938,7 +3979,7 @@ impl App {
                     }
                     node_details(ui, "GPU", topo.gpu.as_ref());
                     for n in &topo.gpu_chain {
-                        node_details(ui, "Switch interno da placa", Some(n));
+                        node_details(ui, tr("Switch interno da placa", "Card's internal switch"), Some(n));
                     }
                 });
             }
@@ -3948,70 +3989,70 @@ impl App {
                 let (lvl, _, cause) = self.verdict(topo);
                 let now = now_ms();
                 let d24 = self.incidents.iter().filter(|i| i.is_drop && now - i.start <= 86_400_000).count();
-                let pill = format!("Caiu {d24}× em 24\u{A0}h");
+                let pill = tf!("Caiu {}× em 24\u{A0}h", "Dropped {}× in 24\u{A0}h", d24);
                 let (st, sc, icon, tile_v): (&str, Color32, &str, &str) = if !ok {
-                    ("Com problema", pal::red(), "✖", "Com problema")
+                    (tr("Com problema", "Problem"), pal::red(), "✖", tr("Com problema", "Problem"))
                 } else if lvl >= 2 {
-                    (&pill, pal::red(), "▲", "Instável")
+                    (&pill, pal::red(), "▲", tr("Instável", "Unstable"))
                 } else if lvl == 1 {
-                    (&pill, pal::amber(), "▲", "Instável")
+                    (&pill, pal::amber(), "▲", tr("Instável", "Unstable"))
                 } else {
-                    ("Tudo certo", pal::green(), "✔", "Estável")
+                    (tr("Tudo certo", "All good"), pal::green(), "✔", tr("Estável", "Stable"))
                 };
-                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::dock(p, r, dock_ok, t), "Dock WKG-L19", "Caixa externa da GPU", Some((st, sc)), &mut sel);
+                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::dock(p, r, dock_ok, t), "Dock WKG-L19", tr("Caixa externa da GPU", "External GPU box"), Some((st, sc)), &mut sel);
                 let hint = if !ok {
-                    "Algo no dock não respondeu. Veja os detalhes técnicos no fim.".to_string()
+                    tr("Algo no dock não respondeu. Veja os detalhes técnicos no fim.", "Something in the dock didn't respond. See the technical details at the bottom.").to_string()
                 } else if lvl > 0 {
-                    let vezes = if d24 == 1 { "1 vez".to_string() } else { format!("{d24} vezes") };
-                    format!("Ligado agora, mas caiu {vezes} nas últimas 24\u{A0}h. {cause}").trim_end().to_string()
+                    let vezes = if d24 == 1 { tr("1 vez", "once").to_string() } else { tf!("{} vezes", "{} times", d24) };
+                    tf!("Ligado agora, mas caiu {} nas últimas 24\u{A0}h. {}", "Connected now, but dropped {} in the last 24\u{A0}h. {}", vezes, cause).trim_end().to_string()
                 } else {
-                    "O dock está ligado, conversando com o notebook e sem quedas nas últimas 24\u{A0}h.".to_string()
+                    tr("O dock está ligado, conversando com o notebook e sem quedas nas últimas 24\u{A0}h.", "The dock is on, talking to the laptop, with no drops in the last 24\u{A0}h.").to_string()
                 };
                 side_hint(ui, &hint);
                 let dr = topo.dock_router.as_ref();
                 let active = topo.ports.iter().filter(|p| d0(&p.node)).count();
                 let mut tiles = vec![
                     tl("🔧", dr.and_then(|n| n.firmware.clone()), "", "Firmware", neutral),
-                    tl("🕑", dr.and_then(|n| n.last_arrival).map(|ts| fmt_dur(now_ms() - ts)), "", "Conectado há", neutral),
-                    tl(icon, Some(tile_v.to_string()), "", if ok { "Nas últimas 24\u{A0}h" } else { "Estado" }, sc).vc(sc).tip("Ver as quedas no Histórico"),
-                    tl("🔌", (!topo.ports.is_empty()).then(|| format!("{active} de {}", topo.ports.len())), "", "Portas ativas", neutral).tip("Portas acordadas (D0). As outras estão dormindo para economizar."),
+                    tl("🕑", dr.and_then(|n| n.last_arrival).map(|ts| fmt_dur(now_ms() - ts)), "", tr("Conectado há", "Connected for"), neutral),
+                    tl(icon, Some(tile_v.to_string()), "", if ok { tr("Nas últimas 24\u{A0}h", "Last 24\u{A0}h") } else { tr("Estado", "State") }, sc).vc(sc).tip(tr("Ver as quedas no Histórico", "See the drops in History")),
+                    tl("🔌", (!topo.ports.is_empty()).then(|| tf!("{} de {}", "{} of {}", active, topo.ports.len())), "", tr("Portas ativas", "Active ports"), neutral).tip(tr("Portas acordadas (D0). As outras estão dormindo para economizar.", "Awake ports (D0). The others are asleep to save power.")),
                 ];
                 if let Some(b) = bench {
-                    tiles.push(tl("📏", Some(gbit(b.h2d_gbs)), "Gb/s", "Banda medida", pal::data()).tip("Notebook → placa, o sentido que pesa em jogo"));
+                    tiles.push(tl("📏", Some(gbit(b.h2d_gbs)), "Gb/s", tr("Banda medida", "Measured bandwidth"), pal::data()).tip(tr("Notebook → placa, o sentido que pesa em jogo", "Laptop → card, the direction that matters in games")));
                 }
                 if tile_grid(ui, &tiles, sel_at) == Some(2) {
                     self.tab = Tab::Historico;
                 }
-                side_caption(ui, "Portas");
+                side_caption(ui, tr("Portas", "Ports"));
                 ui.horizontal_wrapped(|ui| {
                     for (i, p) in topo.ports.iter().enumerate() {
                         let name = match p.role {
                             PortRole::Gpu => "🎮 GPU",
                             PortRole::UsbA => "🖴 USB",
                             PortRole::TbExtra => "⚡ Thunderbolt",
-                            PortRole::Other => "🔌 Porta",
+                            PortRole::Other => tr("🔌 Porta", "🔌 Port"),
                         };
                         let dot = if d0(&p.node) { pal::green() } else { pal::faint() };
-                        if side_chip(ui, name, Some(dot), true).on_hover_text(if d0(&p.node) { "Ativa" } else { "Dormindo" }).clicked() {
+                        if side_chip(ui, name, Some(dot), true).on_hover_text(if d0(&p.node) { tr("Ativa", "Active") } else { tr("Dormindo", "Asleep") }).clicked() {
                             sel = Some(Sel::Port(i));
                         }
                     }
                 });
                 ui.add_space(6.0);
                 ui.horizontal_wrapped(|ui| {
-                    if lvl > 0 && side_chip(ui, "📜 Ver as quedas", None, true).clicked() {
+                    if lvl > 0 && side_chip(ui, tr("📜 Ver as quedas", "📜 See the drops"), None, true).clicked() {
                         self.tab = Tab::Historico;
                     }
-                    if side_chip(ui, "⚡ Ver o cabo", None, true).clicked() {
+                    if side_chip(ui, tr("⚡ Ver o cabo", "⚡ See the cable"), None, true).clicked() {
                         sel = Some(Sel::Cable);
                     }
                 });
                 side_tech(ui, "dock", |ui| {
-                    node_details(ui, "Roteador Thunderbolt do dock", topo.dock_router.as_ref());
-                    usb4_table(ui, "Chaves USB4 do dock {5DF7E321-…}", &topo.dock_usb4);
-                    node_details(ui, "Switch PCIe do dock (upstream)", topo.dock_switch.as_ref());
+                    node_details(ui, tr("Roteador Thunderbolt do dock", "Dock Thunderbolt router"), topo.dock_router.as_ref());
+                    usb4_table(ui, tr("Chaves USB4 do dock {5DF7E321-…}", "Dock USB4 keys {5DF7E321-…}"), &topo.dock_usb4);
+                    node_details(ui, tr("Switch PCIe do dock (upstream)", "Dock PCIe switch (upstream)"), topo.dock_switch.as_ref());
                     for (i, p) in topo.ports.iter().enumerate() {
-                        node_details(ui, &format!("Porta downstream {} — {:?}", i + 1, p.role), Some(&p.node));
+                        node_details(ui, &tf!("Porta downstream {} — {:?}", "Downstream port {} — {:?}", i + 1, p.role), Some(&p.node));
                     }
                 });
             }
@@ -4025,73 +4066,73 @@ impl App {
                     _ => None,
                 };
                 let (st, sc) = match (dock_ok, speed) {
-                    (false, _) => ("Sem conexão", pal::red()),
-                    (true, Some(0x8)) => ("Abaixo do máximo", pal::amber()),
-                    (true, Some(0x4)) => ("Na velocidade máxima", pal::green()),
-                    _ => ("Conectado", pal::green()),
+                    (false, _) => (tr("Sem conexão", "No connection"), pal::red()),
+                    (true, Some(0x8)) => (tr("Abaixo do máximo", "Below maximum"), pal::amber()),
+                    (true, Some(0x4)) => (tr("Na velocidade máxima", "At full speed"), pal::green()),
+                    _ => (tr("Conectado", "Connected"), pal::green()),
                 };
-                side_hero(ui, e, pal::bolt(), &|p: &egui::Painter, r: Rect| art::usb_c(p, r, dock_ok), "Cabo Thunderbolt", "Liga o notebook ao dock", Some((st, sc)), &mut sel);
+                side_hero(ui, e, pal::bolt(), &|p: &egui::Painter, r: Rect| art::usb_c(p, r, dock_ok), tr("Cabo Thunderbolt", "Thunderbolt cable"), tr("Liga o notebook ao dock", "Links the laptop to the dock"), Some((st, sc)), &mut sel);
                 side_hint(
                     ui,
                     match (dock_ok, speed) {
-                        (false, _) => "O notebook não está enxergando o dock. Confira os dois lados do cabo.",
-                        (true, Some(0x8)) => "O dock aceita 40\u{A0}Gb/s, mas o cabo está entregando a metade. Um cabo Thunderbolt certificado de 40\u{A0}Gb/s resolve.",
-                        _ => "O cabo leva os dados da GPU e traz energia para o notebook.",
+                        (false, _) => tr("O notebook não está enxergando o dock. Confira os dois lados do cabo.", "The laptop can't see the dock. Check both ends of the cable."),
+                        (true, Some(0x8)) => tr("O dock aceita 40\u{A0}Gb/s, mas o cabo está entregando a metade. Um cabo Thunderbolt certificado de 40\u{A0}Gb/s resolve.", "The dock supports 40\u{A0}Gb/s, but the cable is delivering half. A certified 40\u{A0}Gb/s Thunderbolt cable fixes it."),
+                        _ => tr("O cabo leva os dados da GPU e traz energia para o notebook.", "The cable carries the GPU's data and brings power to the laptop."),
                     },
                 );
                 let pd = last.power.map(|p| p.online);
                 let tiles = vec![
-                    tl("⚡", gbps.map(|v| v.to_string()), "Gb/s", "Velocidade do cabo", pal::bolt()).vc_if(speed == Some(0x8), pal::amber()).note("≈ decodificado").tip("Lido das chaves USB4\u{A0}20 e 21 do dock. Veja os detalhes técnicos."),
-                    tl("⛓", lanes.map(|v| v.to_string()), "", "Canais ativos", neutral),
-                    tl("📏", bench.map(|b| format!("↑{} ↓{}", gbit(b.h2d_gbs), gbit(b.d2h_gbs))), "Gb/s", "Banda medida", pal::data()),
-                    tl("🔋", pd.map(|o| if o { "Sim" } else { "Não" }.to_string()), "", "Carregando o notebook", pal::bolt()).vc_if(pd == Some(false), pal::amber()),
+                    tl("⚡", gbps.map(|v| v.to_string()), "Gb/s", tr("Velocidade do cabo", "Cable speed"), pal::bolt()).vc_if(speed == Some(0x8), pal::amber()).note(tr("≈ decodificado", "≈ decoded")).tip(tr("Lido das chaves USB4\u{A0}20 e 21 do dock. Veja os detalhes técnicos.", "Read from the dock's USB4\u{A0}20 and 21 keys. See the technical details.")),
+                    tl("⛓", lanes.map(|v| v.to_string()), "", tr("Canais ativos", "Active lanes"), neutral),
+                    tl("📏", bench.map(|b| format!("↑{} ↓{}", gbit(b.h2d_gbs), gbit(b.d2h_gbs))), "Gb/s", tr("Banda medida", "Measured bandwidth"), pal::data()),
+                    tl("🔋", pd.map(|o| if o { tr("Sim", "Yes") } else { tr("Não", "No") }.to_string()), "", tr("Carregando o notebook", "Charging the laptop"), pal::bolt()).vc_if(pd == Some(false), pal::amber()),
                 ];
                 tile_grid(ui, &tiles, sel_at);
                 ui.add_space(12.0);
                 let running = matches!(*self.bench.lock().unwrap(), BenchState::Running(_));
-                if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { "📏 Medindo…" } else { "📏 Medir banda agora" }).size(14.0))).clicked() {
+                if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { tr("📏 Medindo…", "📏 Measuring…") } else { tr("📏 Medir banda agora", "📏 Measure bandwidth now") }).size(14.0))).clicked() {
                     self.start_bench(ctx);
                 }
                 side_tech(ui, "cable", |ui| {
-                    usb4_table(ui, "Chaves USB4 do dock {5DF7E321-…}", &topo.dock_usb4);
-                    node_details(ui, "Roteador Thunderbolt do dock", topo.dock_router.as_ref());
-                    usb4_table(ui, "Chaves USB4 do host", &topo.host_usb4);
+                    usb4_table(ui, tr("Chaves USB4 do dock {5DF7E321-…}", "Dock USB4 keys {5DF7E321-…}"), &topo.dock_usb4);
+                    node_details(ui, tr("Roteador Thunderbolt do dock", "Dock Thunderbolt router"), topo.dock_router.as_ref());
+                    usb4_table(ui, tr("Chaves USB4 do host", "Host USB4 keys"), &topo.host_usb4);
                 });
             }
             Some(Sel::Host) => {
                 let ctrl = topo.host_ctrl.as_ref();
                 let ok = ctrl.is_some_and(|n| n.problem == 0);
-                let (st, sc) = if ok { ("Funcionando", pal::green()) } else { ("Com problema", pal::red()) };
-                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::laptop(p, r, true, t), "Notebook", "Porta Thunderbolt\u{A0}4", Some((st, sc)), &mut sel);
-                side_hint(ui, if ok { "A porta Thunderbolt do notebook está pronta e levando a GPU." } else { "O controlador da porta Thunderbolt não respondeu. Veja os detalhes técnicos." });
+                let (st, sc) = if ok { (tr("Funcionando", "Working"), pal::green()) } else { (tr("Com problema", "Problem"), pal::red()) };
+                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::laptop(p, r, true, t), tr("Notebook", "Laptop"), tr("Porta Thunderbolt\u{A0}4", "Thunderbolt\u{A0}4 port"), Some((st, sc)), &mut sel);
+                side_hint(ui, if ok { tr("A porta Thunderbolt do notebook está pronta e levando a GPU.", "The laptop's Thunderbolt port is ready and carrying the GPU.") } else { tr("O controlador da porta Thunderbolt não respondeu. Veja os detalhes técnicos.", "The Thunderbolt port controller didn't respond. See the technical details.") });
                 let pw = last.power;
                 let pct = pw.filter(|p| p.full_mwh > 0).map(|p| (p.rem_mwh as f64 * 100.0 / p.full_mwh as f64).round());
                 let tiles = vec![
                     tl("🔧", topo.host_router.as_ref().and_then(|n| n.firmware.clone()), "", "Firmware", neutral),
-                    tl(if ok { "✔" } else { "⚠" }, Some(if ctrl.is_some() { "Funcionando" } else { "Ausente" }.to_string()), "", "Controlador USB4", sc).vc(sc),
+                    tl(if ok { "✔" } else { "⚠" }, Some(if ctrl.is_some() { tr("Funcionando", "Working") } else { tr("Ausente", "Missing") }.to_string()), "", tr("Controlador USB4", "USB4 controller"), sc).vc(sc),
                     // a porta raiz do túnel não publica enlace no Windows: usa o do driver AMD (mesmo túnel)
                     tl(
                         "🔗",
                         topo.root_port.as_ref().and_then(|n| n.pcie).map(|(cs, cw, _, _)| pcie_long(cs, cw)).or_else(|| gst.filter(|s| s.lanes > 0).map(|s| format!("{}\u{A0}x{}", s.bus, s.lanes))),
                         "",
-                        "Túnel até a GPU",
+                        tr("Túnel até a GPU", "Tunnel to the GPU"),
                         neutral,
                     )
-                    .tip("O PCIe da GPU passa por dentro do cabo Thunderbolt. É o trecho mais estreito do caminho."),
-                    tl("🔋", pw.map(|p| if p.online { "Na tomada" } else { "Na bateria" }.to_string()), &pct.map(|v| format!("{v:.0}%")).unwrap_or_default(), "Energia", pal::bolt())
+                    .tip(tr("O PCIe da GPU passa por dentro do cabo Thunderbolt. É o trecho mais estreito do caminho.", "The GPU's PCIe runs inside the Thunderbolt cable. It's the narrowest stretch of the path.")),
+                    tl("🔋", pw.map(|p| if p.online { tr("Na tomada", "Plugged in") } else { tr("Na bateria", "On battery") }.to_string()), &pct.map(|v| format!("{v:.0}%")).unwrap_or_default(), tr("Energia", "Power"), pal::bolt())
                         .vc_if(pw.is_some_and(|p| !p.online), pal::amber())
                         .sp(samples.iter().filter_map(|s| s.power.filter(|p| p.full_mwh > 0).map(|p| p.rem_mwh as f32 * 100.0 / p.full_mwh as f32)).collect()),
                 ];
                 tile_grid(ui, &tiles, sel_at);
                 ui.add_space(8.0);
-                if side_chip(ui, "⚡ Ver o cabo", None, true).clicked() {
+                if side_chip(ui, tr("⚡ Ver o cabo", "⚡ See the cable"), None, true).clicked() {
                     sel = Some(Sel::Cable);
                 }
                 side_tech(ui, "host", |ui| {
-                    node_details(ui, "Controlador USB4 do note", topo.host_ctrl.as_ref());
-                    node_details(ui, "Roteador raiz USB4", topo.host_router.as_ref());
-                    usb4_table(ui, "Chaves USB4 do host", &topo.host_usb4);
-                    node_details(ui, "Porta raiz PCIe (túnel)", topo.root_port.as_ref());
+                    node_details(ui, tr("Controlador USB4 do note", "Laptop USB4 controller"), topo.host_ctrl.as_ref());
+                    node_details(ui, tr("Roteador raiz USB4", "USB4 root router"), topo.host_router.as_ref());
+                    usb4_table(ui, tr("Chaves USB4 do host", "Host USB4 keys"), &topo.host_usb4);
+                    node_details(ui, tr("Porta raiz PCIe (túnel)", "PCIe root port (tunnel)"), topo.root_port.as_ref());
                 });
             }
             Some(Sel::Port(i)) => {
@@ -4106,12 +4147,12 @@ impl App {
                 };
                 let on = d0(&p.node);
                 let (title, sub) = match p.role {
-                    PortRole::Gpu => ("Porta da GPU", "Onde a placa de vídeo encaixa no dock"),
-                    PortRole::UsbA => ("Porta USB", "As entradas USB do dock"),
-                    PortRole::TbExtra => ("Porta Thunderbolt extra", "Saída para outro aparelho Thunderbolt"),
-                    PortRole::Other => ("Porta do dock", "Saída interna do dock"),
+                    PortRole::Gpu => (tr("Porta da GPU", "GPU port"), tr("Onde a placa de vídeo encaixa no dock", "Where the graphics card plugs into the dock")),
+                    PortRole::UsbA => (tr("Porta USB", "USB port"), tr("As entradas USB do dock", "The dock's USB inputs")),
+                    PortRole::TbExtra => (tr("Porta Thunderbolt extra", "Extra Thunderbolt port"), tr("Saída para outro aparelho Thunderbolt", "Output to another Thunderbolt device")),
+                    PortRole::Other => (tr("Porta do dock", "Dock port"), tr("Saída interna do dock", "Internal dock output")),
                 };
-                let (st, sc) = if p.node.problem != 0 { ("Com problema", pal::red()) } else if on { ("Ativa", pal::green()) } else { ("Dormindo", pal::faint()) };
+                let (st, sc) = if p.node.problem != 0 { (tr("Com problema", "Problem"), pal::red()) } else if on { (tr("Ativa", "Active"), pal::green()) } else { (tr("Dormindo", "Asleep"), pal::faint()) };
                 let role = p.role.clone();
                 side_hero(
                     ui,
@@ -4127,26 +4168,26 @@ impl App {
                     Some((st, sc)),
                     &mut sel,
                 );
-                side_hint(ui, if on { "Ligada e em uso." } else { "Dormindo para economizar energia. Ela acorda quando algo for ligado nela." });
+                side_hint(ui, if on { tr("Ligada e em uso.", "On and in use.") } else { tr("Dormindo para economizar energia. Ela acorda quando algo for ligado nela.", "Asleep to save power. It wakes up when something is plugged in.") });
                 let mut tiles = vec![
-                    tl(if on { "✔" } else { "💤" }, Some(if on { "Ativa" } else { "Dormindo" }.to_string()), "", "Estado", sc).vc(sc),
+                    tl(if on { "✔" } else { "💤" }, Some(if on { tr("Ativa", "Active") } else { tr("Dormindo", "Asleep") }.to_string()), "", tr("Estado", "State"), sc).vc(sc),
                     {
                         let link = p.node.pcie;
-                        let mut x = tl("🔗", link.map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", "Enlace PCIe", neutral);
+                        let mut x = tl("🔗", link.map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", tr("Enlace PCIe", "PCIe link"), neutral);
                         if let Some((cs, cw, ms, mw)) = link {
                             if cs < ms || cw < mw {
-                                x = x.note(format!("máx {}", pcie_short(ms, mw)));
+                                x = x.note(tf!("máx {}", "max {}", pcie_short(ms, mw)));
                             }
                         }
                         x
                     },
                 ];
                 if p.role == PortRole::UsbA {
-                    tiles.push(tl("🖴", Some(topo.usb_a.len().to_string()), "", "Dispositivos USB", neutral));
+                    tiles.push(tl("🖴", Some(topo.usb_a.len().to_string()), "", tr("Dispositivos USB", "USB devices"), neutral));
                 }
                 tile_grid(ui, &tiles, sel_at);
                 if p.role == PortRole::UsbA && !topo.usb_a.is_empty() {
-                    side_caption(ui, "Ligados agora");
+                    side_caption(ui, tr("Ligados agora", "Connected now"));
                     ui.horizontal_wrapped(|ui| {
                         for d in &topo.usb_a {
                             side_chip(ui, &format!("🖴 {}", d.name), None, false);
@@ -4155,19 +4196,19 @@ impl App {
                 }
                 ui.add_space(8.0);
                 ui.horizontal_wrapped(|ui| {
-                    if p.role == PortRole::Gpu && side_chip(ui, "🎮 Ver a placa", None, true).clicked() {
+                    if p.role == PortRole::Gpu && side_chip(ui, tr("🎮 Ver a placa", "🎮 See the card"), None, true).clicked() {
                         sel = Some(Sel::Gpu);
                     }
-                    if side_chip(ui, "🔗 Ver o dock", None, true).clicked() {
+                    if side_chip(ui, tr("🔗 Ver o dock", "🔗 See the dock"), None, true).clicked() {
                         sel = Some(Sel::Dock);
                     }
                 });
                 side_tech(ui, &format!("port{i}"), |ui| {
-                    node_details(ui, "Porta downstream do switch", Some(&p.node));
-                    node_details(ui, "Dispositivo na porta", p.child.as_ref());
+                    node_details(ui, tr("Porta downstream do switch", "Switch downstream port"), Some(&p.node));
+                    node_details(ui, tr("Dispositivo na porta", "Device on the port"), p.child.as_ref());
                     if p.role == PortRole::UsbA {
                         for d in &topo.usb_a {
-                            node_details(ui, "Dispositivo USB", Some(d));
+                            node_details(ui, tr("Dispositivo USB", "USB device"), Some(d));
                         }
                     }
                 });
@@ -4179,13 +4220,13 @@ impl App {
                     let st = psu_state(&l, self.psu.watts);
                     let model = self.psu.model.trim().to_string();
                     let rating = self.psu.rating.clone();
-                    let sub = if rating.trim().is_empty() { format!("{}\u{A0}W · sem selo", self.psu.watts) } else { format!("{}\u{A0}W · 80 PLUS {}", self.psu.watts, rating.trim()) };
+                    let sub = if rating.trim().is_empty() { tf!("{}\u{A0}W · sem selo", "{}\u{A0}W · no rating", self.psu.watts) } else { format!("{}\u{A0}W · 80 PLUS {}", self.psu.watts, rating.trim()) };
                     side_hero(
                         ui,
                         e,
                         pal::bolt(),
                         &|p: &egui::Painter, r: Rect| art::psu(p, r, dock_ok, t, &rating, f),
-                        if model.is_empty() { "Fonte do dock" } else { &model },
+                        if model.is_empty() { tr("Fonte do dock", "Dock PSU") } else { &model },
                         &sub,
                         Some((st.pill, st.col)),
                         &mut sel,
@@ -4193,28 +4234,29 @@ impl App {
                     side_hint(ui, &st.msg);
                     let rail = self.psu.rail12_a;
                     let tiles = vec![
-                        tl("⚡", Some(format!("{:.0}", l.now)), "W", "Carga agora (≈)", pal::bolt()).vc_if(f > 0.85, pal::amber()).bar(f).tip(format!(
+                        tl("⚡", Some(format!("{:.0}", l.now)), "W", tr("Carga agora (≈)", "Load now (≈)"), pal::bolt()).vc_if(f > 0.85, pal::amber()).bar(f).tip(tf!(
                             "≈ {:.0}\u{A0}W = placa {:.0}\u{A0}W (medido) + notebook {:.0}\u{A0}W + dock {:.0}\u{A0}W + portas {:.0}\u{A0}W (estimados)",
+                            "≈ {:.0}\u{A0}W = card {:.0}\u{A0}W (measured) + laptop {:.0}\u{A0}W + dock {:.0}\u{A0}W + ports {:.0}\u{A0}W (estimated)",
                             l.now, l.gpu, l.pd, l.dock, l.usb
                         )),
-                        tl("📈", Some(format!("{:.0}", l.worst)), "W", "Uso pesado (≈)", pal::bolt()).vc_if(l.worst > w * 0.85, pal::amber()).bar((l.worst / w).min(1.0)).tip("Sustentado: placa no limite de potência + notebook carregando no máximo + portas em uso."),
-                        tl("▼", Some(format!("{:.0}", l.spike)), "W", "Picos rápidos (≈)", pal::bolt()).vc_if(l.spike > w, pal::amber()).bar((l.spike / w).min(1.0)).tip("Transientes de milissegundos da placa (~1,6× o limite) somados ao resto."),
-                        tl("🔌", Some(format!("{:.0}", l.wall)), "W", "Na tomada (≈)", pal::data()).bar((l.wall / w).min(1.0)).tip(format!("Eficiência estimada {:.0}%", l.eff * 100.0)),
+                        tl("📈", Some(format!("{:.0}", l.worst)), "W", tr("Uso pesado (≈)", "Heavy use (≈)"), pal::bolt()).vc_if(l.worst > w * 0.85, pal::amber()).bar((l.worst / w).min(1.0)).tip(tr("Sustentado: placa no limite de potência + notebook carregando no máximo + portas em uso.", "Sustained: card at its power limit + laptop charging at max + ports in use.")),
+                        tl("▼", Some(format!("{:.0}", l.spike)), "W", tr("Picos rápidos (≈)", "Quick spikes (≈)"), pal::bolt()).vc_if(l.spike > w, pal::amber()).bar((l.spike / w).min(1.0)).tip(tr("Transientes de milissegundos da placa (~1,6× o limite) somados ao resto.", "Millisecond transients from the card (~1.6× the limit) added to the rest.")),
+                        tl("🔌", Some(format!("{:.0}", l.wall)), "W", tr("Na tomada (≈)", "At the wall (≈)"), pal::data()).bar((l.wall / w).min(1.0)).tip(tf!("Eficiência estimada {:.0}%", "Estimated efficiency {:.0}%", l.eff * 100.0)),
                         if rail > 0.0 {
-                            tl("⎓", Some(dec(l.amps12 as f64, 1)), "A", "Linha +12\u{A0}V (≈)", pal::bolt()).vc_if(l.amps12 > rail * 0.85, pal::amber()).bar((l.amps12 / rail).min(1.0)).tip(format!("Contra os {}\u{A0}A da etiqueta", dec(rail as f64, 1)))
+                            tl("⎓", Some(dec(l.amps12 as f64, 1)), "A", tr("Linha +12\u{A0}V (≈)", "+12\u{A0}V rail (≈)"), pal::bolt()).vc_if(l.amps12 > rail * 0.85, pal::amber()).bar((l.amps12 / rail).min(1.0)).tip(tf!("Contra os {}\u{A0}A da etiqueta", "Against the {}\u{A0}A on the label", dec(rail as f64, 1)))
                         } else {
-                            tl("⎓", None, "A", "+12\u{A0}V: falta informar", pal::faint()).bar(0.0).tip("Preencha a corrente da linha +12\u{A0}V (está na etiqueta da fonte).")
+                            tl("⎓", None, "A", tr("+12\u{A0}V: falta informar", "+12\u{A0}V: not set"), pal::faint()).bar(0.0).tip(tr("Preencha a corrente da linha +12\u{A0}V (está na etiqueta da fonte).", "Fill in the +12\u{A0}V rail current (it's on the PSU label)."))
                         },
                     ];
                     tile_grid(ui, &tiles, sel_at);
                     ui.add_space(12.0);
-                    if ui.button(egui::RichText::new("✏ Trocar fonte ›").size(14.0)).clicked() {
+                    if ui.button(egui::RichText::new(tr("✏ Trocar fonte ›", "✏ Change PSU ›")).size(14.0)).clicked() {
                         self.tab = Tab::Enlace;
                     }
                     side_tech(ui, "psu", |ui| {
-                        ui.label(egui::RichText::new("De onde vem a carga agora").size(13.0).strong().color(pal::dim()));
+                        ui.label(egui::RichText::new(tr("De onde vem a carga agora", "Where the load comes from now")).size(13.0).strong().color(pal::dim()));
                         ui.horizontal_wrapped(|ui| {
-                            for (icon, v, tip) in [("🎮", l.gpu, "Placa de vídeo (medida)"), ("💻", l.pd, "Notebook pelo PD (≈ estimado)"), ("▣", l.dock + l.usb, "Dock e portas (≈ estimado)")] {
+                            for (icon, v, tip) in [("🎮", l.gpu, tr("Placa de vídeo (medida)", "Graphics card (measured)")), ("💻", l.pd, tr("Notebook pelo PD (≈ estimado)", "Laptop via PD (≈ estimated)")), ("▣", l.dock + l.usb, tr("Dock e portas (≈ estimado)", "Dock and ports (≈ estimated)"))] {
                                 egui::Frame::new()
                                     .fill(pal::card2())
                                     .stroke(Stroke::new(1.0, pal::border()))
@@ -4229,13 +4271,14 @@ impl App {
                             ui.add(egui::Label::new(egui::RichText::new(format!("= ≈ {:.0}\u{A0}W", l.now)).size(14.0).strong().color(pal::fg())).extend());
                         });
                         ui.add_space(6.0);
-                        ui.label(egui::RichText::new(format!(
+                        ui.label(egui::RichText::new(tf!(
                             "Eficiência ≈ {:.0}% · +12\u{A0}V ≈ {}\u{A0}A · uso pesado = placa no limite ({:.0}\u{A0}W) + notebook a 85\u{A0}W + dock e portas.",
+                            "Efficiency ≈ {:.0}% · +12\u{A0}V ≈ {}\u{A0}A · heavy use = card at its limit ({:.0}\u{A0}W) + laptop at 85\u{A0}W + dock and ports.",
                             l.eff * 100.0,
                             dec(l.amps12 as f64, 1),
                             crate::psu::GPU_TBP_MAX
                         )).size(12.5).color(pal::dim()));
-                        ui.label(egui::RichText::new("A fonte não manda dados ao PC: só a placa é medida, o resto é estimado.").size(12.5).color(pal::faint()));
+                        ui.label(egui::RichText::new(tr("A fonte não manda dados ao PC: só a placa é medida, o resto é estimado.", "The PSU doesn't send data to the PC: only the card is measured, the rest is estimated.")).size(12.5).color(pal::faint()));
                     });
                 }
                 None => self.sel = None,
@@ -4249,6 +4292,7 @@ impl App {
 
     /// Painéis "Como funciona": 2–4 blocos com ícone e frase curta, a explicação técnica recolhida.
     fn info(&mut self, ui: &mut Ui, t: Topic, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
+        use crate::i18n::t as tr;
         // texto técnico (o que antes ficava aberto), agora dentro de "Detalhes técnicos"
         let para = |ui: &mut Ui, s: &str| {
             ui.label(egui::RichText::new(s).size(13.0).color(pal::dim()));
@@ -4261,51 +4305,51 @@ impl App {
                 let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
                 let ln = topo.dock_usb4.iter().find(|p| p.pid == 21).and_then(|p| p.val.as_u32()).unwrap_or(2).max(1);
                 match speed {
-                    Some(0x8) => info_block(ui, "⚡", pal::amber(), &format!("Cabo entrega {} de 40\u{A0}Gb/s", ln * 10), "≈ decodificado das chaves do dock: metade do que ele aceita"),
-                    Some(0x4) => info_block(ui, "⚡", pal::green(), &format!("Cabo entrega {}\u{A0}Gb/s", ln * 20), "≈ decodificado das chaves do dock: velocidade máxima"),
-                    _ => info_block(ui, "⚡", pal::faint(), "Velocidade do cabo desconhecida", "O dock não publicou as chaves de velocidade"),
+                    Some(0x8) => info_block(ui, "⚡", pal::amber(), &tf!("Cabo entrega {} de 40\u{A0}Gb/s", "Cable delivers {} of 40\u{A0}Gb/s", ln * 10), tr("≈ decodificado das chaves do dock: metade do que ele aceita", "≈ decoded from the dock's keys: half of what it supports")),
+                    Some(0x4) => info_block(ui, "⚡", pal::green(), &tf!("Cabo entrega {}\u{A0}Gb/s", "Cable delivers {}\u{A0}Gb/s", ln * 20), tr("≈ decodificado das chaves do dock: velocidade máxima", "≈ decoded from the dock's keys: full speed")),
+                    _ => info_block(ui, "⚡", pal::faint(), tr("Velocidade do cabo desconhecida", "Cable speed unknown"), tr("O dock não publicou as chaves de velocidade", "The dock did not publish its speed keys")),
                 }
                 match bench {
                     Some(b) => info_block(
                         ui,
                         "📏",
                         pal::data(),
-                        &format!("Banda medida ↑{} ↓{}\u{A0}Gb/s", gbit(b.h2d_gbs), gbit(b.d2h_gbs)),
-                        "Com 40\u{A0}Gb/s o normal é ≈ 20–22\u{A0}Gb/s; ≈ 13–15 é típico de 20\u{A0}Gb/s",
+                        &tf!("Banda medida ↑{} ↓{}\u{A0}Gb/s", "Measured bandwidth ↑{} ↓{}\u{A0}Gb/s", gbit(b.h2d_gbs), gbit(b.d2h_gbs)),
+                        tr("Com 40\u{A0}Gb/s o normal é ≈ 20–22\u{A0}Gb/s; ≈ 13–15 é típico de 20\u{A0}Gb/s", "At 40\u{A0}Gb/s expect ≈ 20–22\u{A0}Gb/s; ≈ 13–15 is typical of 20\u{A0}Gb/s"),
                     ),
-                    None => info_block(ui, "📏", pal::faint(), "Banda ainda não medida", "Abaixo de ≈ 18\u{A0}Gb/s confirma o enlace reduzido"),
+                    None => info_block(ui, "📏", pal::faint(), tr("Banda ainda não medida", "Bandwidth not measured yet"), tr("Abaixo de ≈ 18\u{A0}Gb/s confirma o enlace reduzido", "Below ≈ 18\u{A0}Gb/s confirms the reduced link")),
                 }
-                info_block(ui, "🔍", pal::bolt(), "Como provar: troque por um cabo 40\u{A0}Gb/s certificado", "Thunderbolt\u{A0}3/4 passivo, até 0,8 m. A banda deve subir para ≈ 20\u{A0}Gb/s");
+                info_block(ui, "🔍", pal::bolt(), tr("Como provar: troque por um cabo 40\u{A0}Gb/s certificado", "To prove it: swap in a certified 40\u{A0}Gb/s cable"), tr("Thunderbolt\u{A0}3/4 passivo, até 0,8 m. A banda deve subir para ≈ 20\u{A0}Gb/s", "Passive Thunderbolt\u{A0}3/4, up to 0.8 m. Bandwidth should rise to ≈ 20\u{A0}Gb/s"));
                 ui.add_space(4.0);
-                if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { "📏 Medindo…" } else { "📏 Medir banda agora" }).size(14.0))).clicked() {
+                if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { tr("📏 Medindo…", "📏 Measuring…") } else { tr("📏 Medir banda agora", "📏 Measure bandwidth now") }).size(14.0))).clicked() {
                     self.start_bench(ctx);
                 }
                 side_tech(ui, "info-link", |ui| {
-                    para(ui, "O Windows publica no roteador do dock propriedades USB4 sem documentação ({5DF7E321-…}). Comparando dock e host com os IDs de hardware, deu para decodificar várias delas.");
-                    para(ui, "A chave 20 vale 0x8. No spec USB4 (Lane Adapter CS1) esse campo vale 0x8 = Gen2 (10\u{A0}Gb/s por faixa) e 0x4 = Gen3 (20\u{A0}Gb/s). A chave 21 é o número de faixas. Se a chave 20 virar 0x4 com outro cabo, a decodificação fica provada.");
-                    usb4_table(ui, "Chaves USB4 do dock", &topo.dock_usb4);
+                    para(ui, tr("O Windows publica no roteador do dock propriedades USB4 sem documentação ({5DF7E321-…}). Comparando dock e host com os IDs de hardware, deu para decodificar várias delas.", "Windows publishes undocumented USB4 properties on the dock's router ({5DF7E321-…}). Comparing dock and host by hardware IDs, several of them could be decoded."));
+                    para(ui, tr("A chave 20 vale 0x8. No spec USB4 (Lane Adapter CS1) esse campo vale 0x8 = Gen2 (10\u{A0}Gb/s por faixa) e 0x4 = Gen3 (20\u{A0}Gb/s). A chave 21 é o número de faixas. Se a chave 20 virar 0x4 com outro cabo, a decodificação fica provada.", "Key 20 reads 0x8. In the USB4 spec (Lane Adapter CS1) this field is 0x8 = Gen2 (10\u{A0}Gb/s per lane) and 0x4 = Gen3 (20\u{A0}Gb/s). Key 21 is the lane count. If key 20 turns into 0x4 with another cable, the decoding is proven."));
+                    usb4_table(ui, tr("Chaves USB4 do dock", "Dock USB4 keys"), &topo.dock_usb4);
                 });
             }
             Topic::Power => {
                 match last.power {
                     Some(pw) => {
-                        let pct = (pw.full_mwh > 0).then(|| format!(" · bateria {:.0}%", pw.rem_mwh as f64 * 100.0 / pw.full_mwh as f64));
+                        let pct = (pw.full_mwh > 0).then(|| tf!(" · bateria {:.0}%", " · battery {:.0}%", pw.rem_mwh as f64 * 100.0 / pw.full_mwh as f64));
                         if pw.online {
-                            info_block(ui, "🔌", pal::green(), &format!("Na tomada{}", pct.unwrap_or_default()), "O dock está carregando o notebook pelo cabo");
+                            info_block(ui, "🔌", pal::green(), &tf!("Na tomada{}", "Plugged in{}", pct.unwrap_or_default()), tr("O dock está carregando o notebook pelo cabo", "The dock is charging the laptop over the cable"));
                         } else {
-                            info_block(ui, "🔋", pal::amber(), &format!("Na bateria{}", pct.unwrap_or_default()), "O notebook não está recebendo energia do dock");
+                            info_block(ui, "🔋", pal::amber(), &tf!("Na bateria{}", "On battery{}", pct.unwrap_or_default()), tr("O notebook não está recebendo energia do dock", "The laptop isn't getting power from the dock"));
                         }
                     }
-                    None => info_block(ui, "🔌", pal::faint(), "Energia do notebook desconhecida", "O Windows não informou o estado da bateria"),
+                    None => info_block(ui, "🔌", pal::faint(), tr("Energia do notebook desconhecida", "Laptop power unknown"), tr("O Windows não informou o estado da bateria", "Windows didn't report the battery state")),
                 }
-                info_block(ui, "💡", pal::bolt(), "Energia caiu junto? O dock inteiro apagou", "É a pista mais útil numa queda: aponta para fonte ou tomada");
-                info_block(ui, "🙈", pal::faint(), "Os watts do PD não chegam ao Windows", "Tensão e corrente ficam no controlador do dock");
+                info_block(ui, "💡", pal::bolt(), tr("Energia caiu junto? O dock inteiro apagou", "Power dropped too? The whole dock went dark"), tr("É a pista mais útil numa queda: aponta para fonte ou tomada", "It's the most useful clue in a drop: it points to the PSU or the outlet"));
+                info_block(ui, "🙈", pal::faint(), tr("Os watts do PD não chegam ao Windows", "PD watts never reach Windows"), tr("Tensão e corrente ficam no controlador do dock", "Voltage and current stay in the dock's controller"));
                 let series: Vec<f32> = samples.iter().filter_map(|s| s.power).map(|p| p.mv as f32 / 1000.0).collect();
-                chart(ui, "tensão da bateria (V)", &[(pal::bolt(), "V", series)], 13.0, " V", 70.0);
+                chart(ui, tr("tensão da bateria (V)", "battery voltage (V)"), &[(pal::bolt(), "V", series)], 13.0, " V", 70.0);
                 side_tech(ui, "info-power", |ui| {
-                    para(ui, "Fonte: WMI root\\wmi BatteryStatus (PowerOnline, ChargeRate, DischargeRate, Voltage) — é o que o driver de bateria ACPI publica.");
-                    para(ui, "Com a bateria cheia, a taxa de carga é zero e o PD alimenta só o consumo do sistema. Nesse caso o Windows não informa quantos watts o dock entrega.");
-                    para(ui, "A tensão/corrente negociadas no contrato PD (por ex. 20\u{A0}V × 4,25\u{A0}A = 85\u{A0}W) ficam no controlador PD do dock e não chegam ao Windows.");
+                    para(ui, tr("Fonte: WMI root\\wmi BatteryStatus (PowerOnline, ChargeRate, DischargeRate, Voltage) — é o que o driver de bateria ACPI publica.", "Source: WMI root\\wmi BatteryStatus (PowerOnline, ChargeRate, DischargeRate, Voltage) — what the ACPI battery driver publishes."));
+                    para(ui, tr("Com a bateria cheia, a taxa de carga é zero e o PD alimenta só o consumo do sistema. Nesse caso o Windows não informa quantos watts o dock entrega.", "With a full battery, the charge rate is zero and PD only feeds the system's consumption. In that case Windows doesn't report how many watts the dock delivers."));
+                    para(ui, tr("A tensão/corrente negociadas no contrato PD (por ex. 20\u{A0}V × 4,25\u{A0}A = 85\u{A0}W) ficam no controlador PD do dock e não chegam ao Windows.", "The voltage/current negotiated in the PD contract (e.g. 20\u{A0}V × 4.25\u{A0}A = 85\u{A0}W) stay in the dock's PD controller and never reach Windows."));
                 });
             }
             Topic::Stability => {
@@ -4318,65 +4362,65 @@ impl App {
                     _ => pal::red(),
                 };
                 if d24 > 0 {
-                    info_block(ui, "🛡", col, &format!("Caiu {d24}× nas últimas 24\u{A0}h"), "Clique numa queda no Histórico para ver o que veio antes");
+                    info_block(ui, "🛡", col, &tf!("Caiu {}× nas últimas 24\u{A0}h", "Dropped {}× in the last 24\u{A0}h", d24), tr("Clique numa queda no Histórico para ver o que veio antes", "Click a drop in History to see what came before"));
                 } else {
-                    info_block(ui, "🛡", col, "Nenhuma queda nas últimas 24\u{A0}h", "O painel registra cada queda, mesmo com a janela fechada");
+                    info_block(ui, "🛡", col, tr("Nenhuma queda nas últimas 24\u{A0}h", "No drops in the last 24\u{A0}h"), tr("O painel registra cada queda, mesmo com a janela fechada", "The panel logs every drop, even with the window closed"));
                 }
-                info_block(ui, "🔋", pal::bolt(), "Energia caiu junto → fonte ou tomada", "O dock inteiro apagou ou reiniciou");
-                info_block(ui, "⛓", pal::data(), "Só a conexão caiu → cabo ou conector", "A energia continuou chegando, só o túnel caiu");
+                info_block(ui, "🔋", pal::bolt(), tr("Energia caiu junto → fonte ou tomada", "Power dropped too → PSU or outlet"), tr("O dock inteiro apagou ou reiniciou", "The whole dock went dark or restarted"));
+                info_block(ui, "⛓", pal::data(), tr("Só a conexão caiu → cabo ou conector", "Only the connection dropped → cable or connector"), tr("A energia continuou chegando, só o túnel caiu", "Power kept coming, only the tunnel dropped"));
                 ui.add_space(4.0);
                 ui.horizontal_wrapped(|ui| {
-                    if side_chip(ui, "📜 Ver o histórico", None, true).clicked() {
+                    if side_chip(ui, tr("📜 Ver o histórico", "📜 See history"), None, true).clicked() {
                         self.tab = Tab::Historico;
                     }
-                    if side_chip(ui, "📄 Exportar CSV", None, true).clicked() {
+                    if side_chip(ui, tr("📄 Exportar CSV", "📄 Export CSV"), None, true).clicked() {
                         match crate::config::export_csv() {
                             Ok(p) => {
                                 crate::config::open_folder(p.parent().unwrap_or(&p));
-                                self.flash = Some(format!("Exportado: {}", p.display()));
+                                self.flash = Some(tf!("Exportado: {}", "Exported: {}", p.display()));
                             }
-                            Err(e) => self.flash = Some(format!("Falha: {e}")),
+                            Err(e) => self.flash = Some(tf!("Falha: {}", "Failed: {}", e)),
                         }
                     }
                 });
                 side_tech(ui, "info-stab", |ui| {
-                    para(ui, "Uma queda é agrupada com tudo o que aconteceu até 20\u{A0}s depois (switch PCIe, roteador TB, GPU, energia).");
-                    para(ui, "🔋 PD caiu junto: o note perdeu a energia externa no mesmo instante — o dock inteiro apagou ou resetou (fonte ATX, controlador do dock ou PD), não só o túnel.");
-                    para(ui, "⛓ Só o enlace: a energia continuou chegando e só o túnel/PCIe caiu — cabo, conector ou o próprio controlador TB.");
-                    para(ui, "💥 \"Falha\" = Kernel-PnP 1011: o Windows relatou o dispositivo como falhando. ⏏ \"Removido\" = 1010: sumiu do barramento (desconexão física ou apagão).");
+                    para(ui, tr("Uma queda é agrupada com tudo o que aconteceu até 20\u{A0}s depois (switch PCIe, roteador TB, GPU, energia).", "A drop is grouped with everything that happened up to 20\u{A0}s later (PCIe switch, TB router, GPU, power)."));
+                    para(ui, tr("🔋 PD caiu junto: o note perdeu a energia externa no mesmo instante — o dock inteiro apagou ou resetou (fonte ATX, controlador do dock ou PD), não só o túnel.", "🔋 PD dropped too: the laptop lost external power at the same moment — the whole dock went dark or reset (ATX PSU, dock controller or PD), not just the tunnel."));
+                    para(ui, tr("⛓ Só o enlace: a energia continuou chegando e só o túnel/PCIe caiu — cabo, conector ou o próprio controlador TB.", "⛓ Link only: power kept coming and only the tunnel/PCIe dropped — cable, connector or the TB controller itself."));
+                    para(ui, tr("💥 \"Falha\" = Kernel-PnP 1011: o Windows relatou o dispositivo como falhando. ⏏ \"Removido\" = 1010: sumiu do barramento (desconexão física ou apagão).", "💥 \"Failure\" = Kernel-PnP 1011: Windows reported the device as failing. ⏏ \"Removed\" = 1010: it vanished from the bus (physical disconnect or blackout)."));
                 });
             }
             Topic::Flow => {
-                info_block(ui, "⇄", pal::data(), &format!("Tráfego agora ≈ {:.0}%", last.copy), "Uso do motor de cópia da GPU: quanto o cabo está ocupado");
-                info_block(ui, "🚚", pal::data(), "O motor de cópia da GPU mostra o tráfego", "O Windows não conta bytes no túnel; quando ele copia, o cabo trabalha");
-                info_block(ui, "💫", pal::faint(), "Pulsos mais rápidos = mais dados", "Na topologia, os pulsos do cabo seguem esse uso");
+                info_block(ui, "⇄", pal::data(), &tf!("Tráfego agora ≈ {:.0}%", "Traffic now ≈ {:.0}%", last.copy), tr("Uso do motor de cópia da GPU: quanto o cabo está ocupado", "GPU copy engine usage: how busy the cable is"));
+                info_block(ui, "🚚", pal::data(), tr("O motor de cópia da GPU mostra o tráfego", "The GPU copy engine shows the traffic"), tr("O Windows não conta bytes no túnel; quando ele copia, o cabo trabalha", "Windows doesn't count bytes in the tunnel; when it copies, the cable is working"));
+                info_block(ui, "💫", pal::faint(), tr("Pulsos mais rápidos = mais dados", "Faster pulses = more data"), tr("Na topologia, os pulsos do cabo seguem esse uso", "On the topology map, the cable pulses follow this usage"));
                 side_tech(ui, "info-flow", |ui| {
-                    para(ui, "Nenhum contador do Windows mede bytes no túnel Thunderbolt. O motor Copy da GPU executa as cópias DMA entre a memória do note e a VRAM; quando ele está ocupado, o túnel está ocupado.");
-                    para(ui, "Os contadores vêm do PDH: GPU Engine (Utilization Percentage, filtrado pelo LUID da Radeon) e GPU Adapter Memory.");
+                    para(ui, tr("Nenhum contador do Windows mede bytes no túnel Thunderbolt. O motor Copy da GPU executa as cópias DMA entre a memória do note e a VRAM; quando ele está ocupado, o túnel está ocupado.", "No Windows counter measures bytes in the Thunderbolt tunnel. The GPU's Copy engine runs the DMA copies between laptop memory and VRAM; when it's busy, the tunnel is busy."));
+                    para(ui, tr("Os contadores vêm do PDH: GPU Engine (Utilization Percentage, filtrado pelo LUID da Radeon) e GPU Adapter Memory.", "The counters come from PDH: GPU Engine (Utilization Percentage, filtered by the Radeon's LUID) and GPU Adapter Memory."));
                 });
             }
             Topic::Gpu => {
-                info_block(ui, "🎮", pal::data(), "Dados lidos do driver AMD", "Temperatura, consumo, ventoinha e memória, ao vivo");
-                info_block(ui, "🍃", pal::faint(), "Só com a janela aberta", "O driver é liberado ao fechar: a bandeja fica leve");
+                info_block(ui, "🎮", pal::data(), tr("Dados lidos do driver AMD", "Data read from the AMD driver"), tr("Temperatura, consumo, ventoinha e memória, ao vivo", "Temperature, power, fan and memory, live"));
+                info_block(ui, "🍃", pal::faint(), tr("Só com a janela aberta", "Only while the window is open"), tr("O driver é liberado ao fechar: a bandeja fica leve", "The driver is released on close: the tray stays light"));
                 ui.add_space(4.0);
                 let mut s = self.sel;
-                if side_chip(ui, "🎮 Ver a placa", None, true).clicked() {
+                if side_chip(ui, tr("🎮 Ver a placa", "🎮 See the card"), None, true).clicked() {
                     s = Some(Sel::Gpu);
                 }
                 self.sel = s;
                 side_tech(ui, "info-gpu", |ui| {
-                    para(ui, "Dados do AMD ADLX (amdadlx64.dll), carregado só com a janela aberta e liberado ao fechar.");
+                    para(ui, tr("Dados do AMD ADLX (amdadlx64.dll), carregado só com a janela aberta e liberado ao fechar.", "Data from AMD ADLX (amdadlx64.dll), loaded only while the window is open and released on close."));
                 });
             }
             Topic::Hidden => {
-                info_block(ui, "🚫", pal::faint(), &format!("{} coisas que o Windows não enxerga", HIDDEN.len()), "Passe o mouse em cada uma para saber o porquê");
+                info_block(ui, "🚫", pal::faint(), &tf!("{} coisas que o Windows não enxerga", "{} things Windows can't see", hidden().len()), tr("Passe o mouse em cada uma para saber o porquê", "Hover each one to see why"));
                 ui.add_space(2.0);
                 // grade de 2 colunas, células do mesmo tamanho (nada vaza nem fica torto)
                 let avail = ui.available_width();
                 let cw = ((avail - 8.0) / 2.0).floor();
                 ui.scope(|ui| {
                     ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-                    for pair in HIDDEN.chunks(2) {
+                    for pair in hidden().chunks(2) {
                         ui.horizontal(|ui| {
                             for (icon, name, why) in pair {
                                 let (r, resp) = ui.allocate_exact_size(vec2(cw, 34.0), Sense::hover());
@@ -4393,9 +4437,9 @@ impl App {
                     }
                 });
                 ui.add_space(8.0);
-                info_block(ui, "✅", pal::data(), "O que dá para ver, o painel mostra", "Quedas, energia do notebook, GPU e a velocidade do cabo");
+                info_block(ui, "✅", pal::data(), tr("O que dá para ver, o painel mostra", "What can be seen, the panel shows"), tr("Quedas, energia do notebook, GPU e a velocidade do cabo", "Drops, laptop power, GPU and cable speed"));
                 side_tech(ui, "info-hidden", |ui| {
-                    for (icon, name, why) in HIDDEN {
+                    for (icon, name, why) in hidden() {
                         ui.label(egui::RichText::new(format!("{icon} {name}")).size(13.0).strong().color(pal::fg()));
                         para(ui, why);
                     }
@@ -4477,30 +4521,37 @@ fn pcie_tile(gst: Option<&crate::collect::GpuStatic>, chip: Option<(u32, u32, u3
         (Some((tg, tw)), inner) => {
             let tb = pcie_gbs(tg, tw);
             let bottleneck = inner.is_none_or(|(g, w)| pcie_gbs(g, w) > tb);
-            let mut x = tl(if bottleneck { FUNNEL } else { "🔗" }, Some(pcie_long(tg, tw)), "", "Túnel até o notebook", neutral);
+            let mut x = tl(if bottleneck { FUNNEL } else { "🔗" }, Some(pcie_long(tg, tw)), "", t("Túnel até o notebook", "Tunnel to the laptop"), neutral);
             if let Some((g, w)) = inner {
-                x = x.note(format!("Dentro da placa: {}", pcie_long(g, w)));
+                x = x.note(tf!("Dentro da placa: {}", "Inside the card: {}", pcie_long(g, w)));
             }
-            let mut tip = format!(
+            let mut tip = tf!(
                 "Túnel até o notebook · {} (lido do driver AMD): a placa no slot do dock, que segue pelo cabo Thunderbolt até o notebook. No papel, ≈ {}\u{A0}Gb/s.",
+                "Tunnel to the laptop · {} (read from the AMD driver): the card in the dock slot, which continues over the Thunderbolt cable to the laptop. On paper, ≈ {}\u{A0}Gb/s.",
                 pcie_long(tg, tw),
                 gbit(tb as f64)
             );
             if let Some((g, w)) = inner {
-                tip.push_str(&format!(
+                tip.push_str(&tf!(
                     "\n\nDentro da placa · {} (lido do Windows): o chip da GPU ligado ao switch PCIe da própria placa, ≈ {}\u{A0}Gb/s.",
+                    "\n\nInside the card · {} (read from Windows): the GPU chip wired to the card's own PCIe switch, ≈ {}\u{A0}Gb/s.",
                     pcie_long(g, w),
                     gbit(pcie_gbs(g, w) as f64)
                 ));
             }
             if bottleneck {
-                tip.push_str("\n\nO funil marca o gargalo: o túnel é o trecho mais estreito do caminho, é ele que limita a banda da GPU, não a placa.");
+                tip.push_str(t(
+                    "\n\nO funil marca o gargalo: o túnel é o trecho mais estreito do caminho, é ele que limita a banda da GPU, não a placa.",
+                    "\n\nThe funnel marks the bottleneck: the tunnel is the narrowest part of the path, and it is what limits the GPU's bandwidth, not the card.",
+                ));
             }
             x.tip(tip)
         }
-        (None, Some((g, w))) => tl("🔗", Some(pcie_long(g, w)), "", "Dentro da placa", neutral)
-            .tip("O chip da GPU ligado ao switch PCIe da própria placa (lido do Windows). O túnel até o notebook é mais estreito, mas o driver não informou a largura dele."),
-        (None, None) => tl("🔗", None, "", "Túnel até o notebook", neutral),
+        (None, Some((g, w))) => tl("🔗", Some(pcie_long(g, w)), "", t("Dentro da placa", "Inside the card"), neutral).tip(t(
+            "O chip da GPU ligado ao switch PCIe da própria placa (lido do Windows). O túnel até o notebook é mais estreito, mas o driver não informou a largura dele.",
+            "The GPU chip wired to the card's own PCIe switch (read from Windows). The tunnel to the laptop is narrower, but the driver didn't report its width.",
+        )),
+        (None, None) => tl("🔗", None, "", t("Túnel até o notebook", "Tunnel to the laptop"), neutral),
     }
 }
 
@@ -4522,7 +4573,7 @@ fn gbit(gbs: f64) -> String {
 }
 
 fn dec(v: f64, n: usize) -> String {
-    format!("{v:.n$}").replace('.', ",")
+    crate::i18n::dec_sep(format!("{v:.n$}"))
 }
 
 /// Um bloco da grade do painel lateral: ícone, valor grande, rótulo pequeno e, embaixo, uma sparkline ou barra.
@@ -4743,7 +4794,7 @@ fn side_hero(ui: &mut Ui, e: f32, accent: Color32, art: &dyn Fn(&egui::Painter, 
                 ui.painter().rect_filled(close, CornerRadius::same(6), pal::card3());
             }
             ui.painter().text(close.center(), egui::Align2::CENTER_CENTER, "✕", FontId::proportional(15.0), if r.hovered() { pal::fg() } else { pal::dim() });
-            if r.on_hover_text("Fechar (Esc)").clicked() {
+            if r.on_hover_text(crate::i18n::t("Fechar (Esc)", "Close (Esc)")).clicked() {
                 *sel = None;
             }
         });
@@ -4805,7 +4856,7 @@ fn side_chip(ui: &mut Ui, text: &str, dot: Option<Color32>, click: bool) -> egui
 /// Detalhes crus no fim, recolhidos.
 fn side_tech(ui: &mut Ui, key: &str, add: impl FnOnce(&mut Ui)) {
     ui.add_space(14.0);
-    egui::CollapsingHeader::new(egui::RichText::new("🔧 Detalhes técnicos").size(13.5).color(pal::dim()))
+    egui::CollapsingHeader::new(egui::RichText::new(t("🔧 Detalhes técnicos", "🔧 Technical details")).size(13.5).color(pal::dim()))
         .id_salt(("tech", key))
         .default_open(false)
         .show(ui, add);
@@ -4818,9 +4869,9 @@ fn friendly_time(ms: i64) -> String {
     let today = chrono::Local::now().date_naive();
     let d = t.date_naive();
     if d == today {
-        format!("hoje {}", t.format("%H:%M"))
+        tf!("hoje {}", "today {}", t.format("%H:%M"))
     } else if Some(d) == today.pred_opt() {
-        format!("ontem {}", t.format("%H:%M"))
+        tf!("ontem {}", "yesterday {}", t.format("%H:%M"))
     } else {
         t.format("%d/%m %H:%M").to_string()
     }
@@ -4848,16 +4899,17 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
             }
             if inc.is_drop && inc.events.iter().any(|e| e.kind.cat() == Cat::Dock) {
                 if inc.pd_lost {
-                    ctxs.push(("🔋", pal::amber(), 14.0, "PD caiu junto: o dock inteiro apagou".into()));
+                    ctxs.push(("🔋", pal::amber(), 14.0, t("PD caiu junto: o dock inteiro apagou", "PD dropped too: the whole dock went dark").into()));
                 } else {
-                    ctxs.push(("⛓", pal::violet(), 14.0, "Só o enlace caiu; o PD continuou".into()));
+                    ctxs.push(("⛓", pal::violet(), 14.0, t("Só o enlace caiu; o PD continuou", "Only the link dropped; PD stayed up").into()));
                 }
             }
             let cnt = (inc.events.len() > 1).then(|| format!("×{}", inc.events.len()));
             let sp = ui.spacing().item_spacing.x;
             let wof = |ui: &Ui, s: &str, size: f32| ui.painter().layout_no_wrap(s.to_string(), FontId::proportional(size), pal::fg()).size().x;
             let full = ui.available_width();
-            let fixed = 24.0 + 96.0 + 2.0 * sp + cnt.as_ref().map(|c| wof(ui, c, 12.5) + sp).unwrap_or(0.0);
+            let time_w = if crate::i18n::en() { 108.0 } else { 96.0 };
+            let fixed = 24.0 + time_w + 2.0 * sp + cnt.as_ref().map(|c| wof(ui, c, 12.5) + sp).unwrap_or(0.0);
             let icons_w = |k: usize, more: bool| -> f32 {
                 ctxs.iter().take(k).map(|c| wof(ui, c.0, c.2) + sp).sum::<f32>() + if more { wof(ui, "…", 13.0) + sp } else { 0.0 }
             };
@@ -4871,7 +4923,7 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
             let title_room = (full - fixed - icons_w(shown, more) - 1.0).max(40.0);
             let r = ui.horizontal(|ui| {
                 ui.add_sized([24.0, 20.0], egui::Label::new(egui::RichText::new(kind_icon(head.kind)).color(color).size(15.0)));
-                ui.add_sized([96.0, 18.0], egui::Label::new(egui::RichText::new(friendly_time(inc.start)).color(pal::dim()).size(14.0)));
+                ui.add_sized([time_w, 18.0], egui::Label::new(egui::RichText::new(friendly_time(inc.start)).color(pal::dim()).size(14.0)));
                 let tl = egui::Label::new(egui::RichText::new(title).color(color).strong()).truncate();
                 if tw <= title_room {
                     ui.add(tl);
@@ -4902,7 +4954,7 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
                         ui.add_space(22.0);
                         ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
                         ui.label(egui::RichText::new(fmt_local(e.ts, false)).size(13.0).color(pal::faint()));
-                        ui.label(egui::RichText::new(&e.msg).size(13.5)).on_hover_text(format!("fonte: {}\n{}", e.src, e.dev.clone().unwrap_or_default()));
+                        ui.label(egui::RichText::new(&e.msg).size(13.5)).on_hover_text(tf!("fonte: {}\n{}", "source: {}\n{}", e.src, e.dev.clone().unwrap_or_default()));
                     });
                     if let Some(s) = &e.snap {
                         ui.horizontal_wrapped(|ui| {
@@ -4915,7 +4967,7 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
                     let before = history::get().before(inc.start, 120_000);
                     ui.horizontal(|ui| {
                         ui.add_space(22.0);
-                        ui.label(egui::RichText::new(format!("⏪ 2\u{A0}min antes: {}", if before.is_empty() { "nada no Event Log (queda sem aviso)".to_string() } else { format!("{} evento(s)", before.len()) })).strong().color(pal::amber()).size(13.5));
+                        ui.label(egui::RichText::new(tf!("⏪ 2\u{A0}min antes: {}", "⏪ 2\u{A0}min before: {}", if before.is_empty() { t("nada no Event Log (queda sem aviso)", "nothing in the Event Log (drop with no warning)").to_string() } else { tf!("{} evento(s)", "{} event(s)", before.len()) })).strong().color(pal::amber()).size(13.5));
                     });
                     for e in before.iter().rev().take(20) {
                         ui.horizontal_wrapped(|ui| {
@@ -4948,12 +5000,12 @@ enum Topic {
 impl Topic {
     fn title(self) -> &'static str {
         match self {
-            Topic::Link => "⚡ Enlace Thunderbolt",
-            Topic::Power => "🔌 Energia PD",
-            Topic::Stability => "🛡 Quedas do dock",
-            Topic::Flow => "📶 Fluxo de dados",
+            Topic::Link => t("⚡ Enlace Thunderbolt", "⚡ Thunderbolt link"),
+            Topic::Power => t("🔌 Energia PD", "🔌 PD power"),
+            Topic::Stability => t("🛡 Quedas do dock", "🛡 Dock drops"),
+            Topic::Flow => t("📶 Fluxo de dados", "📶 Data flow"),
             Topic::Gpu => "🎮 GPU",
-            Topic::Hidden => "🚫 Invisível ao Windows",
+            Topic::Hidden => t("🚫 Invisível ao Windows", "🚫 Hidden from Windows"),
         }
     }
 }
@@ -4962,7 +5014,7 @@ fn node_details(ui: &mut Ui, title: &str, n: Option<&Node>) {
     ui.add_space(6.0);
     ui.label(egui::RichText::new(title).strong().color(pal::fg()));
     let Some(n) = n else {
-        ui.label(egui::RichText::new("ausente").color(pal::red()));
+        ui.label(egui::RichText::new(t("ausente", "missing")).color(pal::red()));
         return;
     };
     egui::Grid::new(("nd", title, &n.id)).num_columns(2).spacing(vec2(10.0, 2.0)).striped(true).max_col_width(ui.available_width() * 0.62).show(ui, |ui| {
@@ -4971,32 +5023,42 @@ fn node_details(ui: &mut Ui, title: &str, n: Option<&Node>) {
             ui.label(egui::RichText::new(v).size(13.0));
             ui.end_row();
         };
-        row("nome", n.name.clone());
+        row(t("nome", "name"), n.name.clone());
         row("instance id", n.id.clone());
         if let Some(f) = &n.firmware {
             row("firmware", f.clone());
         }
-        row("estado", format!("{} · problema {}", dname(n), n.problem));
+        row(t("estado", "state"), tf!("{} · problema {}", "{} · problem {}", dname(n), n.problem));
         if let Some(d) = &n.driver {
             row("driver", format!("{d} ({})", n.driver_provider.clone().unwrap_or_default()));
         }
         if let Some(l) = &n.location {
-            row("local", l.clone());
+            row(t("local", "location"), l.clone());
         }
         if let Some((cs, cw, ms, mw)) = n.pcie {
-            row("enlace PCIe", format!("{}\u{A0}x{cw} (máx {}\u{A0}x{mw})", pnp::pcie_speed_name(cs), pnp::pcie_speed_name(ms)));
+            row(t("enlace PCIe", "PCIe link"), tf!("{}\u{A0}x{cw} (máx {}\u{A0}x{mw})", "{}\u{A0}x{cw} (max {}\u{A0}x{mw})", pnp::pcie_speed_name(cs), pnp::pcie_speed_name(ms)));
         }
         if let Some(t) = n.last_arrival {
-            row("última chegada", fmt_local(t, false));
+            row(crate::i18n::t("última chegada", "last arrival"), fmt_local(t, false));
         }
         if let Some(t) = n.last_removal {
-            row("última remoção", fmt_local(t, false));
+            row(crate::i18n::t("última remoção", "last removal"), fmt_local(t, false));
         }
         if let Some(r) = n.removal_policy {
-            row("política de remoção", match r { 1 => "esperada (hot-plug)".into(), 2 => "remoção ordenada".into(), 3 => "remoção surpresa".into(), x => x.to_string() });
+            row(t("política de remoção", "removal policy"), match r { 1 => t("esperada (hot-plug)", "expected (hot-plug)").into(), 2 => t("remoção ordenada", "orderly removal").into(), 3 => t("remoção surpresa", "surprise removal").into(), x => x.to_string() });
         }
         for (k, v) in &n.pci_err {
             let v = if *k == "Tipo de dispositivo PCIe" { v.split(' ').next().and_then(|x| x.parse().ok()).map(pnp::pci_type_name).unwrap_or("?").to_string() } else { v.clone() };
+            // chaves vêm de pnp.rs em português; traduzidas só na exibição
+            let k: &str = match *k {
+                "AER presente" => t("AER presente", "AER present"),
+                "Máscara de erros não corrigíveis" => t("Máscara de erros não corrigíveis", "Uncorrectable error mask"),
+                "Severidade não corrigíveis" => t("Severidade não corrigíveis", "Uncorrectable severity"),
+                "Máscara de erros corrigíveis" => t("Máscara de erros corrigíveis", "Correctable error mask"),
+                "Tipo de dispositivo PCIe" => t("Tipo de dispositivo PCIe", "PCIe device type"),
+                "Versão PCIe Express" => t("Versão PCIe Express", "PCIe Express version"),
+                other => other,
+            };
             row(k, v);
         }
     });
@@ -5006,11 +5068,11 @@ fn usb4_table(ui: &mut Ui, title: &str, props: &[crate::pnp::Usb4Prop]) {
     ui.add_space(6.0);
     ui.label(egui::RichText::new(title).strong().color(pal::bolt()));
     if props.is_empty() {
-        ui.label(egui::RichText::new("nenhuma").color(pal::dim()));
+        ui.label(egui::RichText::new(t("nenhuma", "none")).color(pal::dim()));
         return;
     }
     egui::Grid::new(("u4", title)).num_columns(4).spacing(vec2(8.0, 2.0)).striped(true).max_col_width(ui.available_width() * 0.42).show(ui, |ui| {
-        for h in ["pid", "valor bruto", "significado", "confiança"] {
+        for h in ["pid", t("valor bruto", "raw value"), t("significado", "meaning"), t("confiança", "confidence")] {
             ui.label(egui::RichText::new(h).color(pal::faint()).size(12.5));
         }
         ui.end_row();
@@ -5024,7 +5086,14 @@ fn usb4_table(ui: &mut Ui, title: &str, props: &[crate::pnp::Usb4Prop]) {
                 "hipótese" => pal::amber(),
                 _ => pal::faint(),
             };
-            ui.label(egui::RichText::new(p.confidence).color(c).size(13.0));
+            let conf = match p.confidence {
+                "certo" => t("certo", "certain"),
+                "forte" => t("forte", "strong"),
+                "hipótese" => t("hipótese", "hypothesis"),
+                "desconhecido" => t("desconhecido", "unknown"),
+                x => x,
+            };
+            ui.label(egui::RichText::new(conf).color(c).size(13.0));
             ui.end_row();
         }
     });
@@ -5045,10 +5114,11 @@ fn bars(ui: &mut Ui, r: &BenchResult) {
     for x in [band.left(), band.right()] {
         p.extend(egui::Shape::dashed_line(&[pos2(x, band.top()), pos2(x, band.bottom())], Stroke::new(1.0, pal::green().gamma_multiply(0.7)), 4.0, 3.0));
     }
-    let lg = p.layout_no_wrap("normal com cabo de 40\u{A0}Gb/s: 2,5–2,8\u{A0}GB/s".into(), FontId::proportional(12.5), pal::green()).size().x;
+    let band_txt = t("normal com cabo de 40\u{A0}Gb/s: 2,5–2,8\u{A0}GB/s", "normal with a 40\u{A0}Gb/s cable: 2.5–2.8\u{A0}GB/s");
+    let lg = p.layout_no_wrap(band_txt.into(), FontId::proportional(12.5), pal::green()).size().x;
     let lx = band.center().x.clamp(rect.left() + lg / 2.0, rect.right() - lg / 2.0);
-    p.text(pos2(lx, rect.bottom()), egui::Align2::CENTER_BOTTOM, "normal com cabo de 40\u{A0}Gb/s: 2,5–2,8\u{A0}GB/s", FontId::proportional(12.5), pal::green());
-    for (i, (label, v, c)) in [("Notebook → placa", r.h2d_gbs, pal::data()), ("Placa → notebook", r.d2h_gbs, pal::violet())].iter().enumerate() {
+    p.text(pos2(lx, rect.bottom()), egui::Align2::CENTER_BOTTOM, band_txt, FontId::proportional(12.5), pal::green());
+    for (i, (label, v, c)) in [(t("Notebook → placa", "Laptop → GPU"), r.h2d_gbs, pal::data()), (t("Placa → notebook", "GPU → laptop"), r.d2h_gbs, pal::violet())].iter().enumerate() {
         let y = rect.top() + 8.0 + i as f32 * 26.0;
         p.text(pos2(rect.left(), y + 8.0), egui::Align2::LEFT_CENTER, *label, FontId::proportional(13.5), pal::dim());
         let bar = Rect::from_min_max(pos2(x_of(0.0), y), pos2(x_of(*v as f32), y + 16.0));
