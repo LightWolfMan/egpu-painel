@@ -1,26 +1,221 @@
-# eGPU Painel
+<h1 align="center">eGPU Painel</h1>
 
-Painel desktop nativo para Windows que monitora e diagnostica um dock eGPU Thunderbolt 3, com foco na **placa do dock** (WIKINGOO WKG-L19, controlador Intel JHL7440 "Titan Ridge"). Escrito em Rust com egui/eframe (renderizador glow), sem WebView, sem runtime e sem serviço em segundo plano.
+<p align="center">
+  <b>Seu dock eGPU caiu? Veja o que caiu, quando e o provável porquê.</b><br>
+  Monitor e diagnóstico para docks eGPU Thunderbolt 3/4 e USB4 no Windows.<br>
+  <sub>Testado em WKG-L19 + RX 7600 XT · dados da GPU: só AMD por enquanto · por ora, só compilando do código-fonte · <a href="#funciona-com-o-meu">funciona com o meu?</a></sub>
+</p>
 
-![Painel](docs/painel.png)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-GPL--3.0--or--later-blue" alt="Licença GPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/plataforma-Windows%2011-0078D6" alt="Plataforma Windows 11">
+  <img src="https://img.shields.io/badge/feito%20com-Rust-B7410E?logo=rust&logoColor=white" alt="Feito com Rust">
+  <a href="#apoie"><img src="https://img.shields.io/badge/Apoie-Pix-EA4AAA" alt="Apoie via Pix"></a>
+</p>
 
-## O que é
+<p align="center">
+  <a href="docs/img/topologia.gif"><img src="docs/img/topologia.gif" alt="Gravação da Visão geral no tema AMD: veredito Instável com botão Ciente e pulsos animados na topologia do notebook, pelo dock, até a GPU" width="100%"></a><br>
+  <sub>Gravação real: o dock caiu 3 vezes em 24 h, a energia continuou, só a conexão caiu, e o painel aponta o cabo. Os fios mostram o caminho notebook → dock → GPU ao vivo.</sub>
+</p>
 
-O dock eGPU é uma cadeia de coisas que o Windows enxerga em pedaços: um controlador USB4 no notebook, um roteador Thunderbolt no dock, um switch PCIe com três portas downstream (a GPU, o xHCI das portas USB-A e uma porta TB extra), e por trás disso uma fonte ATX e um controlador PD que o sistema operacional nem sabe que existem. Quando o dock cai, o Windows só diz "dispositivo removido", e descobrir se foi o cabo, o enlace, a energia ou a GPU exige juntar evidência de vários lugares.
+<p align="center">
+  <a href="#funciona-com-o-meu">Funciona com o meu?</a> ·
+  <a href="#destaques">Destaques</a> ·
+  <a href="#instalação">Instalação</a> ·
+  <a href="#uso">Uso</a> ·
+  <a href="#por-dentro">Por dentro</a> ·
+  <a href="#apoie">Apoie</a> ·
+  <a href="#in-english">In English</a>
+</p>
 
-O painel faz essa junção. Ele lê a topologia PnP, decodifica as propriedades USB4 do roteador, correlaciona os eventos do Event Log (PnP, energia, vídeo, WHEA, PCI) e guarda tudo numa linha do tempo persistente. Cada queda é classificada: o PD caiu junto (o dock inteiro apagou ou resetou) ou só o enlace caiu.
+Seu dock eGPU cai no meio do jogo e o Windows só diz **"dispositivo removido"**. Foi o cabo? A fonte? A GPU? O **eGPU Painel** fica de olho no dock e, a cada queda, mostra **o que caiu, quando e a causa provável**, em português claro e com o histórico do que aconteceu antes.
 
-A regra de projeto é **não inventar dado**. Se o Windows não expõe um valor, o painel diz que não expõe, em vez de estimar. As chaves decodificadas carregam um nível de confiança, e o que é hipótese está marcado como hipótese.
+Gratuito, código aberto e sem anúncios. Fica na bandeja usando ~2 MB de memória privada e 0% de CPU parado (medido no release; detalhes em [Por dentro](#por-dentro)), e não instala serviço do Windows nem driver. Só acessa a internet quando você pede (busca de specs da fonte).
 
-## O que ele mostra
+> **Regra de projeto: não inventar dado.** Se o Windows não expõe um valor, o painel diz isso em vez de estimar escondido. Toda estimativa aparece rotulada como estimativa, e toda hipótese como hipótese.
 
-**Veredito no topo.** Uma frase só responde "meu dock está bem?": *Tudo certo*, *Instável: caiu N vezes nas últimas 24 h* ou *Desconectado*, com a causa provável da última queda (energia caiu junto → fonte/tomada; só a conexão → cabo). A pílula do cabeçalho segue a mesma cor.
+## Por que existe
 
-**Temas.** Claro e escuro são escolhidos à mão. No automático o painel detecta a GPU do dock pelo Vendor ID e aplica a paleta e o layout do fabricante: AMD com abas no topo no molde do Adrenalin, NVIDIA e Intel com menu lateral. O logotipo oficial aparece centralizado, como no HWiNFO. Vermelho fica reservado para problema real, e a cor de marca nunca pinta dado. A interface segue a escala de DPI do Windows e tem zoom próprio em Opções.
+Começou como uma ferramenta para entender por que o meu próprio dock eGPU vivia caindo. O Windows até tinha as pistas, só que espalhadas entre o Gerenciador de Dispositivos, propriedades USB4 sem documentação e o Event Log. O eGPU Painel junta tudo isso numa tela só: nasceu num WKG-L19 com uma RX 7600 XT; as partes que não dependem do modelo do dock foram escritas para servir a outros docks Thunderbolt 3/4 e USB4, mas ainda não foram testadas neles (veja a tabela abaixo).
+
+## Funciona com o meu?
+
+Resposta honesta: foi construído e testado num único setup. O resto do mapa é este:
+
+| | Setup | O que esperar |
+|---|---|---|
+| ✅ **Testado** | Dock WKG-L19 (Intel JHL7440 "Titan Ridge", Thunderbolt 3) + AMD Radeon RX 7600 XT, Windows 11 | Tudo funciona: foi aqui que o painel nasceu. |
+| 🧪 **Deve funcionar, não testado** | Outros docks Thunderbolt 3/4 e USB4 | Topologia Thunderbolt/USB4 e PCIe, linha do tempo de quedas cruzada com o Event Log, energia PD e bateria, teste de banda D3D12 (vale para qualquer GPU D3D12) e calculadora da fonte não dependem do modelo do dock. A leitura das propriedades USB4 (velocidade das faixas e afins) foi calibrada no JHL7440 e vem com nível de confiança: em outro chip pode aparecer como "desconhecido". |
+| 🔜 **Ainda não** | GPU NVIDIA ou Intel no dock | O nó da GPU, os dados da placa (temperatura, clocks, consumo, ventoinha) e o tema automático reconhecem só AMD por enquanto. Os temas NVIDIA e Intel já existem e podem ser vistos com `EGPU_TEMA` (veja [Uso](#uso)). |
+
+**Tem outro dock ou outra GPU?** Abra uma [issue](https://github.com/LightWolfMan/egpu-painel/issues/new?title=Compatibilidade:%20DOCK%20%2B%20GPU) (já vem com o título pronto, é só trocar DOCK e GPU) e conte o que apareceu, funcionando ou não. É assim que a lista de ✅ cresce.
+
+> 💡 É só para Windows, e por enquanto não tem `.exe` pronto: precisa compilar (veja [Instalação](#instalação)) ou acompanhar o repositório para ser avisado do primeiro `.exe`. A interface é em português; a versão em inglês chega em breve.
+
+## Destaques
+
+🚦 **Saiba na hora se está tudo bem.** Um veredito só (*Tudo certo*, *Instável: caiu N vezes nas últimas 24 h* ou *Desconectado*) com a causa provável da última queda: energia caiu junto → fonte/tomada; só a conexão → cabo. Já viu o aviso? O botão **✔ Ciente** devolve o verde até surgir uma queda mais nova.
+
+🔀 **Veja o caminho inteiro, do notebook à GPU.** Notebook, cabo, dock, GPU, portas e fonte num desenho animado, com pulsos que acompanham a atividade de cópia da GPU (o melhor sinal que o Windows dá do tráfego pelo túnel), a energia que o dock manda ao notebook em amarelo e um clique em qualquer nó para abrir os detalhes (o nó da GPU, por enquanto, só para placas AMD).
+
+🔌 **Descubra se o culpado é o cabo ou a energia.** Velocidade e faixas do enlace USB4/Thunderbolt, energia PD (Power Delivery) e taxa de carga da bateria lidas pelo Windows, e quedas em 24 h, 7 e 30 dias, cada uma classificada como **"PD caiu junto"** (o dock inteiro apagou) ou **"só o enlace"**.
+
+<p align="center">
+  <a href="docs/img/cabo.png"><img src="docs/img/cabo.png" alt="Aba Cabo e energia: velocidade das faixas, energia PD e estabilidade do dock" width="100%"></a>
+</p>
+
+🚀 **Confira se o enlace entrega o que promete.** Um teste de banda D3D12 sob demanda, nas duas direções e com qualquer GPU D3D12, ao lado de gauges de Copy e 3D, VRAM e memória compartilhada (a que atravessa o túnel).
+
+<p align="center">
+  <a href="docs/img/desempenho.png"><img src="docs/img/desempenho.png" alt="Aba Desempenho: tráfego do túnel, resultado do teste de banda D3D12 e gauges da GPU" width="100%"></a>
+</p>
+
+⚡ **Saiba se a fonte do dock aguenta os picos.** Digite o modelo da fonte ATX, o painel busca as specs na internet (só quando você pede) e calcula ao vivo a carga, o pico transitório da placa e a corrente no +12 V, tudo rotulado como estimativa.
+
+<p align="center">
+  <a href="docs/img/painel-fonte.png"><img src="docs/img/painel-fonte.png" alt="Painel lateral da fonte do dock no tema NVIDIA: carga agora, uso pesado, picos rápidos, consumo na tomada e corrente no +12 V, tudo estimado" width="100%"></a>
+</p>
+
+🎮 **Cada peça, em detalhe, num clique.** Selecione a GPU, o dock, o host, o cabo ou uma porta e o painel lateral mostra o que se sabe dela; na GPU AMD, via ADLX, isso inclui temperatura, hotspot, TBP, clocks, ventoinha e VRAM.
+
+<p align="center">
+  <a href="docs/img/painel-gpu.png"><img src="docs/img/painel-gpu.png" alt="Painel lateral da GPU AMD: temperatura, ponto mais quente, consumo, clock, ventoinha, VRAM, uso e enlace PCIe" width="100%"></a>
+</p>
+
+🎨 **Um visual que combina com a placa (AMD no automático; NVIDIA e Intel em prévia).** No automático, o painel lê o fabricante da GPU do dock e aplica a paleta e o layout dele (AMD com abas no topo, no molde do Adrenalin; NVIDIA e Intel com menu lateral), com claro e escuro à mão e vermelho reservado para problema real. Hoje o automático reconhece só placas AMD (`VEN_1002`); os temas NVIDIA e Intel podem ser vistos com `EGPU_TEMA=nvidia|intel` (veja [Uso](#uso)).
+
+<p align="center">
+  <a href="docs/img/temas.png"><img src="docs/img/temas.png" alt="A mesma tela nos temas AMD, NVIDIA, Intel e claro (NVIDIA e Intel simulados com EGPU_TEMA)" width="100%"></a>
+</p>
+
+🪶 **Fica de olho sem pesar.** Fechou a janela, sobra só o ícone da bandeja: **~2 MB** de memória privada (3,7 MB de working set) e **0% de CPU**, sem polling, acordando só quando chega um evento; a janela é outro processo, que termina ao fechar e devolve toda a memória.
+
+🕒 **Uma linha do tempo que não esquece.** Todo evento fica gravado num arquivo local que sobrevive a reinícios, e para cada queda o painel mostra os 2 minutos anteriores (ou avisa que foi sem aviso nenhum); exporta para CSV.
+
+⚙️ **Do seu jeito.** Em Opções: tema, tamanho da interface, iniciar com o Windows, avisos na bandeja e animação econômica.
+
+<p align="center">
+  <a href="docs/img/opcoes.png"><img src="docs/img/opcoes.png" alt="Aba Opções: tema, tamanho da interface e comportamento" width="100%"></a>
+</p>
+
+<p align="center">Achou útil? <a href="https://github.com/LightWolfMan/egpu-painel">⭐ Dê uma estrela</a>, que ajuda outros donos de eGPU a acharem o painel · <a href="#apoie">💜 Apoie</a></p>
+
+## Instalação
+
+Ainda não há `.exe` pronto para baixar: por enquanto, o caminho é compilar a partir do código-fonte.
+
+Não quer compilar? Clique em **Watch → Custom → Releases**, no topo da página, e o GitHub te avisa quando sair o primeiro `.exe`.
+
+Requer o Rust (edição 2024), que se instala pelo [rustup](https://rustup.rs). Com o toolchain **MSVC** (`stable-x86_64-pc-windows-msvc` e as Build Tools do Visual Studio), basta:
+
+```
+git clone https://github.com/LightWolfMan/egpu-painel
+cd egpu-painel
+cargo build --release
+```
+
+O binário sai em `target\release\egpu-painel.exe`. O perfil release usa `opt-level = 3`, LTO thin, `strip` e `panic = "abort"`.
+
+Para instalar: copie `egpu-painel.exe` para uma pasta fixa (ex.: `%LOCALAPPDATA%\Programs\eGPU-Painel`), gere o ícone com `egpu-painel.exe --icone egpu.ico` e crie um atalho apontando para o exe com esse ícone. O exe é autossuficiente (logotipos e ícones embutidos).
+
+<details>
+<summary><b>Compilando com o toolchain GNU, sem MinGW e sem MSVC</b></summary>
+
+<br>
+
+Esta parte é só para o toolchain `stable-x86_64-pc-windows-gnu` **sem MinGW e sem MSVC instalados** (só o Rust self-contained). Ali há dois problemas, os dois resolvidos no `config.toml` do cargo do usuário, fora do repositório:
+
+1. O `dlltool.exe` embutido falha com "CreateProcess" porque precisa do `as.exe`, que não vem no pacote. A saída é usar o do LLVM: `rustup component add llvm-tools`, copiar o `llvm-ar.exe` do componente para `%USERPROFILE%\.cargo\tools\llvm-dlltool.exe` e apontar `-Cdlltool` para ele.
+2. O `ld` do GNU não entende os import libs gerados pelo LLVM, e o executável crasha com `0xC0000005` **antes do `main`** (Application Error 1000, módulo "unknown"). A evidência era o campo MajorLinkerVersion do exe marcando 2.44 (GNU ld) mesmo pedindo lld. Linkando com o `rust-lld`, o exe passa a ter MajorLinkerVersion 14 e roda.
+
+Em `%USERPROFILE%\.cargo\config.toml` (o cargo aceita barras normais; troque `SEU_USUARIO` pelo seu perfil):
+
+```toml
+[target.x86_64-pc-windows-gnu]
+linker = "C:/Users/SEU_USUARIO/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/rust-lld.exe"
+rustflags = [
+    "-Cdlltool=C:/Users/SEU_USUARIO/.cargo/tools/llvm-dlltool.exe",
+    "-Clinker-flavor=ld.lld",
+    "-Clink-self-contained=yes",
+]
+```
+
+Depois, `cargo build --release`.
+
+</details>
+
+## Uso
+
+```
+egpu-painel.exe                bandeja + abre a janela
+egpu-painel.exe --bandeja      inicia só na bandeja, sem abrir a janela
+egpu-painel.exe --painel       só a janela (é o que a bandeja dispara)
+egpu-painel.exe --bench        roda o teste de banda D3D12 e imprime no console
+egpu-painel.exe --dump         imprime topologia e chaves USB4 decodificadas (dock e host)
+egpu-painel.exe --perfil [N]   mede o custo de cada parte do coletor, sem janela
+egpu-painel.exe --fonte "MODELO"  busca as specs de uma fonte e imprime o que achou
+egpu-painel.exe --icone ARQ.ico   grava o ícone do painel (16/32/48/256 px), útil para atalhos
+```
+
+`--bench`, `--dump`, `--perfil` e `--fonte` se anexam ao console de quem chamou, então rode-os a partir de um terminal. Só uma instância roda por vez: abrir uma segunda pede à primeira que mostre a janela.
+
+Variáveis para testes: `EGPU_TEMA=amd|nvidia|intel` simula a placa detectada (`claro|escuro` força o tema neutro); `EGPU_ABA=0..4` abre direto numa aba.
+
+O painel só lê: não instala driver, não escreve no sistema além da chave de inicialização opcional e dos arquivos abaixo.
+
+<details>
+<summary><b>Onde ficam os dados</b></summary>
+
+<br>
+
+Tudo em `%LOCALAPPDATA%\eGPU-Painel\`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `historico.jsonl` | linha do tempo, um evento JSON por linha, só acrescenta |
+| `estado.json` | início da última varredura do Event Log e dispositivos já vistos atrás da USB-A |
+| `config.json` | preferências (tema, zoom, avisos, modo econômico) e o reconhecimento do último aviso (Ciente) |
+| `fonte.json` | modelo e specs da fonte do dock |
+| `historico-AAAAMMDD-HHMMSS.csv` | exportações da linha do tempo (BOM, para o Excel abrir os acentos) |
+
+</details>
+
+<details>
+<summary><b>A aba Opções</b></summary>
+
+<br>
+
+A aba **Opções** tem o tema (automático pela placa, claro ou escuro), a escala de DPI detectada e o tamanho da interface, e ainda:
+
+- **Iniciar com o Windows (na bandeja):** grava um valor em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` apontando para `--bandeja`. Não precisa de administrador.
+- **Avisar na bandeja quando o dock cair:** liga e desliga os balões.
+- **Animação econômica (5 qps):** menos quadros por segundo na animação.
+- **Exportar linha do tempo (CSV)**, **Abrir pasta de dados** e **Rodar teste de banda**.
+
+</details>
+
+## Por dentro
+
+O dock eGPU é uma cadeia de coisas que o Windows enxerga em pedaços: um controlador USB4 no notebook, um roteador Thunderbolt no dock, um switch PCIe com três portas downstream (a GPU, o xHCI das portas USB-A e uma porta TB extra), e por trás disso uma fonte ATX e um controlador PD que o sistema operacional nem sabe que existem. O painel lê a topologia PnP, decodifica as propriedades USB4 do roteador, correlaciona os eventos do Event Log (PnP, energia, vídeo, WHEA, PCI) e guarda tudo numa linha do tempo persistente. Cada queda é classificada: o PD caiu junto (o dock inteiro apagou ou resetou) ou só o enlace caiu.
+
+É um app nativo em Rust + egui: sem WebView, sem runtime e sem serviço do Windows, só o processo da bandeja e, quando aberta, a janela.
+
+<details>
+<summary><b>O que ele mostra, tela por tela</b></summary>
+
+<br>
+
+<p align="center">
+  <a href="docs/img/geral.png"><img src="docs/img/geral.png" alt="Visão geral no tema AMD: veredito Instável com botão Ciente e topologia do notebook até a GPU" width="100%"></a>
+</p>
+
+**Veredito no topo.** Uma frase só responde "meu dock está bem?": *Tudo certo*, *Instável: caiu N vezes nas últimas 24 h* ou *Desconectado*, com a causa provável da última queda (energia caiu junto → fonte/tomada; só a conexão → cabo). A pílula do cabeçalho segue a mesma cor. O botão **✔ Ciente** reconhece o aviso: o banner e a pílula voltam ao verde até surgir uma queda mais nova, e as quedas continuam no histórico. "Dock desconectado" não é reconhecível, porque é estado atual.
+
+**Temas.** Claro e escuro são escolhidos à mão. No automático o painel detecta a GPU do dock pelo Vendor ID e aplica a paleta e o layout do fabricante: AMD com abas no topo no molde do Adrenalin, NVIDIA e Intel com menu lateral (hoje só placas AMD, `VEN_1002`, são detectadas no dock; NVIDIA e Intel aparecem via `EGPU_TEMA`). O logotipo oficial aparece centralizado, como no HWiNFO. Vermelho fica reservado para problema real, e a cor de marca nunca pinta dado. A interface segue a escala de DPI do Windows e tem zoom próprio em Opções.
 
 **Topologia animada.** Notebook, enlace, dock e GPU num desenho único. Os pulsos que correm pelo enlace usam a atividade do motor *Copy* da GPU como proxy do tráfego (são as cópias DMA host↔GPU, o que mais atravessa o túnel). A linha fina amarela representa a energia PD.
 
-**Enlace USB4/Thunderbolt.** As propriedades `{5DF7E321-1C1B-4CE2-B4FA-55F4A5BC2CB6}` do roteador do dock e do host, decodificadas, cada uma com seu nível de confiança: *certo*, *forte*, *hipótese* ou *desconhecido* (veja a seção de decodificação abaixo). Velocidade por faixa e número de faixas aparecem como visualização de lanes.
+**Enlace USB4/Thunderbolt.** As propriedades `{5DF7E321-1C1B-4CE2-B4FA-55F4A5BC2CB6}` do roteador do dock e do host, decodificadas, cada uma com seu nível de confiança: *certo*, *forte*, *hipótese* ou *desconhecido* (veja a decodificação abaixo). Velocidade por faixa e número de faixas aparecem como visualização de lanes.
 
 **Switch PCIe do dock.** Estado D0/D3 de cada uma das 3 portas downstream, o que está atrás de cada uma, firmware, e o enlace PCIe que o PnP reporta.
 
@@ -36,7 +231,12 @@ A regra de projeto é **não inventar dado**. Se o Windows não expõe um valor,
 
 **Linha do tempo persistente e "o que veio antes".** Todos os eventos ficam num arquivo JSONL. Para cada queda, o painel mostra o que aconteceu nos 2 minutos anteriores, ou avisa que não havia nada no Event Log (queda sem aviso). Exporta para CSV.
 
-### O que o Windows não expõe
+</details>
+
+<details>
+<summary><b>O que o Windows não expõe</b></summary>
+
+<br>
 
 Alguns dados simplesmente não chegam ao sistema, e o painel não os fabrica. Eles aparecem numa faixa à parte, marcados como invisíveis.
 
@@ -47,7 +247,12 @@ Alguns dados simplesmente não chegam ao sistema, e o painel não os fabrica. El
 - **Tráfego real:** não existe contador de bytes por adaptador USB4/TB. O motor Copy é um proxy, não uma medida.
 - **Erros do enlace:** contadores de erro e retreino das faixas não são publicados. Só aparecem quedas (PnP) e erros PCIe (WHEA/AER).
 
-## Como funciona por baixo
+</details>
+
+<details>
+<summary><b>Como funciona por baixo: bandeja, eventos e coleta</b></summary>
+
+<br>
 
 O objetivo é custar quase nada quando você não está olhando.
 
@@ -73,7 +278,12 @@ Fontes de eventos e IDs:
 
 Sobre o `LastTDR` do Overwatch: ele não é um TDR do Windows. É o jogo registrando que perdeu o dispositivo D3D, o que acontece tanto num TDR quanto quando a GPU some do barramento. Nos dados do autor não houve nenhum Display 4101 em 30 dias, apesar de várias quedas.
 
-## Decodificação empírica das chaves USB4
+</details>
+
+<details>
+<summary><b>Decodificação empírica das chaves USB4 (e a chave 20)</b></summary>
+
+<br>
 
 O Windows publica propriedades USB4 do roteador sob o GUID `{5DF7E321-1C1B-4CE2-B4FA-55F4A5BC2CB6}`, sem documentação. A tabela abaixo foi montada comparando o dock com o host (valores de um dock WKG-L19 no host Intel Gen12) e é a base da função `decode_usb4`.
 
@@ -104,7 +314,12 @@ Os dois indícios apontam para o mesmo lado: o gargalo é o enlace (cabo ou nego
 
 **O teste que prova:** trocar por um cabo TB3/TB4 de 40 Gb/s certificado (passivo e curto, até 0,8 m). Se a chave 20 passar a valer **0x4** e a banda subir para perto de 2,5 GB/s, a decodificação está confirmada. Se a chave não mudar, a hipótese cai e a chave volta para "desconhecido".
 
-## Consumo medido
+</details>
+
+<details>
+<summary><b>Consumo medido</b></summary>
+
+<br>
 
 Bandeja e janela são **processos separados**. A bandeja é mínima: fica bloqueada em `GetMessageW`, escuta o Event Log e o PnP por callback e é a única que grava o histórico. A janela (`--painel`) é um processo filho que lê o histórico, acompanha as linhas novas e **termina ao fechar**, devolvendo ao sistema toda a memória de egui, OpenGL e ADLX.
 
@@ -118,76 +333,38 @@ Medido no release, Windows 11, 12 threads lógicas:
 
 O coletor em si (ADLX, PDH, WMI, topologia) custa ~2 ms de CPU por segundo (`--perfil`). Sem foco, ou no modo econômico, a janela redesenha a 5 qps.
 
-## Compilando
+</details>
 
-Requer Rust (edição 2024) no Windows. Com o toolchain **MSVC** (`stable-x86_64-pc-windows-msvc` e as Build Tools do Visual Studio), basta `cargo build --release`; nada desta seção é necessário.
+## In English
 
-A seção é para o toolchain `stable-x86_64-pc-windows-gnu` **sem MinGW e sem MSVC instalados** (só o Rust self-contained). Ali há dois problemas, os dois resolvidos no `config.toml` do cargo do usuário, fora do repositório:
+<details open>
+<summary><b>eGPU Painel in a nutshell</b></summary>
 
-1. O `dlltool.exe` embutido falha com "CreateProcess" porque precisa do `as.exe`, que não vem no pacote. A saída é usar o do LLVM: `rustup component add llvm-tools`, copiar o `llvm-ar.exe` do componente para `%USERPROFILE%\.cargo\tools\llvm-dlltool.exe` e apontar `-Cdlltool` para ele.
-2. O `ld` do GNU não entende os import libs gerados pelo LLVM, e o executável crasha com `0xC0000005` **antes do `main`** (Application Error 1000, módulo "unknown"). A evidência era o campo MajorLinkerVersion do exe marcando 2.44 (GNU ld) mesmo pedindo lld. Linkando com o `rust-lld`, o exe passa a ter MajorLinkerVersion 14 e roda.
+<br>
 
-Em `%USERPROFILE%\.cargo\config.toml` (o cargo aceita barras normais; troque `SEU_USUARIO` pelo seu perfil):
+**Your eGPU dock dropped mid-game and Windows only says "device removed"?** Was it the cable, the power supply or the GPU? **eGPU Painel** is a free, open-source native Windows app (Rust + egui, no WebView, no Windows service, just a tray icon) that monitors Thunderbolt 3/4 and USB4 eGPU docks and, on every drop, shows what dropped, when, and the likely cause. It merges the PnP topology, the dock's undocumented USB4 router properties and the Event Log into a timeline that survives reboots, and tells you whether the whole dock lost power or just the link dropped.
 
-```toml
-[target.x86_64-pc-windows-gnu]
-linker = "C:/Users/SEU_USUARIO/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/rust-lld.exe"
-rustflags = [
-    "-Cdlltool=C:/Users/SEU_USUARIO/.cargo/tools/llvm-dlltool.exe",
-    "-Clinker-flavor=ld.lld",
-    "-Clink-self-contained=yes",
-]
-```
+It also shows lane speed, PD power state, a D3D12 bandwidth test (any D3D12 GPU), live GPU stats (AMD only for now) and an estimated load on the dock's ATX power supply. Its rule is to never make data up: what Windows doesn't expose is shown as unavailable. No ads; it only goes online when you ask it to (PSU spec search). The tray icon idles at ~2 MB of private memory and 0% CPU.
 
-Depois, `cargo build --release`. O binário sai em `target\release\egpu-painel.exe`. O perfil release usa `opt-level = 3`, LTO thin, `strip` e `panic = "abort"`.
+**Does it work with mine?** It started on the author's own setup and has been tested only there: a WKG-L19 dock (Intel JHL7440 "Titan Ridge", Thunderbolt 3) with an AMD Radeon RX 7600 XT on Windows 11. The topology, drop timeline, bandwidth test (any D3D12 GPU) and PSU calculator don't depend on the dock model and should work on other TB3/TB4/USB4 docks, but are untested there; USB4 property decoding was calibrated on the JHL7440 and carries confidence levels. The GPU card (temps, clocks, power) and the auto theme recognize AMD only for now; NVIDIA and Intel GPUs aren't supported yet (their themes can be previewed with `EGPU_TEMA`). Tried it on another dock or GPU? Please [open an issue](https://github.com/LightWolfMan/egpu-painel/issues/new?title=Compatibility:%20DOCK%20%2B%20GPU), whether it worked or not: that's how support grows.
 
-## Uso
+Windows only. There's no prebuilt release yet: build it from source with `cargo build --release` (see [Instalação](#instalação)). The UI is in Brazilian Portuguese; an English UI is coming soon. Not a developer? Click **Watch → Custom → Releases** at the top of the repo page and GitHub will notify you when the first `.exe` ships. If it helped you, ⭐ star the repo.
 
-```
-egpu-painel.exe                bandeja + abre a janela
-egpu-painel.exe --bandeja      inicia só na bandeja, sem abrir a janela
-egpu-painel.exe --painel       só a janela (é o que a bandeja dispara)
-egpu-painel.exe --bench        roda o teste de banda D3D12 e imprime no console
-egpu-painel.exe --dump         imprime topologia e chaves USB4 decodificadas (dock e host)
-egpu-painel.exe --perfil [N]   mede o custo de cada parte do coletor, sem janela
-egpu-painel.exe --fonte "MODELO"  busca as specs de uma fonte e imprime o que achou
-egpu-painel.exe --icone ARQ.ico   grava o ícone do painel (16/32/48/256 px), útil para atalhos
-```
-
-Para instalar: copie `egpu-painel.exe` para uma pasta fixa (ex.: `%LOCALAPPDATA%\Programs\eGPU-Painel`), gere o ícone com `--icone` e crie um atalho apontando para o exe com esse ícone. O exe é autossuficiente (logotipos e ícones embutidos).
-
-Variáveis para testes: `EGPU_TEMA=amd|nvidia|intel` simula a placa detectada; `EGPU_ABA=0..4` abre direto numa aba.
-
-`--bench`, `--dump`, `--perfil` e `--fonte` se anexam ao console de quem chamou, então rode-os a partir de um terminal. Só uma instância roda por vez: abrir uma segunda pede à primeira que mostre a janela.
-
-Os dados ficam em `%LOCALAPPDATA%\eGPU-Painel\`:
-
-| Arquivo | Conteúdo |
-|---|---|
-| `historico.jsonl` | linha do tempo, um evento JSON por linha, só acrescenta |
-| `estado.json` | início da última varredura do Event Log e dispositivos já vistos atrás da USB-A |
-| `config.json` | preferências (tema, zoom, avisos, modo econômico) |
-| `fonte.json` | modelo e specs da fonte do dock |
-| `historico-AAAAMMDD-HHMMSS.csv` | exportações da linha do tempo (BOM, para o Excel abrir os acentos) |
-
-A aba **Opções** tem o tema (automático pela placa, claro ou escuro), a escala de DPI detectada e o tamanho da interface, e ainda:
-
-- **Iniciar com o Windows (na bandeja):** grava um valor em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` apontando para `--bandeja`. Não precisa de administrador.
-- **Avisar na bandeja quando o dock cair:** liga e desliga os balões.
-- **Animação econômica (5 qps):** menos quadros por segundo na animação.
-- **Exportar linha do tempo (CSV)**, **Abrir pasta de dados** e **Rodar teste de banda**.
-
-O painel só lê: não instala driver, não escreve no sistema além da chave de inicialização opcional e dos arquivos acima.
+</details>
 
 ## Apoie
 
-O eGPU Painel é gratuito e continua sendo. Se ele te ajudou a achar o problema do seu dock, dá pra
-apoiar de dois jeitos:
+O eGPU Painel é gratuito e vai continuar sendo: código aberto, sem anúncios e sem versão paga. Se ele te poupou uma noite caçando o motivo das quedas do seu dock, considere retribuir. O apoio vira tempo para seguir melhorando o painel, e a meta é usá-lo também para testar em outros docks e GPUs (NVIDIA e Intel incluídas).
 
-- **De qualquer país:** [GitHub Sponsors](https://github.com/sponsors/LightWolfMan), mensal ou valor único.
+O jeito mais valioso de ajudar nem é dinheiro: contar numa [issue](https://github.com/LightWolfMan/egpu-painel/issues/new?title=Compatibilidade:%20DOCK%20%2B%20GPU) como o painel se saiu no seu dock e na sua GPU (ou reportar um bug). Dar uma ⭐ no repositório e mostrar para quem também sofre com eGPU caindo ajuda do mesmo jeito.
+
+Para apoiar com dinheiro, um café já ajuda, e qualquer valor conta:
+
 - **Pix (Brasil):** escaneie o QR Code no app do banco ou use o *copia e cola*, com o valor que quiser.
 
-<img src="assets/pix-qr.png" alt="QR Code Pix" width="200">
+<p align="center">
+  <img src="assets/pix-qr.png" alt="QR Code Pix" width="200">
+</p>
 
 ```
 00020126580014br.gov.bcb.pix0136eec7ccba-5593-4f47-bf31-a9da4a3826a15204000053039865802BR5912LightWolfMan6006BRASIL62070503***6304A8C9
@@ -195,7 +372,7 @@ apoiar de dois jeitos:
 
 Chave aleatória: `eec7ccba-5593-4f47-bf31-a9da4a3826a1`
 
-Feedback, bug ou dock diferente do meu? Abra uma [issue](https://github.com/LightWolfMan/egpu-painel/issues/new).
+Só use o QR e a chave publicados aqui, no repositório original ([LightWolfMan/egpu-painel](https://github.com/LightWolfMan/egpu-painel)): uma cópia ou fork pode trocar os dois.
 
 ## Licença
 
