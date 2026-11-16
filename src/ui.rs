@@ -730,6 +730,18 @@ fn lerp_color(a: Color32, b: Color32, k: f32) -> Color32 {
 }
 
 /// Rodapé discreto: versão e licença à esquerda; feedback e apoio à direita.
+/// Botão "Ciente" do aviso de instabilidade (reconhecer, estilo Zabbix).
+fn ack_button(ui: &mut Ui, col: Color32) -> bool {
+    ui.add(
+        egui::Button::new(egui::RichText::new("✔ Ciente").size(14.0).color(pal::fg()))
+            .fill(pal::card())
+            .stroke(Stroke::new(1.0, col.gamma_multiply(0.7)))
+            .corner_radius(CornerRadius::same(6)),
+    )
+    .on_hover_text("Esconde este aviso até a próxima queda. As quedas continuam registradas no Histórico.")
+    .clicked()
+}
+
 fn footer(ui: &mut Ui) {
     let full = ui.max_rect().expand2(vec2(16.0, 0.0));
     ui.painter().hline(full.x_range(), full.top() + 0.5, Stroke::new(1.0, pal::grid()));
@@ -2449,6 +2461,12 @@ impl App {
             return (2, "O dock está desconectado".into(), "Confira o cabo e se a fonte do dock está ligada na tomada.".into());
         }
         let d24 = drops.iter().filter(|i| now - i.start <= 86_400_000).count();
+        // "Ciente": quedas já reconhecidas não mantêm o aviso; uma queda nova o traz de volta
+        let acked = last.is_some_and(|i| i.start <= crate::config::get().ack_ts);
+        if d24 > 0 && acked {
+            let n = if d24 == 1 { "A queda das últimas 24\u{A0}h foi marcada".to_string() } else { format!("As {d24} quedas das últimas 24\u{A0}h foram marcadas") };
+            return (0, "Tudo certo com o dock".into(), format!("{n} como ciente. Elas continuam no Histórico."));
+        }
         if d24 > 0 {
             let cause = match last {
                 Some(i) if i.pd_lost => "Na última queda a energia do dock caiu junto: suspeite da fonte ou da tomada.",
@@ -2476,7 +2494,11 @@ impl App {
         // halo colorido só quando há algo a ver; no verde, a sombra comum de cartão
         let light = pal::current().is_light();
         let sh = if lvl > 0 { egui::Shadow { offset: [0, 4], blur: 20, spread: 0, color: col.gamma_multiply(if light { 0.10 } else { 0.18 }) } } else { pal::elev(1, 0.0) };
-        let r = egui::Frame::new()
+        // aviso de queda (dock presente) pode ser reconhecido; desconectado é estado atual, não
+        let ackable = lvl > 0 && topo.dock_router.is_some();
+        let mut ack = false;
+        // o clique do fundo é registrado antes do conteúdo: o botão "Ciente" fica por cima
+        let scope = ui.scope_builder(egui::UiBuilder::new().sense(Sense::click()), |ui| egui::Frame::new()
             .fill(pal::bg().lerp_to_gamma(col, 0.10)) // opaco: a sombra não escurece o miolo
             .shadow(sh)
             .stroke(Stroke::new(1.0, col.gamma_multiply(0.55)))
@@ -2487,7 +2509,8 @@ impl App {
                 // o link é medido: o bloco de texto fica com o resto da largura; se sobrar pouco
                 // (< 300 pt), o link desce para baixo do texto em vez de quebrar letra por letra
                 let link = "Ver o que aconteceu ›";
-                let lw = ui.painter().layout_no_wrap(link.into(), FontId::proportional(14.0), col).size().x;
+                let bw = if ackable { ui.painter().layout_no_wrap("✔ Ciente".into(), FontId::proportional(14.0), col).size().x + 2.0 * ui.spacing().button_padding.x + 12.0 } else { 0.0 };
+                let lw = ui.painter().layout_no_wrap(link.into(), FontId::proportional(14.0), col).size().x + bw;
                 let full = ui.available_width();
                 let iw = 36.0 + 2.0 * ui.spacing().item_spacing.x; // ícone (30) + respiro (6) + 2 espaçamentos
                 let side = lvl > 0 && full - iw - lw - 24.0 >= 300.0;
@@ -2505,19 +2528,36 @@ impl App {
                             ui.label(egui::RichText::new(&sub).size(14.5).color(pal::dim()));
                         }
                         if lvl > 0 && !side {
-                            ui.add_space(2.0);
-                            ui.add(egui::Label::new(egui::RichText::new(link).size(14.0).color(col)).extend());
+                            ui.add_space(4.0);
+                            ui.horizontal_wrapped(|ui| {
+                                ui.add(egui::Label::new(egui::RichText::new(link).size(14.0).color(col)).extend().selectable(false));
+                                if ackable {
+                                    ui.add_space(12.0);
+                                    ack |= ack_button(ui, col);
+                                }
+                            });
                         }
                     });
                     if side {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.add(egui::Label::new(egui::RichText::new(link).size(14.0).color(col)).extend());
+                            if ackable {
+                                ack |= ack_button(ui, col);
+                                ui.add_space(12.0);
+                            }
+                            ui.add(egui::Label::new(egui::RichText::new(link).size(14.0).color(col)).extend().selectable(false));
                         });
                     }
                 });
-            })
-            .response;
-        let c = ui.interact(r.rect, ui.id().with("veredito"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+            }));
+        if ack {
+            if let Some(i) = self.incidents.iter().filter(|i| i.is_drop).last() {
+                let mut c = crate::config::get();
+                c.ack_ts = i.start;
+                crate::config::set(c);
+            }
+            return;
+        }
+        let c = scope.response.on_hover_cursor(egui::CursorIcon::PointingHand);
         if c.clicked() {
             self.tab = if lvl > 0 { Tab::Historico } else { Tab::Enlace };
         }

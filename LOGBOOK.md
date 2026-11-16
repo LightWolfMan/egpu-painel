@@ -149,3 +149,7 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   atual, criar `egpu-painel` novo e público e enviar só o histórico reescrito.
 - Release com `.exe`: anexar as licenças das fontes embutidas pelo egui (`epaint_default_fonts`: OFL,
   Ubuntu Font License, MIT/Apache) — `cargo about` gera o arquivo.
+- Aviso "Instável" ganhou botão **✔ Ciente** (reconhecer, estilo Zabbix): grava em `config.json` o início
+  da última queda (`ack_ts`); o banner e a pílula do cabeçalho voltam ao verde até surgir uma queda mais
+  nova. As quedas continuam no Histórico. "Dock desconectado" não é reconhecível (é estado atual).
+  Conferido com clique real: banner fica verde, aba não muda, Histórico intacto.

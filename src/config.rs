@@ -15,6 +15,9 @@ pub struct Config {
     /// Fator de tamanho da interface (sobre a escala de DPI do Windows).
     #[serde(default = "one")]
     pub zoom: f32,
+    /// Início (ms) da última queda marcada como "Ciente": o aviso some até haver uma queda mais nova.
+    #[serde(default)]
+    pub ack_ts: i64,
 }
 
 fn one() -> f32 {
@@ -23,7 +26,7 @@ fn one() -> f32 {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { notify: true, eco: false, theme: 0, zoom: 1.0 }
+        Self { notify: true, eco: false, theme: 0, zoom: 1.0, ack_ts: 0 }
     }
 }
 
