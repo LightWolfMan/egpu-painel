@@ -207,3 +207,22 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   URL_MAX 7000 → 6000: medido sem login, o GitHub dá 302 até ~6900 bytes e 500 a partir de ~7000; uma
   URL de ~6000 chegou inteira ao navegador padrão via ShellExecute (servidor local). Falta: testar os
   três links logado, depois do push (os formulários só valem no branch padrão), e em Edge e Chrome.
+## 2026-11-16 — GPU NVIDIA e Intel no dock (branch `gpu-vendors`)
+
+- **Detecção pela posição, não pelo fabricante** (`pnp::pick_dock_gpu`): aceita adaptadores de vídeo PCI
+  AMD `VEN_1002`, NVIDIA `VEN_10DE` e Intel `VEN_8086`, mas só o que está atrás de um switch PCIe (≥ 3 pais
+  PCI: porta raiz → US do dock → DS do dock → placa) e, quando a xHCI do dock (`DEV_15F0`) existe, descendo
+  do mesmo US dela. iGPU (0 pais) e dGPU soldada (só a porta raiz) ficam de fora. A porta do dock com a GPU é
+  marcada pelo caminho até a placa, não por `VEN_1002`. 7 testes unitários com IDs de exemplo.
+- **DXGI** (`bench::dock_adapter`): adaptador com o mesmo Vendor/Device ID do nó PnP (LUID do PDH e teste de
+  banda servem a qualquer fabricante). **ADLX** só se a placa do dock for AMD, casado por `DEV_`.
+- **NVML** (`src/nvml.rs`): `nvml.dll` via `LoadLibraryExW(..., LOAD_LIBRARY_SEARCH_SYSTEM32)`, sem
+  dependência nova; temperatura, consumo, clocks, uso, VRAM. **Não testado em placa física.**
+- **Intel / sem fonte do fabricante**: uso do motor 3D e VRAM do PDH; o resto aparece "não exposto".
+- UI: nome da placa no nó vem da fonte (antes "Radeon RX 7600 XT" estava fixo no código), "Dados via
+  {fonte}", "—" + "não exposto" no lugar de zeros.
+- Conferido por captura real na máquina AMD, build base (586ca43) × branch: Visão geral, painel da GPU e
+  Desempenho iguais (só valores ao vivo mudam). Build release e 9 testes passando.
+- Pendente: `history::dev_role` ainda reconhece a GPU só por `VEN_1002&DEV_7480` (eventos de outra placa
+  saem sem o rótulo de GPU; generalizar sem confundir com a função de áudio HDMI da placa). Merge em
+  master fica com a sessão principal (ordem: i18n → feedback → gpu).

@@ -1,5 +1,6 @@
 //! Coleta ao vivo — só existe enquanto a janela está aberta.
-//! Uma thread, 1 amostra/s: ADLX (GPU), PDH (motores Copy/3D, memória), WMI (bateria/PD),
+//! Uma thread, 1 amostra/s: GPU do dock pelo driver do fabricante (ADLX na AMD, NVML na NVIDIA; na
+//! Intel não há fonte e só vale o PDH), PDH (motores Copy/3D, memória), WMI (bateria/PD),
 //! e releitura barata das propriedades PnP do dock (estado D0/D3, presença).
 
 use crate::pnp::{self, Topology};
@@ -57,6 +58,8 @@ pub struct GpuStatic {
     pub bus: String,
     pub lanes: u32,
     pub luid: Option<String>,
+    /// De onde vêm os dados ao vivo: "AMD ADLX", "NVIDIA NVML" ou "DXGI + PDH".
+    pub src: &'static str,
 }
 
 #[derive(Default)]
@@ -200,7 +203,7 @@ impl Timer {
 
 struct Collector {
     t0: Instant,
-    adlx: Option<Adlx>,
+    gpu: Option<GpuSrc>,
     pdh: Option<Pdh>,
     wmi: Option<wmi::WMIConnection>,
     last_cpu: f64,
@@ -268,10 +271,11 @@ fn refresh_states(t: &mut Topology) -> bool {
 
 impl Collector {
     fn new() -> Self {
-        let luid = crate::bench::amd_adapter_luid();
-        let adlx = Adlx::new().map_err(|e| note(crate::tf!("ADLX indisponível: {e}", "ADLX unavailable: {e}"))).ok();
-        if let Some(a) = &adlx {
-            let mut st = a.stat.clone();
+        let vd = pnp::dock_gpu_id().and_then(|id| pnp::ven_dev(&id));
+        let info = crate::bench::dock_adapter_info();
+        let luid = info.as_ref().map(|i| i.0.clone());
+        let gpu = GpuSrc::open(vd).map_err(note).ok();
+        if let Some(mut st) = gpu_static(gpu.as_ref(), info.as_ref()) {
             st.luid = luid.clone();
             if let Some(l) = LIVE.lock().unwrap().as_mut() {
                 l.gpu_static = Some(st);
@@ -279,12 +283,12 @@ impl Collector {
         }
         let pdh = Pdh::new(luid.clone());
         if luid.is_none() {
-            note(crate::i18n::t("Adaptador AMD não encontrado via DXGI: contadores do motor Copy indisponíveis", "AMD adapter not found via DXGI: Copy engine counters unavailable").into());
+            note(crate::i18n::t("Adaptador da GPU do dock não encontrado via DXGI: contadores do motor Copy indisponíveis", "Dock GPU adapter not found via DXGI: Copy engine counters unavailable").into());
         }
         let wmi = wmi::WMIConnection::with_namespace_path("root\\wmi")
             .map_err(|e| note(crate::tf!("WMI root\\wmi indisponível: {e}", "WMI root\\wmi unavailable: {e}")))
             .ok();
-        Self { t0: Instant::now(), adlx, pdh, wmi, last_cpu: crate::util::process_usage().2, last_t: Instant::now(), tick: 0, topo: None, power: None, full_mwh: None }
+        Self { t0: Instant::now(), gpu, pdh, wmi, last_cpu: crate::util::process_usage().2, last_t: Instant::now(), tick: 0, topo: None, power: None, full_mwh: None }
     }
 
     /// Uma volta de coleta. `live`: publica em LIVE/repaint (falso no modo --perfil).
@@ -312,19 +316,24 @@ impl Collector {
             }
         }
         let mut s = Sample { t: self.t0.elapsed().as_secs_f64(), ..Default::default() };
-        if let Some(a) = self.adlx.as_mut() {
-            match tm.time(0, || a.read()) {
+        let vd = self.topo.as_ref().and_then(|t| t.gpu.as_ref()).and_then(|n| pnp::ven_dev(&n.id));
+        if let Some(g) = self.gpu.as_mut() {
+            match tm.time(0, || g.read()) {
                 Ok(g) => s.gpu = Some(g),
                 Err(_) => {
                     // GPU sumiu (dock caiu?) — reabre na próxima volta
-                    self.adlx = None;
+                    self.gpu = None;
                 }
             }
         } else if tick % 5 == 0 {
-            self.adlx = Adlx::new().ok();
+            self.gpu = GpuSrc::open(vd).ok();
         }
         if let Some(p) = self.pdh.as_mut() {
             p.sample(&mut s, tm);
+            // sem fonte do fabricante (Intel, ou NVIDIA sem NVML): uso do motor 3D e VRAM do PDH; o resto fica não exposto
+            if self.gpu.is_none() && vd.is_some_and(|(v, _)| v != 0x1002) {
+                s.gpu = Some(GpuM { usage: Some(s.d3 as f64), vram: Some(s.ded_mb as i32), ..Default::default() });
+            }
         }
         if let Some(w) = &self.wmi {
             if tick % POWER_EVERY == 0 {
@@ -423,7 +432,7 @@ Lotes (K chamadas seguidas; CPU = GetThreadTimes do lote / K):");
         println!("{:<14} K={:<5} parede {:>8.3} ms/ch   CPU {:>8.3} ms/ch", name, k, w / k as f64, cpu / k as f64);
     };
     let mut sm = Sample::default();
-    if let Some(a) = c.adlx.as_mut() {
+    if let Some(a) = c.gpu.as_mut() {
         lote("ADLX read", 300, &mut || {
             let _ = a.read();
         });
@@ -495,6 +504,47 @@ fn read_power(w: &wmi::WMIConnection, known_full: Option<i64>) -> Option<PowerM>
 }
 
 // ---------------------------------------------------------------------------
+// Fonte ao vivo da GPU do dock, conforme o fabricante (Vendor ID do nó PnP)
+
+enum GpuSrc {
+    Adlx(Adlx),
+    Nvml(crate::nvml::Nvml),
+}
+
+impl GpuSrc {
+    /// Erro = texto para as notas do painel.
+    fn open(vd: Option<(u16, u16)>) -> Result<Self, String> {
+        match vd {
+            Some((0x1002, dev)) => Adlx::new(dev).map(Self::Adlx).map_err(|e| crate::tf!("ADLX indisponível: {e}", "ADLX unavailable: {e}")),
+            Some((0x10DE, dev)) => crate::nvml::Nvml::open(0x10DE, dev).map(Self::Nvml).map_err(|e| crate::tf!("NVML indisponível: {e}", "NVML unavailable: {e}")),
+            Some((v, _)) => Err(crate::tf!("GPU VEN_{v:04X}: sem fonte do fabricante; temperatura, consumo e clock não expostos (uso 3D e VRAM via PDH)", "GPU VEN_{v:04X}: no vendor source; temperature, power and clock not exposed (3D usage and VRAM via PDH)")),
+            None => Err(crate::i18n::t("GPU do dock não encontrada", "dock GPU not found").into()),
+        }
+    }
+
+    fn read(&mut self) -> anyhow::Result<GpuM> {
+        match self {
+            Self::Adlx(a) => a.read(),
+            Self::Nvml(n) => n.read(),
+        }
+    }
+}
+
+/// Dados fixos da placa: do driver do fabricante, ou do DXGI (nome e VRAM dedicada) quando não há.
+fn gpu_static(src: Option<&GpuSrc>, dxgi: Option<&(String, String, u32)>) -> Option<GpuStatic> {
+    match src {
+        Some(GpuSrc::Adlx(a)) => Some(a.stat.clone()),
+        Some(GpuSrc::Nvml(n)) => Some(GpuStatic {
+            name: if n.name.is_empty() { dxgi.map(|d| d.1.clone()).unwrap_or_default() } else { n.name.clone() },
+            vram_total_mb: if n.vram_total_mb > 0 { n.vram_total_mb } else { dxgi.map(|d| d.2).unwrap_or(0) },
+            src: "NVIDIA NVML",
+            ..Default::default()
+        }),
+        None => dxgi.map(|(_, name, mb)| GpuStatic { name: name.clone(), vram_total_mb: *mb, src: "DXGI + PDH", ..Default::default() }),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ADLX (crate `adlx`, bindings pré-gerados; carrega amdadlx64.dll só aqui)
 
 struct Adlx {
@@ -506,14 +556,16 @@ struct Adlx {
 }
 
 impl Adlx {
-    fn new() -> anyhow::Result<Self> {
+    /// `dev`: Device ID da GPU do dock (a mesma no ADLX, mesmo com uma iGPU AMD no notebook).
+    fn new(dev: u16) -> anyhow::Result<Self> {
         use adlx::Interface;
+        let want = format!("VEN_1002&DEV_{dev:04X}");
         let helper = adlx::AdlxHelper::new()?;
         let pms = helper.system().performance_monitoring_services()?;
         let list = helper.system().gpus()?;
         let mut pick = None;
         for g in list.iter() {
-            if g.is_external().unwrap_or(false) || g.pnp_string().map(|p| p.contains("VEN_1002")).unwrap_or(false) {
+            if g.pnp_string().map(|p| p.to_uppercase().contains(&want)).unwrap_or(false) || g.is_external().unwrap_or(false) {
                 pick = Some(g);
                 break;
             }
@@ -540,6 +592,7 @@ impl Adlx {
             bus,
             lanes,
             luid: None,
+            src: "AMD ADLX",
         };
         Ok(Self { gpu, pms, _helper: helper, stat })
     }

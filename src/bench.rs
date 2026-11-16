@@ -22,14 +22,17 @@ pub struct BenchResult {
     pub per_run_mb: u64,
 }
 
-fn amd_adapter() -> Option<(IDXGIAdapter1, DXGI_ADAPTER_DESC1)> {
+/// Adaptador DXGI da GPU do dock: o de mesmo Vendor/Device ID do nó PnP achado pela topologia
+/// (assim uma iGPU do mesmo fabricante, com outro Device ID, não é confundida).
+fn dock_adapter() -> Option<(IDXGIAdapter1, DXGI_ADAPTER_DESC1)> {
+    let (ven, dev) = crate::pnp::ven_dev(&crate::pnp::dock_gpu_id()?)?;
     unsafe {
         let f: IDXGIFactory1 = CreateDXGIFactory1().ok()?;
         let mut i = 0;
         while let Ok(a) = f.EnumAdapters1(i) {
             i += 1;
             if let Ok(d) = a.GetDesc1() {
-                if d.VendorId == 0x1002 {
+                if d.VendorId == ven as u32 && d.DeviceId == dev as u32 {
                     return Some((a, d));
                 }
             }
@@ -38,10 +41,15 @@ fn amd_adapter() -> Option<(IDXGIAdapter1, DXGI_ADAPTER_DESC1)> {
     }
 }
 
-/// "luid_0xHHHHHHHH_0xLLLLLLLL" como aparece nas instâncias PDH.
-pub fn amd_adapter_luid() -> Option<String> {
-    let (_, d) = amd_adapter()?;
-    Some(format!("luid_0x{:08X}_0x{:08X}", d.AdapterLuid.HighPart as u32, d.AdapterLuid.LowPart))
+/// Dados do adaptador DXGI da GPU do dock: LUID como aparece nas instâncias PDH
+/// ("luid_0xHHHHHHHH_0xLLLLLLLL"), nome e VRAM dedicada em MB.
+pub fn dock_adapter_info() -> Option<(String, String, u32)> {
+    let (_, d) = dock_adapter()?;
+    Some((
+        format!("luid_0x{:08X}_0x{:08X}", d.AdapterLuid.HighPart as u32, d.AdapterLuid.LowPart),
+        crate::util::from_wide(&d.Description),
+        (d.DedicatedVideoMemory / 1048576) as u32,
+    ))
 }
 
 fn buffer(dev: &ID3D12Device, heap: D3D12_HEAP_TYPE, size: u64, state: D3D12_RESOURCE_STATES) -> windows::core::Result<ID3D12Resource> {
@@ -65,7 +73,7 @@ pub fn run(progress: impl Fn(&str)) -> Result<BenchResult, String> {
     const CHUNK: u64 = 128 << 20; // 128 MiB
     const REPS_PER_RUN: u32 = 8; // 1 GiB por medição
     const RUNS: usize = 4;
-    let (adapter, desc) = amd_adapter().ok_or(crate::i18n::t("nenhum adaptador AMD encontrado via DXGI (a GPU do dock está conectada?)", "no AMD adapter found via DXGI (is the dock GPU connected?)"))?;
+    let (adapter, desc) = dock_adapter().ok_or(crate::i18n::t("GPU do dock não encontrada via DXGI (o dock está conectado?)", "dock GPU not found via DXGI (is the dock connected?)"))?;
     let name = crate::util::from_wide(&desc.Description);
     progress(crate::i18n::t("criando dispositivo D3D12…", "creating D3D12 device…"));
     unsafe {
