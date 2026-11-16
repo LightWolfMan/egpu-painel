@@ -20,6 +20,7 @@ mod config;
 mod history;
 #[macro_use]
 mod i18n;
+mod nvml;
 mod pnp;
 mod psu;
 mod titlebar;

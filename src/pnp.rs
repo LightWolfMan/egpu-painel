@@ -475,30 +475,19 @@ pub fn read_topology() -> Topology {
         }
     }
 
-    // --- lado PCIe: acha a GPU AMD tunelada e sobe a cadeia de pais
+    // --- lado PCIe: acha a GPU do dock (pela posição atrás do switch, não pelo fabricante) e sobe a cadeia de pais
     let pci = present_ids("PCI");
-    let gpu_id = pci.iter().find(|id| {
-        id.starts_with("PCI\\VEN_1002&DEV_") && locate(id).map(|dn| {
-            prop(dn, &DEVPKEY_Device_Class).and_then(|v| v.as_str().map(|s| s == "Display")).unwrap_or(false)
-        }).unwrap_or(false)
-    });
+    let gpu_id = find_dock_gpu(&pci);
     // Sobe a partir da GPU, ou, sem GPU, a partir do xHCI do dock.
-    let start = gpu_id.cloned().or_else(|| pci.iter().find(|id| id.contains("DEV_15F0")).cloned());
+    let start = gpu_id.clone().or_else(|| pci.iter().find(|id| id.contains("DEV_15F0")).cloned());
     if let Some(start) = start {
-        if let Some(mut dn) = locate(&start) {
+        if let Some(dn) = locate(&start) {
             if gpu_id.is_some() {
                 t.gpu = Some(read_node(dn));
             }
-            // cadeia até a porta raiz (pai cujo pai não é PCI)
-            let mut chain = vec![];
-            while let Some(p) = parent(dn) {
-                let pid = device_id(p);
-                if !pid.starts_with("PCI\\") {
-                    break;
-                }
-                chain.push(p);
-                dn = p;
-            }
+            let chain = pci_chain(dn);
+            // DS do dock no caminho da GPU: a porta onde a placa está (qualquer fabricante)
+            let gpu_ds = (gpu_id.is_some() && chain.len() >= 3).then(|| chain[chain.len() - 3]);
             // chain: [.., dock DS, dock US, root port]
             if let Some(&rp) = chain.last() {
                 t.root_port = Some(read_node(rp));
@@ -515,7 +504,7 @@ pub fn read_topology() -> Topology {
                     let kids = children(ds);
                     let child = kids.first().map(|&c| read_node(c));
                     let role = match &child {
-                        Some(c) if c.id.starts_with("PCI\\VEN_1002") => PortRole::Gpu,
+                        Some(_) if Some(ds) == gpu_ds => PortRole::Gpu,
                         Some(c) if is_xhci(kids[0]) => PortRole::UsbA,
                         None => PortRole::TbExtra,
                         _ => PortRole::Other,
@@ -529,6 +518,66 @@ pub fn read_topology() -> Topology {
         }
     }
     t
+}
+
+/// Fabricantes de GPU reconhecidos (Vendor ID PCI): AMD, NVIDIA, Intel.
+pub const GPU_VENDORS: [u16; 3] = [0x1002, 0x10DE, 0x8086];
+
+/// Vendor e Device ID de um ID PnP PCI ("PCI\VEN_10DE&DEV_2684&..." → (0x10DE, 0x2684)).
+pub fn ven_dev(id: &str) -> Option<(u16, u16)> {
+    let u = id.to_uppercase();
+    let rest = u.strip_prefix("PCI\\VEN_")?;
+    let ven = u16::from_str_radix(rest.get(..4)?, 16).ok()?;
+    let dev = u16::from_str_radix(rest.get(4..)?.strip_prefix("&DEV_")?.get(..4)?, 16).ok()?;
+    Some((ven, dev))
+}
+
+/// Pais PCI de um nó, do mais próximo até a porta raiz (para no primeiro pai que não é PCI).
+fn pci_chain(mut dn: u32) -> Vec<u32> {
+    let mut chain = vec![];
+    while let Some(p) = parent(dn) {
+        if !device_id(p).starts_with("PCI\\") {
+            break;
+        }
+        chain.push(p);
+        dn = p;
+    }
+    chain
+}
+
+/// Escolhe a GPU do dock entre os adaptadores de vídeo PCI pela posição na árvore, não pelo fabricante.
+/// `cands`: (ID PnP, IDs dos pais PCI do mais próximo até a porta raiz). A placa do dock fica atrás de
+/// um switch PCIe (porta raiz → US do dock → DS do dock → placa): pelo menos 3 pais PCI. A iGPU do
+/// notebook (0 pais) e uma dGPU soldada (só a porta raiz) ficam de fora. `dock_us`: o US do dock, se
+/// conhecido (pela xHCI do dock); aí a placa tem de descer dele.
+pub fn pick_dock_gpu(cands: &[(String, Vec<String>)], dock_us: Option<&str>) -> Option<usize> {
+    cands.iter().position(|(id, chain)| {
+        ven_dev(id).is_some_and(|(v, _)| GPU_VENDORS.contains(&v))
+            && chain.len() >= 3
+            && dock_us.is_none_or(|us| chain[chain.len() - 2].eq_ignore_ascii_case(us))
+    })
+}
+
+/// ID PnP da GPU do dock entre os IDs PCI presentes.
+fn find_dock_gpu(pci: &[String]) -> Option<String> {
+    let dock_us = pci.iter().find(|id| id.contains("DEV_15F0")).and_then(|id| locate(id)).map(pci_chain).and_then(|c| (c.len() >= 2).then(|| device_id(c[c.len() - 2])));
+    let mut cands = vec![];
+    for id in pci {
+        if ven_dev(id).is_none_or(|(v, _)| !GPU_VENDORS.contains(&v)) {
+            continue;
+        }
+        let Some(dn) = locate(id) else { continue };
+        if !prop(dn, &DEVPKEY_Device_Class).and_then(|v| v.as_str().map(|s| s == "Display")).unwrap_or(false) {
+            continue;
+        }
+        cands.push((id.clone(), pci_chain(dn).into_iter().map(device_id).collect()));
+    }
+    pick_dock_gpu(&cands, dock_us.as_deref()).map(|i| cands.swap_remove(i).0)
+}
+
+/// ID PnP da GPU do dock, se presente (para casar com o adaptador DXGI e com o ADLX/NVML).
+pub fn dock_gpu_id() -> Option<String> {
+    find_dock_gpu(&present_ids("PCI"))
 }
 
 fn is_xhci(dn: u32) -> bool {
@@ -562,4 +611,71 @@ pub fn descendant_ids(dn: u32) -> Vec<String> {
         stack.extend(children(d));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // IDs de exemplo (formato PnP real; números de placas conhecidas)
+    const RP: &str = "PCI\\VEN_8086&DEV_9A23&SUBSYS_00000000&REV_01\\3&11583659&0&38"; // porta raiz do túnel TB
+    const DOCK_US: &str = "PCI\\VEN_8086&DEV_15EF&SUBSYS_00000000&REV_06\\6&1D8E5C2&0&00000038";
+    const DOCK_DS: &str = "PCI\\VEN_8086&DEV_15EF&SUBSYS_00000000&REV_06\\7&2A4D1B1&0&000838";
+    const IGPU: &str = "PCI\\VEN_8086&DEV_9A49&SUBSYS_0A8A1028&REV_01\\3&11583659&0&10"; // Iris Xe
+    const RTX_DOCK: &str = "PCI\\VEN_10DE&DEV_2684&SUBSYS_16F110DE&REV_A1\\8&3B1C2D4&0&00000838"; // RTX 4090
+    const ARC_DOCK: &str = "PCI\\VEN_8086&DEV_56A0&SUBSYS_10208086&REV_08\\A&1C2D3E4&0&00000838"; // Arc A770
+    const RX_DOCK: &str = "PCI\\VEN_1002&DEV_7480&SUBSYS_24201462&REV_C0\\A&2F3E4D5&0&00000838"; // RX 7600 XT
+    const RTX_LAPTOP: &str = "PCI\\VEN_10DE&DEV_28E0&SUBSYS_0C2A1028&REV_A1\\4&1A2B3C4&0&0008"; // dGPU soldada
+
+    fn c(id: &str, chain: &[&str]) -> (String, Vec<String>) {
+        (id.into(), chain.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn ven_dev_le_ids() {
+        assert_eq!(ven_dev(RTX_DOCK), Some((0x10DE, 0x2684)));
+        assert_eq!(ven_dev("pci\\ven_1002&dev_7480&subsys_x"), Some((0x1002, 0x7480)));
+        assert_eq!(ven_dev("USB4\\VID_8087&PID_15EF"), None);
+        assert_eq!(ven_dev("PCI\\VEN_10DE"), None);
+    }
+
+    #[test]
+    fn igpu_intel_nao_e_confundida_com_arc_no_dock() {
+        let cands = [c(IGPU, &[]), c(ARC_DOCK, &[DOCK_DS, DOCK_US, RP])];
+        assert_eq!(pick_dock_gpu(&cands, None), Some(1));
+        assert_eq!(pick_dock_gpu(&cands[..1], None), None);
+    }
+
+    #[test]
+    fn nvidia_no_dock_sem_switch_interno() {
+        let cands = [c(IGPU, &[]), c(RTX_LAPTOP, &[RP]), c(RTX_DOCK, &[DOCK_DS, DOCK_US, RP])];
+        assert_eq!(pick_dock_gpu(&cands, Some(DOCK_US)), Some(2));
+        assert_eq!(pick_dock_gpu(&cands, None), Some(2));
+    }
+
+    #[test]
+    fn dgpu_soldada_fica_de_fora() {
+        assert_eq!(pick_dock_gpu(&[c(RTX_LAPTOP, &[RP])], None), None);
+    }
+
+    #[test]
+    fn amd_com_switch_interno_continua_achada() {
+        let amd_us = "PCI\\VEN_1002&DEV_1478&SUBSYS_00000000&REV_10\\9&1&0&00000838";
+        let amd_ds = "PCI\\VEN_1002&DEV_1479&SUBSYS_00000000&REV_10\\A&1&0&00000838";
+        let cands = [c(IGPU, &[]), c(RX_DOCK, &[amd_ds, amd_us, DOCK_DS, DOCK_US, RP])];
+        assert_eq!(pick_dock_gpu(&cands, Some(DOCK_US)), Some(1));
+    }
+
+    #[test]
+    fn placa_atras_de_outro_switch_nao_e_a_do_dock() {
+        let outro_us = "PCI\\VEN_1B21&DEV_2806&SUBSYS_0\\5&1&0&0";
+        let cands = [c(RTX_DOCK, &[DOCK_DS, outro_us, RP])];
+        assert_eq!(pick_dock_gpu(&cands, Some(DOCK_US)), None);
+    }
+
+    #[test]
+    fn fabricante_desconhecido_fica_de_fora() {
+        let mt = "PCI\\VEN_1ED5&DEV_0100&SUBSYS_0\\8&1&0&0"; // outro fabricante
+        assert_eq!(pick_dock_gpu(&[c(mt, &[DOCK_DS, DOCK_US, RP])], None), None);
+    }
 }
