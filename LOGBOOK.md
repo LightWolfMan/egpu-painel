@@ -226,3 +226,12 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
 - Pendente: `history::dev_role` ainda reconhece a GPU só por `VEN_1002&DEV_7480` (eventos de outra placa
   saem sem o rótulo de GPU; generalizar sem confundir com a função de áudio HDMI da placa). Merge em
   master fica com a sessão principal (ordem: i18n → feedback → gpu).
+
+## 2026-11-16 (madrugada) — junção e próximos passos
+- master = tradução (586ca43) + feedback no app (da8c094) + GPU por posição/NVIDIA/Intel (merge e33a601).
+  Build release e 17 testes ok. **Falta**: captura real pós-merge (AMD deve ficar igual), testar o clique
+  "Abrir no GitHub" logado, e NVML nunca rodou em placa NVIDIA real.
+- **Próximo (pedido do dono):** instalador Inno Setup no tema do app (sem admin, %LOCALAPPDATA%\Programs,
+  atalho, iniciar com Windows, licenças das fontes do egui embutidas: OFL/UFL/MIT-Apache via cargo-about),
+  release v0.1.0 no GitHub com Setup.exe + SHA-256 + notas pt/en, README com link de download e selo
+  "🐧 Linux em desenvolvimento". Prévia social (docs/img/social-preview.png) só por upload em Settings.
