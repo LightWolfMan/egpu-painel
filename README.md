@@ -181,4 +181,6 @@ O painel só lê: não instala driver, não escreve no sistema além da chave de
 
 ## Licença
 
-MIT. Os logotipos em `assets/logos/` (AMD, NVIDIA, Intel) vêm do Wikimedia Commons e são marcas registradas dos respectivos donos. O painel os usa só para identificar o fabricante da placa detectada, como fazem ferramentas de diagnóstico.
+Copyright (C) 2026 LightWolfMan. GPL-3.0 ou (a seu critério) qualquer versão posterior, sem nenhuma garantia; texto completo em [`LICENSE`](LICENSE). Em resumo: você pode usar, estudar, modificar e redistribuir à vontade; quem distribuir o programa, original ou modificado (inclusive só o `.exe`), precisa oferecer o código-fonte correspondente sob a mesma licença.
+
+Os logotipos em `assets/logos/` (AMD, NVIDIA, Intel) vêm do Wikimedia Commons e são marcas registradas dos respectivos donos, **não** cobertos pela GPL. O painel os usa só para identificar o fabricante da placa detectada, como fazem ferramentas de diagnóstico.

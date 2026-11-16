@@ -2,6 +2,9 @@
 name = "egpu-painel"
 version = "0.1.0"
 edition = "2024"
+description = "Monitor e diagnóstico de dock eGPU Thunderbolt/USB4 no Windows"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/LightWolfMan/egpu-painel"
 
 [dependencies]
 anyhow = "1.0.104"

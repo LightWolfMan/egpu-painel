@@ -133,3 +133,19 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
 - Com tema explícito o winit não acompanha troca de tema do Windows (aceito; cores DWM continuam certas).
 - Usuário precisa ativar GitHub Sponsors e criar o LivePix "lightwolfman" para os links funcionarem.
 - E-mail do git não é noreply: trocar antes de tornar o repositório público.
+
+## 2026-11-15 (noite) — licença GPL-3.0 e preparação para publicar
+
+- Licença trocada de MIT para **GPL-3.0-or-later**: `LICENSE` (texto oficial da GNU), `Cargo.toml`
+  (`license`, `description`, `repository`), seção Licença do README (logos fora da concessão) e rodapé
+  do painel ("código aberto (GPL-3.0)", conferido em captura real).
+- Auditoria de dados pessoais (árvore + histórico inteiro): o único vazamento era o e-mail de autor nos
+  commits; histórico reescrito para o e-mail noreply do GitHub, `user.email` local idem.
+- GitHub Sponsors: perfil, identidade, 2FA e Stripe (banco no Brasil, BRL) concluídos; falta clicar
+  **Publish** e criar as faixas. LivePix "lightwolfman" ainda não existe.
+
+**Pendente**
+- O remoto privado ainda guarda o histórico antigo (com o e-mail). Plano: renomear o repositório privado
+  atual, criar `egpu-painel` novo e público e enviar só o histórico reescrito.
+- Release com `.exe`: anexar as licenças das fontes embutidas pelo egui (`epaint_default_fonts`: OFL,
+  Ubuntu Font License, MIT/Apache) — `cargo about` gera o arquivo.

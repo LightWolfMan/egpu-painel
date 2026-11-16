@@ -734,17 +734,17 @@ fn footer(ui: &mut Ui) {
     let full = ui.max_rect().expand2(vec2(16.0, 0.0));
     ui.painter().hline(full.x_range(), full.top() + 0.5, Stroke::new(1.0, pal::grid()));
     let ver = concat!("v", env!("CARGO_PKG_VERSION"));
-    let long = format!("eGPU Painel {ver} · código aberto (MIT)");
+    let long = format!("eGPU Painel {ver} · código aberto (GPL-3.0)");
     let font = egui::FontId::proportional(12.0);
     let lw = ui.painter().layout_no_wrap(long.clone(), font.clone(), pal::faint()).size().x;
     // largura dos três botões com texto (ícone 14 + 5 + texto + 16 de folga, ~8 entre eles)
     let links_full = 3.0 * (14.0 + 5.0 + 16.0) + 70.0 + 55.0 + 22.0 + 2.0 * 8.0;
     let avail = ui.available_width();
     let compact = avail < lw + links_full + 40.0;
-    let left = if avail < lw + 3.0 * 30.0 + 40.0 { format!("{ver} · MIT") } else { long };
+    let left = if avail < lw + 3.0 * 30.0 + 40.0 { format!("{ver} · GPL-3.0") } else { long };
     ui.horizontal_centered(|ui| {
         ui.label(egui::RichText::new(left).font(font).color(pal::faint()))
-            .on_hover_text("Código aberto sob a licença MIT: use, estude e modifique à vontade.");
+            .on_hover_text("Código aberto sob a GPL-3.0: use, estude, modifique e compartilhe à vontade. Quem distribuir uma versão modificada mantém o código aberto também.");
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
             foot_link(ui, FootIcon::Pix, "Pix", "LivePix — Pix, para quem está no Brasil", URL_PIX, compact);
