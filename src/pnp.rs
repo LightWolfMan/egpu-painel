@@ -323,11 +323,11 @@ pub fn pci_type_name(t: u32) -> &'static str {
 
 pub fn pcie_speed_name(code: u32) -> &'static str {
     match code {
-        1 => "Gen1 2,5 GT/s",
-        2 => "Gen2 5 GT/s",
-        3 => "Gen3 8 GT/s",
-        4 => "Gen4 16 GT/s",
-        5 => "Gen5 32 GT/s",
+        1 => "Gen1\u{A0}2,5\u{A0}GT/s",
+        2 => "Gen2\u{A0}5\u{A0}GT/s",
+        3 => "Gen3\u{A0}8\u{A0}GT/s",
+        4 => "Gen4\u{A0}16\u{A0}GT/s",
+        5 => "Gen5\u{A0}32\u{A0}GT/s",
         _ => "?",
     }
 }
@@ -398,9 +398,9 @@ fn chip(x: u32) -> &'static str {
 /// teste de banda (ver LOGBOOK).
 pub fn link_speed_code(x: u32) -> String {
     match x {
-        0x8 => "0x8 → Gen2/TB3 10 Gb/s por faixa (se for o campo do spec USB4)".into(),
-        0x4 => "0x4 → Gen3/TB3 20 Gb/s por faixa".into(),
-        0x2 => "0x2 → Gen4 40 Gb/s por faixa".into(),
+        0x8 => "0x8 → Gen2/TB3 10\u{A0}Gb/s por faixa (se for o campo do spec USB4)".into(),
+        0x4 => "0x4 → Gen3/TB3 20\u{A0}Gb/s por faixa".into(),
+        0x2 => "0x2 → Gen4 40\u{A0}Gb/s por faixa".into(),
         x => format!("{x} (código desconhecido)"),
     }
 }

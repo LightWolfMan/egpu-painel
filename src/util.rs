@@ -40,13 +40,13 @@ pub fn fmt_local(ms: i64, with_ms: bool) -> String {
 pub fn fmt_ago(ms: i64) -> String {
     let d = (now_ms() - ms).max(0) / 1000;
     if d < 60 {
-        format!("há {d} s")
+        format!("há {d}\u{A0}s")
     } else if d < 3600 {
-        format!("há {} min", d / 60)
+        format!("há {}\u{A0}min", d / 60)
     } else if d < 86400 {
-        format!("há {} h {} min", d / 3600, (d % 3600) / 60)
+        format!("há {}\u{A0}h\u{A0}{}\u{A0}min", d / 3600, (d % 3600) / 60)
     } else {
-        format!("há {} d {} h", d / 86400, (d % 86400) / 3600)
+        format!("há {}\u{A0}d\u{A0}{}\u{A0}h", d / 86400, (d % 86400) / 3600)
     }
 }
 
