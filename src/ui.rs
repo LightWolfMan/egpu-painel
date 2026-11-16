@@ -629,6 +629,115 @@ fn resolve_theme(cfg: u8, vendor: Option<Th>) -> Th {
     }
 }
 
+/// Cor da barra de título nativa por tema (None = padrão do sistema, no claro).
+fn caption_rgb(th: Th) -> Option<(u8, u8, u8)> {
+    match th {
+        Th::Light => None,
+        Th::Dark => {
+            let c = pal::bg();
+            Some((c.r(), c.g(), c.b()))
+        }
+        // igual à faixa do topo (amd_bar)
+        Th::Amd => Some((32, 32, 34)),
+        // verde bem escuro, da família do card3 NVIDIA (36,48,18)
+        Th::Nvidia => Some((20, 36, 8)),
+        // azul-marinho um tom acima do well Intel (11,21,37)
+        Th::Intel => Some((11, 24, 44)),
+    }
+}
+
+const URL_FEEDBACK: &str = "https://github.com/LightWolfMan/egpu-painel/issues/new";
+const URL_SPONSORS: &str = "https://github.com/sponsors/LightWolfMan";
+const URL_PIX: &str = "https://livepix.gg/lightwolfman";
+
+/// Abre um endereço no navegador padrão.
+fn open_url(url: &str) {
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let u = crate::util::wide(url);
+    unsafe {
+        ShellExecuteW(None, windows::core::w!("open"), windows::core::PCWSTR(u.as_ptr()), windows::core::PCWSTR::null(), windows::core::PCWSTR::null(), SW_SHOWNORMAL);
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FootIcon {
+    Text(&'static str),
+    Pix,
+}
+
+/// Botão-link do rodapé: ícone + texto curto (ou só ícone quando estreito), realce e sublinhado no hover.
+fn foot_link(ui: &mut Ui, icon: FootIcon, label: &str, tip: &str, url: &'static str, compact: bool) {
+    let font = egui::FontId::proportional(12.5);
+    let tg = ui.painter().layout_no_wrap(label.to_owned(), font.clone(), pal::dim());
+    let iw = 14.0;
+    let w = 8.0 + iw + if compact { 0.0 } else { 5.0 + tg.size().x } + 8.0;
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, 22.0), egui::Sense::click());
+    let k = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.12);
+    let col = lerp_color(pal::dim(), pal::fg(), k);
+    let p = ui.painter();
+    if k > 0.0 {
+        let f = pal::card2();
+        p.rect_filled(rect, (pal::radius() as f32).min(6.0), Color32::from_rgba_unmultiplied(f.r(), f.g(), f.b(), (k * 255.0) as u8));
+    }
+    let ic = pos2(rect.left() + 8.0 + iw / 2.0, rect.center().y);
+    match icon {
+        FootIcon::Text(s) => {
+            p.text(ic, egui::Align2::CENTER_CENTER, s, egui::FontId::proportional(13.0), col);
+        }
+        FootIcon::Pix => {
+            // selo simples: losango vazado com miolo cheio (lembra o símbolo do Pix)
+            let pix = lerp_color(col, Color32::from_rgb(50, 188, 173), k);
+            let d = |s: f32| vec![pos2(ic.x, ic.y - s), pos2(ic.x + s, ic.y), pos2(ic.x, ic.y + s), pos2(ic.x - s, ic.y)];
+            p.add(egui::Shape::closed_line(d(6.0), Stroke::new(1.6, pix)));
+            p.add(egui::Shape::convex_polygon(d(2.4), pix, Stroke::NONE));
+        }
+    }
+    if !compact {
+        let tp = pos2(ic.x + iw / 2.0 + 5.0, rect.center().y - tg.size().y / 2.0);
+        let ty = tg.size().y;
+        let tw = tg.size().x;
+        p.galley_with_override_text_color(tp, tg, col);
+        if resp.hovered() {
+            p.hline(tp.x..=tp.x + tw, tp.y + ty - 1.0, Stroke::new(1.0, col));
+        }
+    }
+    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(tip);
+    if resp.clicked() {
+        open_url(url);
+    }
+}
+
+fn lerp_color(a: Color32, b: Color32, k: f32) -> Color32 {
+    let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * k).round() as u8;
+    Color32::from_rgb(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()))
+}
+
+/// Rodapé discreto: versão e licença à esquerda; feedback e apoio à direita.
+fn footer(ui: &mut Ui) {
+    let full = ui.max_rect().expand2(vec2(16.0, 0.0));
+    ui.painter().hline(full.x_range(), full.top() + 0.5, Stroke::new(1.0, pal::grid()));
+    let ver = concat!("v", env!("CARGO_PKG_VERSION"));
+    let long = format!("eGPU Painel {ver} · código aberto (MIT)");
+    let font = egui::FontId::proportional(12.0);
+    let lw = ui.painter().layout_no_wrap(long.clone(), font.clone(), pal::faint()).size().x;
+    // largura dos três botões com texto (ícone 14 + 5 + texto + 16 de folga, ~8 entre eles)
+    let links_full = 3.0 * (14.0 + 5.0 + 16.0) + 70.0 + 55.0 + 22.0 + 2.0 * 8.0;
+    let avail = ui.available_width();
+    let compact = avail < lw + links_full + 40.0;
+    let left = if avail < lw + 3.0 * 30.0 + 40.0 { format!("{ver} · MIT") } else { long };
+    ui.horizontal_centered(|ui| {
+        ui.label(egui::RichText::new(left).font(font).color(pal::faint()))
+            .on_hover_text("Código aberto sob a licença MIT: use, estude e modifique à vontade.");
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            foot_link(ui, FootIcon::Pix, "Pix", "LivePix — Pix, para quem está no Brasil", URL_PIX, compact);
+            foot_link(ui, FootIcon::Text("❤"), "Apoiar", "GitHub Sponsors — de qualquer país, cartão internacional", URL_SPONSORS, compact);
+            foot_link(ui, FootIcon::Text("💬"), "Feedback", "Feedback — relatar um problema ou sugerir uma melhoria (GitHub)", URL_FEEDBACK, compact);
+        });
+    });
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Tab {
     Geral,
@@ -1692,6 +1801,8 @@ impl eframe::App for App {
         if th != pal::current() {
             apply_theme(&ctx, th);
         }
+        // barra de título nativa na cor do tema (só age quando o tema muda ou a janela aparece)
+        crate::titlebar::sync(th as u8, caption_rgb(th));
         let last = samples.last().copied().unwrap_or_default();
         let flow = Flow { copy: last.copy, d3: last.d3, pd_on: last.power.map(|p| p.online).unwrap_or(true), gpu: last.gpu };
         let bench = self.bench.lock().unwrap().clone();
@@ -1724,6 +1835,12 @@ impl eframe::App for App {
         });
 
         }
+        // ---------------- rodapé: versão, licença, feedback e apoio (largura toda, em todas as abas)
+        egui::Panel::bottom("rodape")
+            .resizable(false)
+            .exact_size(30.0)
+            .frame(egui::Frame::new().fill(pal::well()).inner_margin(egui::Margin::symmetric(16, 0)))
+            .show_inside(root, |ui| footer(ui));
         // ---------------- navegação: abas no topo (claro/escuro), barra AMD ou menu lateral (NVIDIA/Intel)
         if th == Th::Amd {
         } else if th.nav_left() {
