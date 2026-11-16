@@ -1765,7 +1765,10 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         let gm = flow.gpu.unwrap_or_default();
         let _ = g;
         vec![
-            format!("{:.0}\u{A0}°C · {:.0}\u{A0}W", gm.temp.unwrap_or(0.0), gm.tbp.unwrap_or(0.0)),
+            {
+                let f = |v: Option<f64>, u: &str| v.map(|v| format!("{v:.0}\u{A0}{u}")).unwrap_or_else(|| format!("—\u{A0}{u}"));
+                format!("{} · {}", f(gm.temp, "°C"), f(gm.tbp, "W"))
+            },
             match gpu_static {
                 // ADLX: o enlace da placa com o slot do dock, que segue pelo túnel até o notebook
                 Some(s) if s.lanes > 0 => tf!("Túnel {}\u{A0}x{}", "Tunnel {}\u{A0}x{}", s.bus.replace(' ', "\u{A0}"), s.lanes),
@@ -1782,7 +1785,8 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let gm = flow.gpu.unwrap_or_default();
     let spin = gm.fan.map(|f| f as f32 / 3200.0).unwrap_or(gm.usage.unwrap_or(0.0) as f32 / 100.0);
     let (gr, lift) = hover(ui, gpu_r, ui.id().with("gpu"));
-    node_box(&p, gpu_r, if narrow { "RX 7600 XT" } else { "Radeon RX 7600 XT" }, &gl, pal::data(), if gpu_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Gpu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, gpu_ok, t)));
+    let gname = gpu_static.map(|s| gpu_short(&s.name, narrow)).filter(|s| !s.is_empty()).unwrap_or_else(|| crate::i18n::t("Placa de vídeo", "Graphics card").into());
+    node_box(&p, gpu_r, &gname, &gl, pal::data(), if gpu_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Gpu), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, gpu_ok, t)));
     if gr.clicked() {
         *sel = Some(Sel::Gpu);
     }
@@ -3739,16 +3743,25 @@ impl App {
     fn card_gpu(&mut self, ui: &mut Ui, samples: &[Sample], st: Option<&crate::collect::GpuStatic>) {
         use crate::i18n::t as tr;
         let mut sel = self.sel;
-        card_i(ui, tr("🎮  GPU no dock", "🎮  GPU in the dock"), pal::data(), &mut sel, Topic::Gpu, tr("Dados via AMD ADLX", "Data via AMD ADLX"), |ui, sel| {
-            let g = samples.last().and_then(|s| s.gpu).unwrap_or_default();
-            let temp = g.temp.unwrap_or(0.0) as f32;
-            let hot = g.hot.unwrap_or(0.0) as f32;
+        let via = match st {
+            Some(s) => tf!("Dados via {}", "Data via {}", s.src),
+            None => tr("Sem dados da placa", "No card data").into(),
+        };
+        card_i(ui, tr("🎮  GPU no dock", "🎮  GPU in the dock"), pal::data(), &mut sel, Topic::Gpu, &via, |ui, sel| {
+            let last = samples.last().and_then(|s| s.gpu);
+            let g = last.unwrap_or_default();
+            // campo que a fonte desta placa não lê: "—" com "não exposto" (nunca um zero inventado)
+            let v = |x: Option<f64>| x.map(|v| v as f32).unwrap_or(f32::NAN);
+            let u = |x: Option<f64>, unit: &'static str| if x.is_none() && last.is_some() { tr("não exposto", "not exposed") } else { unit };
+            let temp = v(g.temp);
+            let hot = v(g.hot);
+            let (tbp, clk, fan) = (g.tbp, g.clk.map(|c| c as f64), g.fan.map(|f| f as f64));
             let gs = [
-                ("🌡", temp, 100.0, "°C", tr("Temperatura", "Temperature"), heat(temp, pal::temp())),
-                ("🔥", hot, 110.0, "°C", tr("Ponto mais quente", "Hot spot"), heat(hot - 10.0, pal::hot())),
-                ("⚡", g.tbp.unwrap_or(0.0) as f32, 190.0, "W", tr("Consumo", "Power"), pal::bolt()),
-                ("⏱", g.clk.unwrap_or(0) as f32, 2900.0, "MHz", tr("Velocidade", "Clock"), pal::data()), // cor de dado, não de marca
-                ("🌀", g.fan.unwrap_or(0) as f32, 3300.0, "RPM", tr("Ventoinha", "Fan"), pal::violet()),
+                ("🌡", temp, 100.0, u(g.temp, "°C"), tr("Temperatura", "Temperature"), heat(temp, pal::temp())),
+                ("🔥", hot, 110.0, u(g.hot, "°C"), tr("Ponto mais quente", "Hot spot"), heat(hot - 10.0, pal::hot())),
+                ("⚡", v(tbp), 190.0, u(tbp, "W"), tr("Consumo", "Power"), pal::bolt()),
+                ("⏱", v(clk), 2900.0, u(clk, "MHz"), tr("Velocidade", "Clock"), pal::data()), // cor de dado, não de marca
+                ("🌀", v(fan), 3300.0, u(fan, "RPM"), tr("Ventoinha", "Fan"), pal::violet()),
             ];
             let labels: Vec<(&str, &str)> = gs.iter().map(|x| (x.0, x.4)).collect();
             gauge_grid(ui, &labels, |ui, i, w| {
@@ -3963,6 +3976,15 @@ impl App {
                     },
                     tl("📶", g.usage.map(|v| format!("{v:.0}")), "%", tr("Uso da GPU", "GPU usage"), pal::data()).sp(ser(|g| g.usage.map(|v| v as f32))),
                 ];
+                if last.gpu.is_some() {
+                    // o que a fonte desta placa não lê aparece como "não exposto", nunca como zero
+                    let miss = [g.temp.is_none(), g.hot.is_none(), g.tbp.is_none(), g.clk.is_none(), g.fan.is_none(), g.vram.is_none(), g.usage.is_none()];
+                    for (x, m) in tiles.iter_mut().zip(miss) {
+                        if m {
+                            x.note = Some(tr("não exposto", "not exposed").into());
+                        }
+                    }
+                }
                 tiles.push(pcie_tile(gst, node.and_then(|n| n.pcie), neutral));
                 let tiles: Vec<Tile> = tiles.into_iter().map(|x| if x.tip.is_some() { x } else { x.tip(tr("Ver no Desempenho", "See in Performance")) }).collect();
                 if tile_grid(ui, &tiles, sel_at).is_some() {
@@ -3974,7 +3996,12 @@ impl App {
                 }
                 side_tech(ui, "gpu", |ui| {
                     if let Some(s) = gst {
-                        kv(ui, "ADLX:", format!("{} · {}\u{A0}MB · {}\u{A0}x{}", s.name, s.vram_total_mb, s.bus, s.lanes));
+                        let lbl = format!("{}:", s.src.rsplit(' ').next().unwrap_or(s.src));
+                        if s.lanes > 0 {
+                            kv(ui, &lbl, format!("{} · {}\u{A0}MB · {}\u{A0}x{}", s.name, s.vram_total_mb, s.bus, s.lanes));
+                        } else {
+                            kv(ui, &lbl, format!("{} · {}\u{A0}MB", s.name, s.vram_total_mb));
+                        }
                         kv(ui, "LUID (PDH):", s.luid.clone().unwrap_or_default());
                     }
                     node_details(ui, "GPU", topo.gpu.as_ref());
@@ -4396,11 +4423,16 @@ impl App {
                 info_block(ui, "💫", pal::faint(), tr("Pulsos mais rápidos = mais dados", "Faster pulses = more data"), tr("Na topologia, os pulsos do cabo seguem esse uso", "On the topology map, the cable pulses follow this usage"));
                 side_tech(ui, "info-flow", |ui| {
                     para(ui, tr("Nenhum contador do Windows mede bytes no túnel Thunderbolt. O motor Copy da GPU executa as cópias DMA entre a memória do note e a VRAM; quando ele está ocupado, o túnel está ocupado.", "No Windows counter measures bytes in the Thunderbolt tunnel. The GPU's Copy engine runs the DMA copies between laptop memory and VRAM; when it's busy, the tunnel is busy."));
-                    para(ui, tr("Os contadores vêm do PDH: GPU Engine (Utilization Percentage, filtrado pelo LUID da Radeon) e GPU Adapter Memory.", "The counters come from PDH: GPU Engine (Utilization Percentage, filtered by the Radeon's LUID) and GPU Adapter Memory."));
+                    para(ui, tr("Os contadores vêm do PDH: GPU Engine (Utilization Percentage, filtrado pelo LUID da GPU do dock) e GPU Adapter Memory.", "The counters come from PDH: GPU Engine (Utilization Percentage, filtered by the dock GPU's LUID) and GPU Adapter Memory."));
                 });
             }
             Topic::Gpu => {
-                info_block(ui, "🎮", pal::data(), tr("Dados lidos do driver AMD", "Data read from the AMD driver"), tr("Temperatura, consumo, ventoinha e memória, ao vivo", "Temperature, power, fan and memory, live"));
+                let src = crate::collect::with_live(|l| l.gpu_static.as_ref().map(|s| s.src)).flatten();
+                match src {
+                    Some("AMD ADLX") => info_block(ui, "🎮", pal::data(), tr("Dados lidos do driver AMD", "Data read from the AMD driver"), tr("Temperatura, consumo, ventoinha e memória, ao vivo", "Temperature, power, fan and memory, live")),
+                    Some("NVIDIA NVML") => info_block(ui, "🎮", pal::data(), tr("Dados lidos do driver NVIDIA", "Data read from the NVIDIA driver"), tr("Temperatura, consumo, clock, uso e memória, ao vivo", "Temperature, power, clock, usage and memory, live")),
+                    _ => info_block(ui, "🎮", pal::data(), tr("Dados lidos do Windows", "Data read from Windows"), tr("Uso do motor 3D e memória; temperatura e consumo não expostos", "3D engine usage and memory; temperature and power not exposed")),
+                }
                 info_block(ui, "🍃", pal::faint(), tr("Só com a janela aberta", "Only while the window is open"), tr("O driver é liberado ao fechar: a bandeja fica leve", "The driver is released on close: the tray stays light"));
                 ui.add_space(4.0);
                 let mut s = self.sel;
@@ -4409,7 +4441,7 @@ impl App {
                 }
                 self.sel = s;
                 side_tech(ui, "info-gpu", |ui| {
-                    para(ui, tr("Dados do AMD ADLX (amdadlx64.dll), carregado só com a janela aberta e liberado ao fechar.", "Data from AMD ADLX (amdadlx64.dll), loaded only while the window is open and released on close."));
+                    para(ui, tr("AMD: ADLX (amdadlx64.dll). NVIDIA: NVML (nvml.dll do System32, carregada só se existir). Intel e outras: só os contadores do Windows (PDH e DXGI). O driver é carregado só com a janela aberta e liberado ao fechar.", "AMD: ADLX (amdadlx64.dll). NVIDIA: NVML (System32 nvml.dll, loaded only if present). Intel and others: Windows counters only (PDH and DXGI). The driver is loaded only while the window is open and released on close."));
                 });
             }
             Topic::Hidden => {
@@ -5127,6 +5159,14 @@ fn bars(ui: &mut Ui, r: &BenchResult) {
     }
 }
 
+/// Nome curto da placa para o nó da topologia: sem o fabricante ("AMD Radeon RX 7600 XT" →
+/// "Radeon RX 7600 XT") e, no estreito, sem a família ("RX 7600 XT").
+fn gpu_short(name: &str, narrow: bool) -> String {
+    let cut = |n: &str, ps: &[&str]| ps.iter().find_map(|p| n.strip_prefix(p)).unwrap_or(n).to_string();
+    let n = cut(name.trim(), &["AMD ", "NVIDIA ", "Intel(R) ", "Intel "]);
+    if narrow { cut(&n, &["Radeon ", "GeForce ", "Arc(TM) ", "Arc "]) } else { n }
+}
+
 /// Prende com espaço não separável as palavras vizinhas de um número em nomes de modelo
 /// ("AMD Radeon RX 7600 XT" quebra como "AMD Radeon" / "RX 7600 XT", nunca no meio).
 fn bind_num(s: &str) -> String {
@@ -5150,5 +5190,18 @@ fn fmt_dur(ms: i64) -> String {
         format!("{}\u{A0}h\u{A0}{}\u{A0}min", s / 3600, (s % 3600) / 60)
     } else {
         format!("{}\u{A0}d\u{A0}{}\u{A0}h", s / 86400, (s % 86400) / 3600)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn gpu_short_tira_fabricante_e_familia() {
+        use super::gpu_short;
+        assert_eq!(gpu_short("AMD Radeon RX 7600 XT", false), "Radeon RX 7600 XT");
+        assert_eq!(gpu_short("AMD Radeon RX 7600 XT", true), "RX 7600 XT");
+        assert_eq!(gpu_short("NVIDIA GeForce RTX 4070", false), "GeForce RTX 4070");
+        assert_eq!(gpu_short("NVIDIA GeForce RTX 4070", true), "RTX 4070");
+        assert_eq!(gpu_short("Intel(R) Arc(TM) A770 Graphics", true), "A770 Graphics");
     }
 }
