@@ -106,3 +106,30 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
 **Próximo**
 - Trocar o cabo por um TB3/TB4 40 Gb/s certificado e ver se a chave 20 vai a 0x4 e a banda a ~2,5 GB/s.
 - Informar o modelo real da fonte do dock e conferir se os picos explicam as quedas com PD caindo junto.
+
+## 2026-11-16 — três rodadas de polimento por workflow (projeto → implementação em série → revisão)
+
+**Feito** (25 commits, de c83ba5b a 98f34e5)
+- Fonte do dock: cartão em grade com barra de composição da carga (placa medida; notebook/dock/portas
+  hachurados como estimativa), "uso pesado" e "picos rápidos", risco estimado em âmbar ⚠ (vermelho só
+  para queda medida). Um único `psu::compute` por quadro. Na topologia, nó da fonte embaixo do dock com
+  ligação de energia animada; sem fonte informada, nó fantasma "+ Informar a fonte".
+- Painel lateral: herói com a ilustração do item, pílula de estado (o do Dock segue o veredito),
+  grade de blocos com sparkline, técnico recolhido; tópicos "Como funciona" em blocos com ícone. PCIe
+  rotulado sem contradição (túnel até o notebook 3.0 x4 × placa↔dock Gen4 x8).
+- Visual: elevação/sombras por tema, brilho na seleção (neutro, nunca vermelho de marca), verde de estado
+  separado do verde NVIDIA, links neutros no AMD, cor de dado nos gráficos, vírgula decimal, espaço não
+  separável entre número e unidade. Banda medida mostrada em Gb/s junto da conexão.
+- Equilíbrio: `eq_cols` iguala a altura dos cartões de uma linha (medida do quadro anterior, tolerância
+  1 px) e `flex()` faz um elemento de cada cartão ocupar a sobra (sem vão interno). Blocos em grade
+  uniforme; topologia e cabeçalho responsivos (980 pt com painel aberto, abas viram ícones).
+- Janela: barra de título na cor do tema via DWM (HWND do eframe; modo escuro via winit SetTheme);
+  rodapé com versão/MIT, Feedback (Issues), Apoiar (GitHub Sponsors) e Pix (LivePix); `.github/FUNDING.yml`.
+- Testes: `EGPU_TEMA=amd|nvidia|intel|claro|escuro`, `EGPU_ABA`, `EGPU_SEL=gpu|dock|host|cable|psu|port0..2`;
+  `scratchpad/f1/cap.sh` captura em largura estreita (SetWindowPos).
+
+**Pendente / não verificado**
+- Cliques, hover, tooltips e animações de entrada não foram vistos (eventos simulados não chegam ao egui).
+- Com tema explícito o winit não acompanha troca de tema do Windows (aceito; cores DWM continuam certas).
+- Usuário precisa ativar GitHub Sponsors e criar o LivePix "lightwolfman" para os links funcionarem.
+- E-mail do git não é noreply: trocar antes de tornar o repositório público.
