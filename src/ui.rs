@@ -71,16 +71,16 @@ mod pal {
     // ordem: bg card card2 card3 well grid border fg dim faint accent green amber red violet amd intel bolt pcie data
     const P: [[Color32; 20]; 5] = [
         // claro
-        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(146, 134, 84), c(100, 125, 160), c(31, 111, 178)],
+        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(236, 240, 246), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(146, 134, 84), c(100, 125, 160), c(31, 111, 178)],
         // escuro
         [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(150, 160, 170), c(118, 126, 136), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(222, 212, 156), c(120, 150, 190), c(56, 189, 248)],
         // AMD (Adrenalin): fundo #111, cartões #262626 com faixa de título preta, vermelho #E4002B
         [c(17, 17, 18), c(38, 38, 40), c(48, 48, 50), c(54, 54, 58), c(12, 12, 13), c(52, 52, 55), c(38, 38, 40), c(242, 242, 244), c(190, 190, 196), c(140, 140, 148), c(228, 0, 43), c(46, 204, 113), c(255, 170, 30), c(255, 99, 120), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(228, 218, 168), c(150, 150, 162), c(110, 185, 235)],
         // NVIDIA: grafite + verde. O verde de marca (118,185,0) é só destaque (logo, aba, filete);
         // o verde de estado "ok" é mais frio (63,185,80) para não se confundir com ele.
-        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(63, 185, 80), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(222, 214, 160), c(135, 155, 120), c(79, 163, 224)],
+        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(50, 50, 50), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(63, 185, 80), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(222, 214, 160), c(135, 155, 120), c(79, 163, 224)],
         // Intel: azul-marinho + ciano
-        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(226, 220, 172), c(110, 150, 200), c(120, 170, 255)],
+        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(29, 44, 68), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(226, 220, 172), c(110, 150, 200), c(120, 170, 255)],
     ];
 
     /// Raio dos cantos: o Adrenalin é todo reto; NVIDIA quase reto.
@@ -124,6 +124,14 @@ mod pal {
     /// Cor de dados (tráfego, gráficos): sempre um azul neutro, nunca a cor da marca nem a de
     /// estado (no AMD não é o vermelho; no NVIDIA não é o verde de "ok"; no Intel não é o ciano).
     pub fn data() -> Color32 { at(19) }
+    /// Série "Temperatura" (medidor, gráfico e painel lateral): verde-azulado, sem estado.
+    pub fn temp() -> Color32 {
+        if current().is_light() { c(0, 128, 134) } else { c(72, 196, 192) }
+    }
+    /// Série "Ponto mais quente": rosa-magenta, distinto da ventoinha (violeta) e do vermelho.
+    pub fn hot() -> Color32 {
+        if current().is_light() { c(176, 58, 146) } else { c(226, 124, 200) }
+    }
     /// Cor de link: no AMD o vermelho é só marca (faixa, logo, aba ativa), então link é
     /// cinza-claro (e sublinhado, ver `link_text`); nos outros temas, o destaque do tema.
     pub fn link() -> Color32 {
@@ -1710,7 +1718,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     }
     if let Some(br) = bench {
         // notebook → placa: o sentido que pesa em jogo (o mesmo do medidor "Banda" da visão geral)
-        dock_lines.push(format!("Banda medida: {}\u{A0}GB/s", dec(br.h2d_gbs, 1)));
+        dock_lines.push(format!("Banda medida: {}\u{A0}Gb/s", gbit(br.h2d_gbs)));
     }
     let (dkr, lift) = hover(ui, dock, ui.id().with("dock"));
     let dock_state = if !(dock_ok && switch_ok) || dock_lvl >= 2 { pal::red() } else if dock_lvl == 1 { pal::amber() } else { pal::green() };
@@ -2594,10 +2602,10 @@ impl App {
                 let up = bench.map(|b| b.h2d_gbs as f32).unwrap_or(0.0);
                 let online = pw.map(|p| p.online).unwrap_or(false);
                 let pd_col = if online { pal::green() } else { pal::amber() };
-                let heat = if temp > 85.0 { pal::red() } else if temp > 70.0 { pal::amber() } else { pal::green() };
+                let heat = heat(temp, pal::temp());
                 let gs: [(&str, f32, f32, &str, &str, Color32, &str, Tab); 6] = [
                     ("⚡", gbps, 40.0, "Gb/s", "Conexão", link_col, "Velocidade do enlace TB (chaves USB4\u{A0}20 e 21)", Tab::Enlace),
-                    ("⇅", up, 2.8, "GB/s", "Banda", if up >= 2.4 { pal::green() } else { pal::amber() }, "Banda notebook → placa (o sentido que pesa em jogo: texturas e comandos descem por ele), medida no último teste. Esperado com 40\u{A0}Gb/s: ≈ 2,5–2,8\u{A0}GB/s", Tab::Fluxo),
+                    ("⇅", up * 8.0, 22.4, "Gb/s", "Banda", if up >= 2.4 { pal::green() } else { pal::amber() }, "Banda notebook → placa (o sentido que pesa em jogo: texturas e comandos descem por ele), medida no último teste, em Gb/s como a conexão. Esperado com 40\u{A0}Gb/s: ≈ 20–22\u{A0}Gb/s", Tab::Fluxo),
                     ("🔌", pct, 100.0, "%", if online { "Carregando" } else { "Bateria" }, pd_col, "Bateria do note; verde = recebendo energia PD do dock", Tab::Enlace),
                     ("💥", drops24, 10.0, "24\u{A0}h", "Quedas", if drops24 >= 3.0 { pal::red() } else if drops24 > 0.0 { pal::amber() } else { pal::green() }, "Quedas do dock/GPU nas últimas 24\u{A0}h", Tab::Historico),
                     ("🌡", temp, 100.0, "°C", "Temperatura", heat, "Temperatura da placa", Tab::Fluxo),
@@ -2940,7 +2948,9 @@ fn tile_row_x(ui: &mut Ui, id: &str, items: &[TileItem], extra: f32) -> Option<u
         + 4.0
         + vh
         + TPY
-        + extra;
+        // a sobra se divide entre as linhas: o grupo cresce exatamente `extra` (senão o cartão
+        // cresce rows*extra, a medida do eq_cols infla e o layout alterna quadro a quadro)
+        + extra / rows as f32;
     let mut clicked = None;
     even_grid(ui, items.len(), nat, 10.0, |ui, i, w| {
         let x = &items[i];
@@ -3095,7 +3105,8 @@ fn drops_chart(ui: &mut Ui, incidents: &[&Incident], h: f32) -> egui::Response {
     for (k, (link, pd)) in buckets.iter().enumerate() {
         let x = rect.left() + k as f32 * bw;
         let base = rect.bottom() - 12.0;
-        let hmax = rect.height() - 16.0;
+        // 14 px no topo para o número da barra mais alta não sair cortado
+        let hmax = rect.height() - 16.0 - 14.0;
         let h1 = hmax * (*pd as f32 / max);
         let h2 = hmax * (*link as f32 / max);
         p.rect_filled(Rect::from_min_max(pos2(x + 2.0, base - 1.0), pos2(x + bw - 2.0, base)), CornerRadius::ZERO, pal::grid());
@@ -3168,7 +3179,7 @@ fn gauge_wd(ui: &mut Ui, w: f32, icon: &str, value: f32, max: f32, unit: &str, l
         let a = a0 + sweep * frac;
         p.circle_filled(c + vec2(a.cos(), a.sin()) * r, 4.5, color);
     }
-    p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "—".to_string() } else { dec(v as f64, dp) }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
+    p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "—".to_string() } else { dec(value as f64, dp) }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
     p.text(c + vec2(0.0, 14.0), egui::Align2::CENTER_CENTER, unit, FontId::proportional(12.0), pal::dim());
     p.text(pos2(c.x, rect.bottom() - 1.0), egui::Align2::CENTER_BOTTOM, format!("{icon} {label}"), FontId::proportional(12.5), pal::dim());
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -3653,10 +3664,9 @@ impl App {
             let g = samples.last().and_then(|s| s.gpu).unwrap_or_default();
             let temp = g.temp.unwrap_or(0.0) as f32;
             let hot = g.hot.unwrap_or(0.0) as f32;
-            let heat = |t: f32| if t > 85.0 { pal::red() } else if t > 70.0 { pal::amber() } else { pal::green() };
             let gs = [
-                ("🌡", temp, 100.0, "°C", "Temperatura", heat(temp)),
-                ("🔥", hot, 110.0, "°C", "Ponto mais quente", heat(hot - 10.0)),
+                ("🌡", temp, 100.0, "°C", "Temperatura", heat(temp, pal::temp())),
+                ("🔥", hot, 110.0, "°C", "Ponto mais quente", heat(hot - 10.0, pal::hot())),
                 ("⚡", g.tbp.unwrap_or(0.0) as f32, 190.0, "W", "Consumo", pal::bolt()),
                 ("⏱", g.clk.unwrap_or(0) as f32, 2900.0, "MHz", "Velocidade", pal::data()), // cor de dado, não de marca
                 ("🌀", g.fan.unwrap_or(0) as f32, 3300.0, "RPM", "Ventoinha", pal::violet()),
@@ -3671,7 +3681,7 @@ impl App {
             let temp: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.temp)).map(|v| v as f32).collect();
             let hot: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.hot)).map(|v| v as f32).collect();
             let tbp: Vec<f32> = samples.iter().filter_map(|s| s.gpu.and_then(|g| g.tbp)).map(|v| v as f32).collect();
-            chart(ui, "🌡 / ⚡", &[(pal::data(), "Temperatura|°C", temp), (pal::violet(), "Ponto mais quente|°C", hot), (pal::bolt(), "Consumo|W", tbp)], 90.0, "", 70.0 + flex(1.0, 170.0));
+            chart(ui, "🌡 / ⚡", &[(pal::temp(), "Temperatura|°C", temp), (pal::hot(), "Ponto mais quente|°C", hot), (pal::bolt(), "Consumo|W", tbp)], 90.0, "", 70.0 + flex(1.0, 170.0));
             if let Some(s) = st {
                 let vram = g.vram.unwrap_or(0) as f32;
                 let frac = if s.vram_total_mb > 0 { vram / s.vram_total_mb as f32 } else { 0.0 };
@@ -3730,14 +3740,17 @@ impl App {
                 let p = ui.painter_at(rect);
                 p.rect_filled(rect, CornerRadius::same(6), pal::well());
                 let x_of = |ts: i64| rect.left() + 8.0 + (rect.width() - 16.0) * ((ts - t0) as f32 / (now - t0).max(1) as f32);
-                for e in self.events.iter().filter(|e| e.ts >= t0 && enabled.contains(&e.kind.cat())) {
+                // incidentes (severidade 2) em vermelho, como na lista, e por cima dos outros
+                let mut evs: Vec<_> = self.events.iter().filter(|e| e.ts >= t0 && enabled.contains(&e.kind.cat())).collect();
+                evs.sort_by_key(|e| e.kind.severity());
+                for e in evs {
                     let x = x_of(e.ts);
                     let (y0, y1) = match e.kind.severity() {
                         2 => (rect.top() + 6.0, rect.bottom() - 14.0),
                         1 => (rect.top() + 12.0, rect.bottom() - 16.0),
                         _ => (rect.top() + 18.0, rect.bottom() - 18.0),
                     };
-                    p.line_segment([pos2(x, y0), pos2(x, y1)], Stroke::new(if e.kind.severity() == 2 { 2.0 } else { 1.0 }, cat_color(e.kind.cat())));
+                    p.line_segment([pos2(x, y0), pos2(x, y1)], if e.kind.severity() == 2 { Stroke::new(2.0, pal::red()) } else { Stroke::new(1.0, cat_color(e.kind.cat())) });
                 }
                 p.text(rect.left_bottom() + vec2(8.0, -2.0), egui::Align2::LEFT_BOTTOM, fmt_local(t0, false), FontId::proportional(11.5), pal::faint());
                 p.text(rect.right_bottom() + vec2(-8.0, -2.0), egui::Align2::RIGHT_BOTTOM, "agora", FontId::proportional(11.5), pal::faint());
@@ -3855,8 +3868,8 @@ impl App {
                     }
                 });
                 let mut tiles = vec![
-                    tl("🌡", temp.map(|v| format!("{v:.0}")), "°C", "Temperatura", heat(temp.unwrap_or(0.0))).vc(heat(temp.unwrap_or(0.0))).sp(ser(|g| g.temp.map(|v| v as f32))),
-                    tl("🔥", hot.map(|v| format!("{v:.0}")), "°C", "Ponto mais quente", heat(hot.unwrap_or(0.0) - 10.0)).vc(heat(hot.unwrap_or(0.0) - 10.0)).sp(ser(|g| g.hot.map(|v| v as f32))),
+                    tl("🌡", temp.map(|v| format!("{v:.0}")), "°C", "Temperatura", heat(temp.unwrap_or(0.0), pal::temp())).vc(heat(temp.unwrap_or(0.0), pal::temp())).sp(ser(|g| g.temp.map(|v| v as f32))),
+                    tl("🔥", hot.map(|v| format!("{v:.0}")), "°C", "Ponto mais quente", heat(hot.unwrap_or(0.0) - 10.0, pal::hot())).vc(heat(hot.unwrap_or(0.0) - 10.0, pal::hot())).sp(ser(|g| g.hot.map(|v| v as f32))),
                     tl("⚡", g.tbp.map(|v| format!("{v:.0}")), "W", "Consumo da placa", pal::bolt()).sp(ser(|g| g.tbp.map(|v| v as f32))),
                     tl("⏱", g.clk.map(|v| v.to_string()), "MHz", "Velocidade", pal::data()).sp(ser(|g| g.clk.map(|v| v as f32))),
                     tl("🌀", fan.map(|v| v.to_string()), "RPM", if fan == Some(0) { "Ventoinha parada" } else { "Ventoinha" }, pal::violet()).sp(ser(|g| g.fan.map(|v| v as f32))),
@@ -3924,7 +3937,7 @@ impl App {
                     tl("🔌", (!topo.ports.is_empty()).then(|| format!("{active} de {}", topo.ports.len())), "", "Portas ativas", neutral).tip("Portas acordadas (D0). As outras estão dormindo para economizar."),
                 ];
                 if let Some(b) = bench {
-                    tiles.push(tl("📏", Some(dec(b.h2d_gbs, 1)), "GB/s", "Banda medida", pal::data()).tip("Notebook → placa, o sentido que pesa em jogo"));
+                    tiles.push(tl("📏", Some(gbit(b.h2d_gbs)), "Gb/s", "Banda medida", pal::data()).tip("Notebook → placa, o sentido que pesa em jogo"));
                 }
                 if tile_grid(ui, &tiles, sel_at) == Some(2) {
                     self.tab = Tab::Historico;
@@ -3990,7 +4003,7 @@ impl App {
                 let tiles = vec![
                     tl("⚡", gbps.map(|v| v.to_string()), "Gb/s", "Velocidade do cabo", pal::bolt()).vc_if(speed == Some(0x8), pal::amber()).note("≈ decodificado").tip("Lido das chaves USB4\u{A0}20 e 21 do dock. Veja os detalhes técnicos."),
                     tl("⛓", lanes.map(|v| v.to_string()), "", "Canais ativos", neutral),
-                    tl("📏", bench.map(|b| format!("↑{} ↓{}", dec(b.h2d_gbs, 1), dec(b.d2h_gbs, 1))), "GB/s", "Banda medida", pal::data()),
+                    tl("📏", bench.map(|b| format!("↑{} ↓{}", gbit(b.h2d_gbs), gbit(b.d2h_gbs))), "Gb/s", "Banda medida", pal::data()),
                     tl("🔋", pd.map(|o| if o { "Sim" } else { "Não" }.to_string()), "", "Carregando o notebook", pal::bolt()).vc_if(pd == Some(false), pal::amber()),
                 ];
                 tile_grid(ui, &tiles, sel_at);
@@ -4217,12 +4230,12 @@ impl App {
                         ui,
                         "📏",
                         pal::data(),
-                        &format!("Banda medida ↑{} ↓{}\u{A0}GB/s", dec(b.h2d_gbs, 1), dec(b.d2h_gbs, 1)),
-                        "Com 40\u{A0}Gb/s o normal é ≈ 2,5–2,8\u{A0}GB/s; ≈ 1,6–1,9 é típico de 20\u{A0}Gb/s",
+                        &format!("Banda medida ↑{} ↓{}\u{A0}Gb/s", gbit(b.h2d_gbs), gbit(b.d2h_gbs)),
+                        "Com 40\u{A0}Gb/s o normal é ≈ 20–22\u{A0}Gb/s; ≈ 13–15 é típico de 20\u{A0}Gb/s",
                     ),
-                    None => info_block(ui, "📏", pal::faint(), "Banda ainda não medida", "Abaixo de ≈ 2,2\u{A0}GB/s confirma o enlace reduzido"),
+                    None => info_block(ui, "📏", pal::faint(), "Banda ainda não medida", "Abaixo de ≈ 18\u{A0}Gb/s confirma o enlace reduzido"),
                 }
-                info_block(ui, "🔍", pal::bolt(), "Como provar: troque por um cabo 40\u{A0}Gb/s certificado", "Thunderbolt\u{A0}3/4 passivo, até 0,8 m. A banda deve subir para ≈ 2,5\u{A0}GB/s");
+                info_block(ui, "🔍", pal::bolt(), "Como provar: troque por um cabo 40\u{A0}Gb/s certificado", "Thunderbolt\u{A0}3/4 passivo, até 0,8 m. A banda deve subir para ≈ 20\u{A0}Gb/s");
                 ui.add_space(4.0);
                 if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { "📏 Medindo…" } else { "📏 Medir banda agora" }).size(14.0))).clicked() {
                     self.start_bench(ctx);
@@ -4381,9 +4394,9 @@ fn info_block(ui: &mut Ui, icon: &str, color: Color32, title: &str, sub: &str) {
 
 // ---------------- peças do painel lateral (hero, blocos, faixas)
 
-/// Cor de calor: verde, âmbar acima de 70 °C, vermelho acima de 85 °C.
-fn heat(t: f32) -> Color32 {
-    if t > 85.0 { pal::red() } else if t > 70.0 { pal::amber() } else { pal::green() }
+/// Cor de calor: a cor da série (`ok`) no normal; âmbar acima de 70 °C, vermelho acima de 85 °C.
+fn heat(t: f32, ok: Color32) -> Color32 {
+    if t > 85.0 { pal::red() } else if t > 70.0 { pal::amber() } else { ok }
 }
 
 /// Ícone desenhado (não é glifo): funil, o gargalo do caminho.
@@ -4429,15 +4442,15 @@ fn pcie_tile(gst: Option<&crate::collect::GpuStatic>, chip: Option<(u32, u32, u3
                 x = x.note(format!("Dentro da placa: {}", pcie_long(g, w)));
             }
             let mut tip = format!(
-                "Túnel até o notebook · {} (lido do driver AMD): a placa no slot do dock, que segue pelo cabo Thunderbolt até o notebook. No papel, ≈ {}\u{A0}GB/s.",
+                "Túnel até o notebook · {} (lido do driver AMD): a placa no slot do dock, que segue pelo cabo Thunderbolt até o notebook. No papel, ≈ {}\u{A0}Gb/s.",
                 pcie_long(tg, tw),
-                dec(tb as f64, 1)
+                gbit(tb as f64)
             );
             if let Some((g, w)) = inner {
                 tip.push_str(&format!(
-                    "\n\nDentro da placa · {} (lido do Windows): o chip da GPU ligado ao switch PCIe da própria placa, ≈ {}\u{A0}GB/s.",
+                    "\n\nDentro da placa · {} (lido do Windows): o chip da GPU ligado ao switch PCIe da própria placa, ≈ {}\u{A0}Gb/s.",
                     pcie_long(g, w),
-                    dec(pcie_gbs(g, w) as f64, 1)
+                    gbit(pcie_gbs(g, w) as f64)
                 ));
             }
             if bottleneck {
@@ -4453,13 +4466,19 @@ fn pcie_tile(gst: Option<&crate::collect::GpuStatic>, chip: Option<(u32, u32, u3
 
 /// "Gen4 x8" a partir do código de velocidade e da largura.
 fn pcie_short(code: u32, w: u32) -> String {
-    format!("{}\u{A0}x{w}", pnp::pcie_speed_name(code).split(' ').next().unwrap_or("?"))
+    format!("{}\u{A0}x{w}", pnp::pcie_speed_name(code).split([' ', '\u{A0}']).next().unwrap_or("?"))
 }
 
 /// Nome curto do modelo da fonte: a última palavra com número ("Corsair SF750" → "SF750").
 fn short_model(m: &str) -> &str {
     let m = m.trim();
     m.split_whitespace().rev().find(|w| w.chars().any(|c| c.is_ascii_digit())).or_else(|| m.split_whitespace().last()).unwrap_or(m)
+}
+
+/// Banda em Gb/s (bits) a partir de GB/s (bytes), com 1 casa: a mesma unidade da conexão,
+/// para "12,6 de 20" não virar "1,6 de 20".
+fn gbit(gbs: f64) -> String {
+    dec(gbs * 8.0, 1)
 }
 
 fn dec(v: f64, n: usize) -> String {
@@ -4986,9 +5005,9 @@ fn bars(ui: &mut Ui, r: &BenchResult) {
     for x in [band.left(), band.right()] {
         p.extend(egui::Shape::dashed_line(&[pos2(x, band.top()), pos2(x, band.bottom())], Stroke::new(1.0, pal::green().gamma_multiply(0.7)), 4.0, 3.0));
     }
-    let lg = p.layout_no_wrap("normal com cabo de 40\u{A0}Gb/s".into(), FontId::proportional(12.5), pal::green()).size().x;
+    let lg = p.layout_no_wrap("normal com cabo de 40\u{A0}Gb/s: 2,5–2,8\u{A0}GB/s".into(), FontId::proportional(12.5), pal::green()).size().x;
     let lx = band.center().x.clamp(rect.left() + lg / 2.0, rect.right() - lg / 2.0);
-    p.text(pos2(lx, rect.bottom()), egui::Align2::CENTER_BOTTOM, "normal com cabo de 40\u{A0}Gb/s", FontId::proportional(12.5), pal::green());
+    p.text(pos2(lx, rect.bottom()), egui::Align2::CENTER_BOTTOM, "normal com cabo de 40\u{A0}Gb/s: 2,5–2,8\u{A0}GB/s", FontId::proportional(12.5), pal::green());
     for (i, (label, v, c)) in [("Notebook → placa", r.h2d_gbs, pal::data()), ("Placa → notebook", r.d2h_gbs, pal::violet())].iter().enumerate() {
         let y = rect.top() + 8.0 + i as f32 * 26.0;
         p.text(pos2(rect.left(), y + 8.0), egui::Align2::LEFT_CENTER, *label, FontId::proportional(13.5), pal::dim());
