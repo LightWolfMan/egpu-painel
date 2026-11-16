@@ -70,15 +70,15 @@ mod pal {
     // ordem: bg card card2 card3 well grid border fg dim faint accent green amber red violet amd intel bolt pcie data
     const P: [[Color32; 20]; 5] = [
         // claro
-        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(146, 134, 84), c(100, 125, 160), c(2, 120, 190)],
+        [c(242, 244, 247), c(255, 255, 255), c(244, 246, 249), c(235, 242, 252), c(246, 248, 251), c(226, 230, 236), c(214, 220, 227), c(28, 33, 40), c(90, 99, 110), c(150, 158, 168), c(2, 132, 199), c(26, 127, 55), c(176, 112, 0), c(207, 34, 46), c(130, 80, 223), c(200, 30, 40), c(0, 104, 181), c(146, 134, 84), c(100, 125, 160), c(31, 111, 178)],
         // escuro
         [c(13, 17, 23), c(22, 27, 34), c(30, 36, 45), c(26, 33, 44), c(16, 20, 26), c(33, 39, 47), c(48, 54, 61), c(230, 237, 243), c(150, 160, 170), c(118, 126, 136), c(56, 189, 248), c(63, 185, 80), c(210, 153, 34), c(248, 81, 73), c(163, 113, 247), c(237, 70, 70), c(64, 140, 230), c(222, 212, 156), c(120, 150, 190), c(56, 189, 248)],
         // AMD (Adrenalin): fundo #111, cartões #262626 com faixa de título preta, vermelho #E4002B
         [c(17, 17, 18), c(38, 38, 40), c(48, 48, 50), c(54, 54, 58), c(12, 12, 13), c(52, 52, 55), c(38, 38, 40), c(242, 242, 244), c(190, 190, 196), c(140, 140, 148), c(228, 0, 43), c(46, 204, 113), c(255, 170, 30), c(255, 99, 120), c(175, 125, 255), c(237, 28, 36), c(80, 150, 230), c(228, 218, 168), c(150, 150, 162), c(110, 185, 235)],
         // NVIDIA: grafite + verde
-        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(222, 214, 160), c(135, 155, 120), c(140, 200, 60)],
+        [c(24, 24, 24), c(34, 34, 34), c(44, 44, 44), c(36, 48, 18), c(28, 28, 28), c(52, 52, 52), c(58, 58, 58), c(238, 238, 238), c(180, 180, 180), c(132, 132, 132), c(118, 185, 0), c(118, 185, 0), c(240, 170, 0), c(255, 88, 88), c(160, 125, 240), c(237, 70, 70), c(80, 150, 230), c(222, 214, 160), c(135, 155, 120), c(79, 163, 224)],
         // Intel: azul-marinho + ciano
-        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(226, 220, 172), c(110, 150, 200), c(0, 199, 253)],
+        [c(9, 17, 31), c(16, 27, 45), c(23, 37, 59), c(17, 43, 69), c(11, 21, 37), c(31, 47, 71), c(35, 53, 79), c(232, 240, 250), c(156, 176, 200), c(110, 130, 158), c(0, 199, 253), c(70, 200, 120), c(255, 180, 0), c(255, 92, 92), c(150, 130, 255), c(237, 70, 70), c(0, 104, 181), c(226, 220, 172), c(110, 150, 200), c(120, 170, 255)],
     ];
 
     /// Raio dos cantos: o Adrenalin é todo reto; NVIDIA quase reto.
@@ -119,8 +119,8 @@ mod pal {
     /// Não confundir com `amber()`, que é só atenção.
     pub fn bolt() -> Color32 { at(17) }
     pub fn pcie() -> Color32 { at(18) }
-    /// Cor de dados (tráfego, gráficos). No tema AMD não é o vermelho da marca,
-    /// para vermelho continuar significando só problema.
+    /// Cor de dados (tráfego, gráficos): sempre um azul neutro, nunca a cor da marca nem a de
+    /// estado (no AMD não é o vermelho; no NVIDIA não é o verde de "ok"; no Intel não é o ciano).
     pub fn data() -> Color32 { at(19) }
 
     // --- elevação: a luz vem de cima; fundo < cartão < nó/bloco < selecionado
@@ -141,9 +141,10 @@ mod pal {
             _ => Color32::from_white_alpha(12),
         }
     }
-    /// Cor da seleção. No AMD brilha em neutro: vermelho fica só para problema.
+    /// Cor da seleção: neutra em todos os temas (texto com 60% de alfa). A cor de marca
+    /// (vermelha no AMD, verde no NVIDIA) não marca estado nem seleção.
     pub fn sel() -> Color32 {
-        if current() == Th::Amd { c(235, 235, 240) } else { cyan() }
+        fg().gamma_multiply(0.6)
     }
     /// Sombra de elevação: nível 1 = cartão, 2 = nó/bloco. `lift` (0..1) = hover.
     pub fn elev(level: u8, lift: f32) -> Shadow {
@@ -211,11 +212,13 @@ fn vgrad(p: &egui::Painter, r: Rect, cr: u8, top: Color32, bot: Color32) -> egui
     egui::Shape::mesh(m)
 }
 
+/// Cor de categoria de evento (dado, não estado): nunca a cor da marca nem o vermelho de erro
+/// (antes Dock = destaque da marca, vermelho no AMD, e GPU = vermelho AMD em todos os temas).
 fn cat_color(c: Cat) -> Color32 {
     match c {
-        Cat::Dock => pal::cyan(),
-        Cat::Gpu => pal::amd(),
-        Cat::Pcie => pal::violet(),
+        Cat::Dock => pal::data(),
+        Cat::Gpu => pal::violet(),
+        Cat::Pcie => pal::pcie(),
         Cat::Tdr => pal::red(),
         Cat::Energia => pal::bolt(),
         Cat::UsbA => pal::green(),
@@ -380,6 +383,15 @@ impl App {
                 Some("host") => Some(Sel::Host),
                 Some("cable") => Some(Sel::Cable),
                 Some("info") => Some(Sel::Info(Topic::Link)),
+                Some(v) if v.starts_with("info") => match v[4..].parse::<u8>().ok() {
+                    Some(0) => Some(Sel::Info(Topic::Link)),
+                    Some(1) => Some(Sel::Info(Topic::Power)),
+                    Some(2) => Some(Sel::Info(Topic::Stability)),
+                    Some(3) => Some(Sel::Info(Topic::Flow)),
+                    Some(4) => Some(Sel::Info(Topic::Gpu)),
+                    Some(5) => Some(Sel::Info(Topic::Hidden)),
+                    _ => None,
+                },
                 Some("psu") if crate::psu::load().watts > 0 => Some(Sel::Psu),
                 Some(v) if v.starts_with("port") => v[4..].parse().ok().map(Sel::Port),
                 _ => None,
@@ -928,7 +940,8 @@ fn node_box(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent
 fn node_box_r(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], accent: Color32, state: Color32, selected: bool, focus: bool, lift: f32, t: f64, art: Option<&dyn Fn(&egui::Painter, Rect)>, reserve_bottom: f32) {
     // sombra (cresce no hover) e brilho respirando na seleção, antes do recorte do nó
     let cr = CornerRadius::same(pal::radius());
-    p.add(pal::elev(2, lift).as_shape(rect, cr));
+    // selecionado: sobe como no hover máximo (anel neutro + sombra maior, sem cor de marca)
+    p.add(pal::elev(2, if selected { 1.0 } else { lift }).as_shape(rect, cr));
     if selected {
         let b = 0.85 + 0.15 * ((t * 2.1).sin() as f32);
         p.add(egui::Shadow { offset: [0, 0], blur: 18, spread: 2, color: pal::sel().gamma_multiply(0.30 * b) }.as_shape(rect, cr));
@@ -939,7 +952,9 @@ fn node_box_r(p: &egui::Painter, rect: Rect, title: &str, lines: &[String], acce
     let stroke = if selected { Stroke::new(2.0, pal::sel()) } else { Stroke::new(1.0, pal::border().lerp_to_gamma(pal::fg(), 0.25 * lift)) };
     p.rect_stroke(rect, cr, stroke, StrokeKind::Inside);
     let bar = Rect::from_min_size(rect.min + vec2(1.0, 8.0), vec2(3.0, rect.height() - 16.0));
-    p.rect_filled(bar, CornerRadius::same(2), accent);
+    // faixa lateral: cor do tipo do nó (neutra); com problema/atenção, a cor do estado
+    let bar_col = if state == pal::red() || state == pal::amber() { state } else { accent };
+    p.rect_filled(bar, CornerRadius::same(2), bar_col);
     p.circle_filled(rect.right_top() + vec2(-12.0, 12.0), 4.5, state);
     // ilustração à esquerda e o texto depois dela; em nó estreito (< 180 pt) a ilustração vai
     // para uma faixa no alto e o texto ocupa a largura toda embaixo (só em nó alto, ≥ 90 pt)
@@ -1283,7 +1298,8 @@ fn dname(n: &Node) -> String {
     n.dstate.map(pnp::dstate_name).unwrap_or("?").to_string()
 }
 
-fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crate::collect::GpuStatic>, sel: &mut Option<Sel>, bench: Option<&BenchResult>, psu: Option<(&crate::psu::Psu, crate::psu::Load)>, add_psu: &mut bool) {
+/// `dock_lvl` é o nível do veredito (0 ok, 1 atenção, 2 problema): o nó do dock usa o mesmo estado do banner.
+fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crate::collect::GpuStatic>, sel: &mut Option<Sel>, bench: Option<&BenchResult>, psu: Option<(&crate::psu::Psu, crate::psu::Load)>, add_psu: &mut bool, dock_lvl: u8) {
     let w = ui.available_width();
     // Duas geometrias. Larga (≥ 760 pt): note | cabo | dock | ramos empilhados à direita, fonte embaixo do dock.
     // Estreita (painel lateral aberto, janela mínima): note e dock em cima (fonte embaixo do note),
@@ -1472,7 +1488,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
     let hostn = topo.host_router.as_ref();
     let host_lines = vec!["Thunderbolt 4".to_string(), format!("Firmware {}", hostn.and_then(|n| n.firmware.clone()).unwrap_or("?".into()))];
     let (hr, lift) = hover(ui, host, ui.id().with("host"));
-    node_box(&p, host, "Notebook", &host_lines, pal::intel(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
+    node_box(&p, host, "Notebook", &host_lines, pal::pcie(), if hostn.is_some() { pal::green() } else { pal::amber() }, *sel == Some(Sel::Host), false, lift, t, Some(&|p: &egui::Painter, r: Rect| art::laptop(p, r, hostn.is_some(), t)));
     if hr.clicked() {
         *sel = Some(Sel::Host);
     }
@@ -1490,7 +1506,8 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         dock_lines.push(format!("Banda medida: {:.1} GB/s", br.h2d_gbs.max(br.d2h_gbs)).replace('.', ","));
     }
     let (dkr, lift) = hover(ui, dock, ui.id().with("dock"));
-    node_box(&p, dock, "Dock WKG-L19", &dock_lines, pal::cyan(), if dock_ok && switch_ok { pal::green() } else { pal::red() }, *sel == Some(Sel::Dock), true, lift, t, Some(&|p: &egui::Painter, r: Rect| art::dock(p, r.with_max_y(r.bottom() - 26.0), dock_ok, t)));
+    let dock_state = if !(dock_ok && switch_ok) || dock_lvl >= 2 { pal::red() } else if dock_lvl == 1 { pal::amber() } else { pal::green() };
+    node_box(&p, dock, "Dock WKG-L19", &dock_lines, pal::pcie(), dock_state, *sel == Some(Sel::Dock), true, lift, t, Some(&|p: &egui::Painter, r: Rect| art::dock(p, r.with_max_y(r.bottom() - 26.0), dock_ok, t)));
     // bolinhas de estado das portas downstream (verde = D0 ativo, cinza = D3 dormindo)
     for (i, dp) in topo.ports.iter().enumerate() {
         let c = pos2(dock.left() + 22.0 + i as f32 * 34.0, dock.bottom() - 16.0);
@@ -1521,10 +1538,15 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         vec![
             format!("{:.0} °C · {:.0} W", gm.temp.unwrap_or(0.0), gm.tbp.unwrap_or(0.0)),
             match gpu_static {
-                Some(s) => format!("{} x{}", s.bus, s.lanes),
+                // ADLX: o enlace da placa com o slot do dock, que segue pelo túnel até o notebook
+                Some(s) if s.lanes > 0 => format!("Túnel {} x{}", s.bus, s.lanes),
+                Some(_) => String::new(),
                 None => "…".into(),
             },
         ]
+        .into_iter()
+        .filter(|l| !l.is_empty())
+        .collect()
     } else {
         vec!["Não encontrada".into()]
     };
@@ -1551,7 +1573,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
                         l.push(d.name.clone());
                     }
                 }
-                ("USB-A 10\u{A0}Gb/s", l, pal::green())
+                ("USB-A 10\u{A0}Gb/s", l, pal::pcie())
             }
             _ => (
                 "TB extra 15\u{A0}W",
@@ -1568,7 +1590,7 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         }
     }
     if ports.iter().all(|(d, _)| d.role != PortRole::UsbA) {
-        node_box(&p, usb_r, "USB-A 10\u{A0}Gb/s", &["não detectada".into()], pal::green(), pal::red(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_a(p, r, false)));
+        node_box(&p, usb_r, "USB-A 10\u{A0}Gb/s", &["não detectada".into()], pal::pcie(), pal::red(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_a(p, r, false)));
     }
     if ports.iter().all(|(d, _)| d.role != PortRole::TbExtra) {
         node_box(&p, tb_r, "TB extra 15\u{A0}W", &["não detectada".into()], pal::faint(), pal::amber(), false, false, 0.0, t, Some(&|p: &egui::Painter, r: Rect| art::usb_c(p, r, false)));
@@ -1787,11 +1809,12 @@ impl eframe::App for App {
                         }
                         self.verdict_banner(ui, &topo);
                         ui.add_space(pal::gap());
+                        let dock_lvl = self.verdict(&topo).0;
                         card(ui, "🔗  Topologia", pal::cyan(), |ui| {
                             let mut sel = self.sel;
                             let pl = self.psu_load.map(|l| (&self.psu, l));
                             let mut add_psu = false;
-                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref(), pl, &mut add_psu);
+                            topo_view(ui, &topo, &flow, gpu_static.as_ref(), &mut sel, bench_done.as_ref(), pl, &mut add_psu, dock_lvl);
                             if add_psu {
                                 self.tab = Tab::Enlace;
                             }
@@ -3264,8 +3287,14 @@ impl App {
 
     fn card_stability(&mut self, ui: &mut Ui, topo: &Topology) {
         let mut sel = self.sel;
+        // faixa do cartão na cor do veredito: vermelho só quando o problema foi medido
+        let accent = match self.verdict(topo).0 {
+            0 => pal::green(),
+            1 => pal::amber(),
+            _ => pal::red(),
+        };
         let incidents = &self.incidents;
-        card_i(ui, "🛡  Estabilidade do dock", pal::red(), &mut sel, Topic::Stability, "Como as quedas são classificadas", |ui, sel| {
+        card_i(ui, "🛡  Estabilidade do dock", accent, &mut sel, Topic::Stability, "Como as quedas são classificadas", |ui, sel| {
             let now = now_ms();
             let drops: Vec<&Incident> = incidents.iter().filter(|i| i.is_drop && i.events.iter().any(|e| e.kind.cat() == Cat::Dock || e.kind == Kind::GpuOff)).collect();
             let count = |ms: i64| drops.iter().filter(|i| now - i.start <= ms).count();
@@ -3348,7 +3377,7 @@ impl App {
 
     fn card_gpu(&mut self, ui: &mut Ui, samples: &[Sample], st: Option<&crate::collect::GpuStatic>) {
         let mut sel = self.sel;
-        card_i(ui, "🎮  GPU no dock", pal::amd(), &mut sel, Topic::Gpu, "Dados via AMD ADLX", |ui, sel| {
+        card_i(ui, "🎮  GPU no dock", pal::data(), &mut sel, Topic::Gpu, "Dados via AMD ADLX", |ui, sel| {
             let g = samples.last().and_then(|s| s.gpu).unwrap_or_default();
             let temp = g.temp.unwrap_or(0.0) as f32;
             let hot = g.hot.unwrap_or(0.0) as f32;
@@ -3397,7 +3426,7 @@ impl App {
             if !compact {
                 ui.horizontal_wrapped(|ui| {
                     for r in [Range::H24, Range::D7, Range::D30, Range::All] {
-                        if chip(ui, self.range == r, r.label(), pal::cyan()) {
+                        if chip(ui, self.range == r, r.label(), pal::fg()) {
                             self.range = r;
                         }
                     }
@@ -3505,11 +3534,11 @@ impl App {
                 side_hero(
                     ui,
                     e,
-                    pal::cyan(),
+                    pal::pcie(),
                     &|p: &egui::Painter, r: Rect| {
                         let rr = r.height().min(r.width()) * 0.42;
-                        p.circle_filled(r.center(), rr, pal::cyan().gamma_multiply(0.16));
-                        p.circle_stroke(r.center(), rr, Stroke::new(1.0, pal::cyan().gamma_multiply(0.5)));
+                        p.circle_filled(r.center(), rr, pal::pcie().gamma_multiply(0.18));
+                        p.circle_stroke(r.center(), rr, Stroke::new(1.0, pal::pcie().gamma_multiply(0.6)));
                         p.text(r.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(40.0 * (r.height() / 88.0).min(1.0)), pal::fg());
                     },
                     name,
@@ -3531,7 +3560,7 @@ impl App {
                 };
                 let spin = (g.usage.unwrap_or(0.0) / 100.0) as f32;
                 let title = gst.map(|s| s.name.trim()).filter(|s| !s.is_empty()).unwrap_or("Placa de vídeo");
-                side_hero(ui, e, pal::cyan(), &|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, node.is_some(), t), title, "Dentro do dock, ligada pelo Thunderbolt", Some((st, sc)), &mut sel);
+                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::gpu(p, r, spin, node.is_some(), t), title, "Dentro do dock, ligada pelo Thunderbolt", Some((st, sc)), &mut sel);
                 side_hint(
                     ui,
                     match st {
@@ -3568,15 +3597,8 @@ impl App {
                     },
                     tl("📶", g.usage.map(|v| format!("{v:.0}")), "%", "Uso da GPU", pal::data()).sp(ser(|g| g.usage.map(|v| v as f32))),
                 ];
-                let link = node.and_then(|n| n.pcie);
-                let mut lt = tl("🔗", link.map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", "Enlace PCIe", neutral);
-                if let Some((cs, cw, ms, mw)) = link {
-                    if cs < ms || cw < mw {
-                        lt = lt.note(format!("máx {}", pcie_short(ms, mw)));
-                    }
-                }
-                tiles.push(lt);
-                let tiles: Vec<Tile> = tiles.into_iter().map(|x| x.tip("Ver no Desempenho")).collect();
+                tiles.push(pcie_tile(gst, node.and_then(|n| n.pcie), neutral));
+                let tiles: Vec<Tile> = tiles.into_iter().map(|x| if x.tip.is_some() { x } else { x.tip("Ver no Desempenho") }).collect();
                 if tile_grid(ui, &tiles, sel_at).is_some() {
                     self.tab = Tab::Fluxo;
                 }
@@ -3597,21 +3619,44 @@ impl App {
             }
             Some(Sel::Dock) => {
                 let ok = dock_ok && topo.dock_switch.is_some() && topo.dock_router.as_ref().is_some_and(|n| n.problem == 0);
-                let (st, sc) = if ok { ("Tudo certo", pal::green()) } else { ("Com problema", pal::red()) };
-                side_hero(ui, e, pal::cyan(), &|p: &egui::Painter, r: Rect| art::dock(p, r, dock_ok, t), "Dock WKG-L19", "Caixa externa da GPU", Some((st, sc)), &mut sel);
-                side_hint(ui, if ok { "O dock está ligado e conversando com o notebook." } else { "Algo no dock não respondeu. Veja os detalhes técnicos no fim." });
+                // mesmo veredito do banner: ligado agora não quer dizer estável
+                let (lvl, _, cause) = self.verdict(topo);
+                let now = now_ms();
+                let d24 = self.incidents.iter().filter(|i| i.is_drop && now - i.start <= 86_400_000).count();
+                let pill = format!("Caiu {d24}× em 24 h");
+                let (st, sc, icon, tile_v): (&str, Color32, &str, &str) = if !ok {
+                    ("Com problema", pal::red(), "✖", "Com problema")
+                } else if lvl >= 2 {
+                    (&pill, pal::red(), "▲", "Instável")
+                } else if lvl == 1 {
+                    (&pill, pal::amber(), "▲", "Instável")
+                } else {
+                    ("Tudo certo", pal::green(), "✔", "Estável")
+                };
+                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::dock(p, r, dock_ok, t), "Dock WKG-L19", "Caixa externa da GPU", Some((st, sc)), &mut sel);
+                let hint = if !ok {
+                    "Algo no dock não respondeu. Veja os detalhes técnicos no fim.".to_string()
+                } else if lvl > 0 {
+                    let vezes = if d24 == 1 { "1 vez".to_string() } else { format!("{d24} vezes") };
+                    format!("Ligado agora, mas caiu {vezes} nas últimas 24 h. {cause}").trim_end().to_string()
+                } else {
+                    "O dock está ligado, conversando com o notebook e sem quedas nas últimas 24 h.".to_string()
+                };
+                side_hint(ui, &hint);
                 let dr = topo.dock_router.as_ref();
                 let active = topo.ports.iter().filter(|p| d0(&p.node)).count();
                 let mut tiles = vec![
                     tl("🔧", dr.and_then(|n| n.firmware.clone()), "", "Firmware", neutral),
                     tl("🕑", dr.and_then(|n| n.last_arrival).map(|ts| fmt_dur(now_ms() - ts)), "", "Conectado há", neutral),
-                    tl(if ok { "✔" } else { "⚠" }, Some(st.to_string()), "", "Estado", sc).vc(sc),
+                    tl(icon, Some(tile_v.to_string()), "", if ok { "Nas últimas 24 h" } else { "Estado" }, sc).vc(sc).tip("Ver as quedas no Histórico"),
                     tl("🔌", (!topo.ports.is_empty()).then(|| format!("{active} de {}", topo.ports.len())), "", "Portas ativas", neutral).tip("Portas acordadas (D0). As outras estão dormindo para economizar."),
                 ];
                 if let Some(b) = bench {
                     tiles.push(tl("📏", Some(dec(b.h2d_gbs.max(b.d2h_gbs), 1)), "GB/s", "Banda medida", pal::data()));
                 }
-                tile_grid(ui, &tiles, sel_at);
+                if tile_grid(ui, &tiles, sel_at) == Some(2) {
+                    self.tab = Tab::Historico;
+                }
                 side_caption(ui, "Portas");
                 ui.horizontal_wrapped(|ui| {
                     for (i, p) in topo.ports.iter().enumerate() {
@@ -3628,9 +3673,14 @@ impl App {
                     }
                 });
                 ui.add_space(6.0);
-                if side_chip(ui, "⚡ Ver o cabo", None, true).clicked() {
-                    sel = Some(Sel::Cable);
-                }
+                ui.horizontal_wrapped(|ui| {
+                    if lvl > 0 && side_chip(ui, "📜 Ver as quedas", None, true).clicked() {
+                        self.tab = Tab::Historico;
+                    }
+                    if side_chip(ui, "⚡ Ver o cabo", None, true).clicked() {
+                        sel = Some(Sel::Cable);
+                    }
+                });
                 side_tech(ui, "dock", |ui| {
                     node_details(ui, "Roteador Thunderbolt do dock", topo.dock_router.as_ref());
                     usb4_table(ui, "Chaves USB4 do dock {5DF7E321-…}", &topo.dock_usb4);
@@ -3687,14 +3737,22 @@ impl App {
                 let ctrl = topo.host_ctrl.as_ref();
                 let ok = ctrl.is_some_and(|n| n.problem == 0);
                 let (st, sc) = if ok { ("Funcionando", pal::green()) } else { ("Com problema", pal::red()) };
-                side_hero(ui, e, pal::cyan(), &|p: &egui::Painter, r: Rect| art::laptop(p, r, true, t), "Notebook", "Porta Thunderbolt 4", Some((st, sc)), &mut sel);
+                side_hero(ui, e, pal::pcie(), &|p: &egui::Painter, r: Rect| art::laptop(p, r, true, t), "Notebook", "Porta Thunderbolt 4", Some((st, sc)), &mut sel);
                 side_hint(ui, if ok { "A porta Thunderbolt do notebook está pronta e levando a GPU." } else { "O controlador da porta Thunderbolt não respondeu. Veja os detalhes técnicos." });
                 let pw = last.power;
                 let pct = pw.filter(|p| p.full_mwh > 0).map(|p| (p.rem_mwh as f64 * 100.0 / p.full_mwh as f64).round());
                 let tiles = vec![
                     tl("🔧", topo.host_router.as_ref().and_then(|n| n.firmware.clone()), "", "Firmware", neutral),
                     tl(if ok { "✔" } else { "⚠" }, Some(if ctrl.is_some() { "Funcionando" } else { "Ausente" }.to_string()), "", "Controlador USB4", sc).vc(sc),
-                    tl("🔗", topo.root_port.as_ref().and_then(|n| n.pcie).map(|(cs, cw, _, _)| pcie_short(cs, cw)), "", "Túnel PCIe", neutral),
+                    // a porta raiz do túnel não publica enlace no Windows: usa o do driver AMD (mesmo túnel)
+                    tl(
+                        "🔗",
+                        topo.root_port.as_ref().and_then(|n| n.pcie).map(|(cs, cw, _, _)| pcie_long(cs, cw)).or_else(|| gst.filter(|s| s.lanes > 0).map(|s| format!("{} x{}", s.bus, s.lanes))),
+                        "",
+                        "Túnel até a GPU",
+                        neutral,
+                    )
+                    .tip("O PCIe da GPU passa por dentro do cabo Thunderbolt. É o trecho mais estreito do caminho."),
                     tl("🔋", pw.map(|p| if p.online { "Na tomada" } else { "Na bateria" }.to_string()), &pct.map(|v| format!("{v:.0}%")).unwrap_or_default(), "Energia", pal::bolt())
                         .vc_if(pw.is_some_and(|p| !p.online), pal::amber())
                         .sp(samples.iter().filter_map(|s| s.power.filter(|p| p.full_mwh > 0).map(|p| p.rem_mwh as f32 * 100.0 / p.full_mwh as f32)).collect()),
@@ -3733,7 +3791,7 @@ impl App {
                 side_hero(
                     ui,
                     e,
-                    pal::cyan(),
+                    pal::pcie(),
                     &|pt: &egui::Painter, r: Rect| match role {
                         PortRole::Gpu => art::gpu(pt, r, 0.0, on, t),
                         PortRole::UsbA => art::usb_a(pt, r, on),
@@ -3864,70 +3922,189 @@ impl App {
         }
     }
 
+    /// Painéis "Como funciona": 2–4 blocos com ícone e frase curta, a explicação técnica recolhida.
     fn info(&mut self, ui: &mut Ui, t: Topic, topo: &Topology, samples: &[Sample], bench: Option<&BenchResult>, ctx: &egui::Context) {
-        // cada parágrafo num callout próprio (bloco recuado), mais fácil de ler em pedaços
+        // texto técnico (o que antes ficava aberto), agora dentro de "Detalhes técnicos"
         let para = |ui: &mut Ui, s: &str| {
-            egui::Frame::new().fill(pal::well()).corner_radius(CornerRadius::same(pal::radius().min(6))).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.label(egui::RichText::new(s).size(14.0).color(pal::fg()));
-            });
+            ui.label(egui::RichText::new(s).size(13.0).color(pal::dim()));
             ui.add_space(6.0);
         };
+        let last = samples.last().copied().unwrap_or_default();
+        let running = matches!(*self.bench.lock().unwrap(), BenchState::Running(_));
         match t {
             Topic::Link => {
-                para(ui, "O Windows publica no roteador do dock propriedades USB4 sem documentação ({5DF7E321-…}). Comparando dock e host com os IDs de hardware, deu para decodificar várias delas (tabela completa ao clicar no dock).");
-                para(ui, "A chave 20 vale 0x8. No spec USB4 (Lane Adapter CS1) esse campo vale 0x8 = Gen2 (10 Gb/s por faixa) e 0x4 = Gen3 (20 Gb/s). A chave 21 vale 2: duas faixas. Juntando, o enlace estaria a 20 Gb/s, metade dos 40 Gb/s do TB3.");
-                match bench {
-                    Some(b) => para(ui, &format!("O teste de banda mediu ↑ {:.2} GB/s e ↓ {:.2} GB/s. Em TB3 a 40 Gb/s o esperado é 2,5–2,8 GB/s; perto de 1,6–1,9 GB/s é o típico de um enlace de 20 Gb/s.", b.h2d_gbs, b.d2h_gbs)),
-                    None => para(ui, "Rode o teste de banda: abaixo de ~2,2 GB/s confirma o enlace reduzido."),
+                let speed = topo.dock_usb4.iter().find(|p| p.pid == 20).and_then(|p| p.val.as_u32());
+                let ln = topo.dock_usb4.iter().find(|p| p.pid == 21).and_then(|p| p.val.as_u32()).unwrap_or(2).max(1);
+                match speed {
+                    Some(0x8) => info_block(ui, "⚡", pal::amber(), &format!("Cabo entrega {} de 40 Gb/s", ln * 10), "≈ decodificado das chaves do dock: metade do que ele aceita"),
+                    Some(0x4) => info_block(ui, "⚡", pal::green(), &format!("Cabo entrega {} Gb/s", ln * 20), "≈ decodificado das chaves do dock: velocidade máxima"),
+                    _ => info_block(ui, "⚡", pal::faint(), "Velocidade do cabo desconhecida", "O dock não publicou as chaves de velocidade"),
                 }
-                ui.label(egui::RichText::new("▶ Como provar").strong().color(pal::bolt()));
-                para(ui, "Troque por um cabo Thunderbolt 3/4 de 40 Gb/s certificado (passivo, até 0,8 m). Se a chave 20 virar 0x4 e a banda subir para ~2,5 GB/s, a decodificação fica provada e o problema era o cabo.");
-                if ui.button("📏 Rodar teste de banda agora").clicked() {
+                match bench {
+                    Some(b) => info_block(
+                        ui,
+                        "📏",
+                        pal::data(),
+                        &format!("Banda medida ↑{} ↓{} GB/s", dec(b.h2d_gbs, 1), dec(b.d2h_gbs, 1)),
+                        "Com 40 Gb/s o normal é ≈ 2,5–2,8 GB/s; ≈ 1,6–1,9 é típico de 20 Gb/s",
+                    ),
+                    None => info_block(ui, "📏", pal::faint(), "Banda ainda não medida", "Abaixo de ≈ 2,2 GB/s confirma o enlace reduzido"),
+                }
+                info_block(ui, "🔍", pal::bolt(), "Como provar: troque por um cabo 40 Gb/s certificado", "Thunderbolt 3/4 passivo, até 0,8 m. A banda deve subir para ≈ 2,5 GB/s");
+                ui.add_space(4.0);
+                if ui.add_enabled(!running, egui::Button::new(egui::RichText::new(if running { "📏 Medindo…" } else { "📏 Medir banda agora" }).size(14.0))).clicked() {
                     self.start_bench(ctx);
                 }
-                side_tech(ui, "info-link", |ui| usb4_table(ui, "Chaves USB4 do dock", &topo.dock_usb4));
+                side_tech(ui, "info-link", |ui| {
+                    para(ui, "O Windows publica no roteador do dock propriedades USB4 sem documentação ({5DF7E321-…}). Comparando dock e host com os IDs de hardware, deu para decodificar várias delas.");
+                    para(ui, "A chave 20 vale 0x8. No spec USB4 (Lane Adapter CS1) esse campo vale 0x8 = Gen2 (10 Gb/s por faixa) e 0x4 = Gen3 (20 Gb/s). A chave 21 é o número de faixas. Se a chave 20 virar 0x4 com outro cabo, a decodificação fica provada.");
+                    usb4_table(ui, "Chaves USB4 do dock", &topo.dock_usb4);
+                });
             }
             Topic::Power => {
-                para(ui, "Fonte: WMI root\\wmi BatteryStatus (PowerOnline, ChargeRate, DischargeRate, Voltage) — é o que o driver de bateria ACPI publica.");
-                para(ui, "Com a bateria cheia, a taxa de carga é zero e o PD alimenta só o consumo do sistema. Nesse caso o Windows não informa quantos watts o dock entrega.");
-                para(ui, "A tensão/corrente negociadas no contrato PD (por ex. 20 V × 4,25 A = 85 W) ficam no controlador PD do dock e não chegam ao Windows.");
-                para(ui, "O sinal mais útil para diagnóstico é a queda do PowerOnline: se a energia externa some no mesmo segundo em que o dock cai, o dock inteiro apagou.");
+                match last.power {
+                    Some(pw) => {
+                        let pct = (pw.full_mwh > 0).then(|| format!(" · bateria {:.0}%", pw.rem_mwh as f64 * 100.0 / pw.full_mwh as f64));
+                        if pw.online {
+                            info_block(ui, "🔌", pal::green(), &format!("Na tomada{}", pct.unwrap_or_default()), "O dock está carregando o notebook pelo cabo");
+                        } else {
+                            info_block(ui, "🔋", pal::amber(), &format!("Na bateria{}", pct.unwrap_or_default()), "O notebook não está recebendo energia do dock");
+                        }
+                    }
+                    None => info_block(ui, "🔌", pal::faint(), "Energia do notebook desconhecida", "O Windows não informou o estado da bateria"),
+                }
+                info_block(ui, "💡", pal::bolt(), "Energia caiu junto? O dock inteiro apagou", "É a pista mais útil numa queda: aponta para fonte ou tomada");
+                info_block(ui, "🙈", pal::faint(), "Os watts do PD não chegam ao Windows", "Tensão e corrente ficam no controlador do dock");
                 let series: Vec<f32> = samples.iter().filter_map(|s| s.power).map(|p| p.mv as f32 / 1000.0).collect();
                 chart(ui, "tensão da bateria (V)", &[(pal::bolt(), "V", series)], 13.0, " V", 70.0);
+                side_tech(ui, "info-power", |ui| {
+                    para(ui, "Fonte: WMI root\\wmi BatteryStatus (PowerOnline, ChargeRate, DischargeRate, Voltage) — é o que o driver de bateria ACPI publica.");
+                    para(ui, "Com a bateria cheia, a taxa de carga é zero e o PD alimenta só o consumo do sistema. Nesse caso o Windows não informa quantos watts o dock entrega.");
+                    para(ui, "A tensão/corrente negociadas no contrato PD (por ex. 20 V × 4,25 A = 85 W) ficam no controlador PD do dock e não chegam ao Windows.");
+                });
             }
             Topic::Stability => {
-                para(ui, "Uma queda é agrupada com tudo o que aconteceu até 20 s depois (switch PCIe, roteador TB, GPU, energia).");
-                para(ui, "🔋 PD caiu junto: o note perdeu a energia externa no mesmo instante. Isso indica que o dock inteiro apagou ou resetou (fonte ATX, controlador do dock ou PD), não só o túnel.");
-                para(ui, "⛓ Só o enlace: a energia continuou chegando e só o túnel/PCIe caiu. Isso aponta para cabo, conector ou o próprio controlador TB.");
-                para(ui, "💥 \"Falha\" = Kernel-PnP 1011: o Windows relatou o dispositivo como falhando. ⏏ \"Removido\" = 1010: sumiu do barramento (desconexão física ou apagão).");
-                para(ui, "Clique num incidente da linha do tempo para ver os eventos e o que veio nos 2 minutos anteriores.");
-                if ui.button("📄 Exportar linha do tempo (CSV)").clicked() {
-                    match crate::config::export_csv() {
-                        Ok(p) => {
-                            crate::config::open_folder(p.parent().unwrap_or(&p));
-                            self.flash = Some(format!("Exportado: {}", p.display()));
-                        }
-                        Err(e) => self.flash = Some(format!("Falha: {e}")),
-                    }
+                let (lvl, _, _) = self.verdict(topo);
+                let now = now_ms();
+                let d24 = self.incidents.iter().filter(|i| i.is_drop && now - i.start <= 86_400_000).count();
+                let col = match lvl {
+                    0 => pal::green(),
+                    1 => pal::amber(),
+                    _ => pal::red(),
+                };
+                if d24 > 0 {
+                    info_block(ui, "🛡", col, &format!("Caiu {d24}× nas últimas 24 h"), "Clique numa queda no Histórico para ver o que veio antes");
+                } else {
+                    info_block(ui, "🛡", col, "Nenhuma queda nas últimas 24 h", "O painel registra cada queda, mesmo com a janela fechada");
                 }
+                info_block(ui, "🔋", pal::bolt(), "Energia caiu junto → fonte ou tomada", "O dock inteiro apagou ou reiniciou");
+                info_block(ui, "⛓", pal::data(), "Só a conexão caiu → cabo ou conector", "A energia continuou chegando, só o túnel caiu");
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    if side_chip(ui, "📜 Ver o histórico", None, true).clicked() {
+                        self.tab = Tab::Historico;
+                    }
+                    if side_chip(ui, "📄 Exportar CSV", None, true).clicked() {
+                        match crate::config::export_csv() {
+                            Ok(p) => {
+                                crate::config::open_folder(p.parent().unwrap_or(&p));
+                                self.flash = Some(format!("Exportado: {}", p.display()));
+                            }
+                            Err(e) => self.flash = Some(format!("Falha: {e}")),
+                        }
+                    }
+                });
+                side_tech(ui, "info-stab", |ui| {
+                    para(ui, "Uma queda é agrupada com tudo o que aconteceu até 20 s depois (switch PCIe, roteador TB, GPU, energia).");
+                    para(ui, "🔋 PD caiu junto: o note perdeu a energia externa no mesmo instante — o dock inteiro apagou ou resetou (fonte ATX, controlador do dock ou PD), não só o túnel.");
+                    para(ui, "⛓ Só o enlace: a energia continuou chegando e só o túnel/PCIe caiu — cabo, conector ou o próprio controlador TB.");
+                    para(ui, "💥 \"Falha\" = Kernel-PnP 1011: o Windows relatou o dispositivo como falhando. ⏏ \"Removido\" = 1010: sumiu do barramento (desconexão física ou apagão).");
+                });
             }
             Topic::Flow => {
-                para(ui, "Nenhum contador do Windows mede bytes no túnel Thunderbolt. O motor Copy da GPU executa as cópias DMA entre a memória do note e a VRAM; quando ele está ocupado, o túnel está ocupado.");
-                para(ui, "Os contadores vêm do PDH: GPU Engine (Utilization Percentage, filtrado pelo LUID da Radeon) e GPU Adapter Memory.");
-                para(ui, "Os pulsos da topologia andam mais rápido e ficam mais densos conforme o uso do Copy.");
+                info_block(ui, "⇄", pal::data(), &format!("Tráfego agora ≈ {:.0}%", last.copy), "Uso do motor de cópia da GPU: quanto o cabo está ocupado");
+                info_block(ui, "🚚", pal::data(), "O motor de cópia da GPU mostra o tráfego", "O Windows não conta bytes no túnel; quando ele copia, o cabo trabalha");
+                info_block(ui, "💫", pal::faint(), "Pulsos mais rápidos = mais dados", "Na topologia, os pulsos do cabo seguem esse uso");
+                side_tech(ui, "info-flow", |ui| {
+                    para(ui, "Nenhum contador do Windows mede bytes no túnel Thunderbolt. O motor Copy da GPU executa as cópias DMA entre a memória do note e a VRAM; quando ele está ocupado, o túnel está ocupado.");
+                    para(ui, "Os contadores vêm do PDH: GPU Engine (Utilization Percentage, filtrado pelo LUID da Radeon) e GPU Adapter Memory.");
+                });
             }
             Topic::Gpu => {
-                para(ui, "Dados do AMD ADLX (amdadlx64.dll), carregado só com a janela aberta e liberado ao fechar.");
+                info_block(ui, "🎮", pal::data(), "Dados lidos do driver AMD", "Temperatura, consumo, ventoinha e memória, ao vivo");
+                info_block(ui, "🍃", pal::faint(), "Só com a janela aberta", "O driver é liberado ao fechar: a bandeja fica leve");
+                ui.add_space(4.0);
+                let mut s = self.sel;
+                if side_chip(ui, "🎮 Ver a placa", None, true).clicked() {
+                    s = Some(Sel::Gpu);
+                }
+                self.sel = s;
+                side_tech(ui, "info-gpu", |ui| {
+                    para(ui, "Dados do AMD ADLX (amdadlx64.dll), carregado só com a janela aberta e liberado ao fechar.");
+                });
             }
             Topic::Hidden => {
-                for (icon, name, why) in HIDDEN {
-                    ui.label(egui::RichText::new(format!("{icon} {name}")).strong());
-                    para(ui, why);
-                }
+                info_block(ui, "🚫", pal::faint(), &format!("{} coisas que o Windows não enxerga", HIDDEN.len()), "Passe o mouse em cada uma para saber o porquê");
+                ui.add_space(2.0);
+                // grade de 2 colunas, células do mesmo tamanho (nada vaza nem fica torto)
+                let avail = ui.available_width();
+                let cw = ((avail - 8.0) / 2.0).floor();
+                ui.scope(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                    for pair in HIDDEN.chunks(2) {
+                        ui.horizontal(|ui| {
+                            for (icon, name, why) in pair {
+                                let (r, resp) = ui.allocate_exact_size(vec2(cw, 34.0), Sense::hover());
+                                let rad = CornerRadius::same(pal::radius().min(8));
+                                ui.painter().rect(r, rad, pal::well(), Stroke::new(1.0, pal::border()), StrokeKind::Inside);
+                                let ic = pos2(r.left() + 18.0, r.center().y);
+                                ui.painter().text(ic, egui::Align2::CENTER_CENTER, *icon, FontId::proportional(15.0), pal::faint());
+                                // risco diagonal: "não disponível"
+                                ui.painter().line_segment([ic + vec2(-7.0, 7.0), ic + vec2(7.0, -7.0)], Stroke::new(1.0, pal::dim().gamma_multiply(0.7)));
+                                ui.painter().text(pos2(r.left() + 34.0, r.center().y), egui::Align2::LEFT_CENTER, *name, FontId::proportional(13.5), pal::fg());
+                                resp.on_hover_text(why.to_string());
+                            }
+                        });
+                    }
+                });
+                ui.add_space(8.0);
+                info_block(ui, "✅", pal::data(), "O que dá para ver, o painel mostra", "Quedas, energia do notebook, GPU e a velocidade do cabo");
+                side_tech(ui, "info-hidden", |ui| {
+                    for (icon, name, why) in HIDDEN {
+                        ui.label(egui::RichText::new(format!("{icon} {name}")).size(13.0).strong().color(pal::fg()));
+                        para(ui, why);
+                    }
+                });
             }
         }
     }
+}
+
+/// Bloco de explicação: ícone num círculo tingido, frase curta em destaque e uma linha de apoio.
+fn info_block(ui: &mut Ui, icon: &str, color: Color32, title: &str, sub: &str) {
+    egui::Frame::new()
+        .fill(pal::card2())
+        .corner_radius(CornerRadius::same(pal::radius().min(8)))
+        .inner_margin(egui::Margin::same(10))
+        .shadow(pal::elev(2, 0.0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 10.0;
+                let (r, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
+                ui.painter().circle_filled(r.center(), 17.0, color.gamma_multiply(0.16));
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(18.0), color);
+                ui.vertical(|ui| {
+                    ui.set_width(ui.available_width());
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.add(egui::Label::new(egui::RichText::new(title).size(15.0).color(pal::fg())).wrap());
+                    if !sub.is_empty() {
+                        ui.add(egui::Label::new(egui::RichText::new(sub).size(13.0).color(pal::dim())).wrap());
+                    }
+                });
+            });
+        });
+    ui.add_space(8.0);
 }
 
 // ---------------- peças do painel lateral (hero, blocos, faixas)
@@ -3935,6 +4112,71 @@ impl App {
 /// Cor de calor: verde, âmbar acima de 70 °C, vermelho acima de 85 °C.
 fn heat(t: f32) -> Color32 {
     if t > 85.0 { pal::red() } else if t > 70.0 { pal::amber() } else { pal::green() }
+}
+
+/// Ícone desenhado (não é glifo): funil, o gargalo do caminho.
+const FUNNEL: &str = "\u{1}funil";
+
+/// "PCIe 4.0 x8" a partir do código de velocidade do Windows (1..5) e da largura.
+fn pcie_long(code: u32, w: u32) -> String {
+    format!("PCIe {code}.0 x{w}")
+}
+
+/// Banda de um enlace PCIe no papel, em GB/s (por faixa: 0,25 · 0,5 · 0,985 · 1,97 · 3,94).
+fn pcie_gbs(g: u32, w: u32) -> f32 {
+    let lane = match g {
+        1 => 0.25,
+        2 => 0.5,
+        3 => 0.985,
+        4 => 1.969,
+        5 => 3.938,
+        _ => 0.0,
+    };
+    lane * w as f32
+}
+
+/// Geração a partir do texto do ADLX ("PCIe 3.0" → 3).
+fn adlx_gen(bus: &str) -> Option<u32> {
+    bus.strip_prefix("PCIe ")?.split('.').next()?.parse().ok()
+}
+
+/// Bloco do caminho PCIe da GPU, sem números que se contradizem. São dois enlaces diferentes:
+/// · ADLX (driver AMD): a placa no slot do dock, que segue pelo túnel Thunderbolt até o notebook
+///   (no WKG-L19, PCIe 3.0 x4). É o trecho estreito: leva o funil de gargalo.
+/// · Windows (DEVPKEY no chip da GPU): o chip com o switch PCIe interno da própria placa
+///   (Gen4 x8 na RX 7600 XT). Fica dentro da placa e não limita nada.
+fn pcie_tile(gst: Option<&crate::collect::GpuStatic>, chip: Option<(u32, u32, u32, u32)>, neutral: Color32) -> Tile {
+    let tun = gst.filter(|s| s.lanes > 0).and_then(|s| adlx_gen(&s.bus).map(|g| (g, s.lanes)));
+    let inner = chip.map(|(cs, cw, _, _)| (cs, cw));
+    match (tun, inner) {
+        (Some((tg, tw)), inner) => {
+            let tb = pcie_gbs(tg, tw);
+            let bottleneck = inner.is_none_or(|(g, w)| pcie_gbs(g, w) > tb);
+            let mut x = tl(if bottleneck { FUNNEL } else { "🔗" }, Some(pcie_long(tg, tw)), "", "Túnel até o notebook", neutral);
+            if let Some((g, w)) = inner {
+                x = x.note(format!("Dentro da placa: {}", pcie_long(g, w)));
+            }
+            let mut tip = format!(
+                "Túnel até o notebook · {} (lido do driver AMD): a placa no slot do dock, que segue pelo cabo Thunderbolt até o notebook. No papel, ≈ {} GB/s.",
+                pcie_long(tg, tw),
+                dec(tb as f64, 1)
+            );
+            if let Some((g, w)) = inner {
+                tip.push_str(&format!(
+                    "\n\nDentro da placa · {} (lido do Windows): o chip da GPU ligado ao switch PCIe da própria placa, ≈ {} GB/s.",
+                    pcie_long(g, w),
+                    dec(pcie_gbs(g, w) as f64, 1)
+                ));
+            }
+            if bottleneck {
+                tip.push_str("\n\nO funil marca o gargalo: o túnel é o trecho mais estreito do caminho, é ele que limita a banda da GPU, não a placa.");
+            }
+            x.tip(tip)
+        }
+        (None, Some((g, w))) => tl("🔗", Some(pcie_long(g, w)), "", "Dentro da placa", neutral)
+            .tip("O chip da GPU ligado ao switch PCIe da própria placa (lido do Windows). O túnel até o notebook é mais estreito, mas o driver não informou a largura dele."),
+        (None, None) => tl("🔗", None, "", "Túnel até o notebook", neutral),
+    }
 }
 
 /// "Gen4 x8" a partir do código de velocidade e da largura.
@@ -4039,7 +4281,14 @@ fn side_tile(ui: &mut Ui, w: f32, h: f32, x: &Tile, alpha: f32) -> egui::Respons
     // ícone num círculo tingido
     let ic = pos2(r.left() + TILE_PAD + 15.0, r.top() + TILE_PAD + 15.0);
     p.circle_filled(ic, 15.0, x.color.gamma_multiply(0.16));
-    p.text(ic, egui::Align2::CENTER_CENTER, x.icon, FontId::proportional(17.0), x.color);
+    if x.icon == FUNNEL {
+        // funil: boca larga em cima, bico estreito embaixo (duas formas convexas)
+        let f = |dx: f32, dy: f32| ic + vec2(dx, dy);
+        p.add(egui::Shape::convex_polygon(vec![f(-7.5, -6.0), f(7.5, -6.0), f(1.8, 1.0), f(-1.8, 1.0)], x.color, Stroke::NONE));
+        p.rect_filled(Rect::from_min_max(f(-1.8, 0.5), f(1.8, 7.0)), CornerRadius::same(1), x.color);
+    } else {
+        p.text(ic, egui::Align2::CENTER_CENTER, x.icon, FontId::proportional(17.0), x.color);
+    }
     // valor + unidade; encolhe a fonte até caber (nunca corta)
     let x0 = ic.x + 15.0 + 8.0;
     let room = r.right() - TILE_PAD - x0;
@@ -4161,9 +4410,11 @@ fn side_hero(ui: &mut Ui, e: f32, accent: Color32, art: &dyn Fn(&egui::Painter, 
                 *sel = None;
             }
         });
-    // filete de 3 pt no topo, na cor do item, seguindo os cantos do cartão
+    // filete de 3 pt no topo, na cor do ESTADO (verde/âmbar/vermelho/cinza), seguindo os cantos
+    // do cartão; sem estado (painéis "Como funciona"), a cor neutra recebida. Nunca a da marca.
     let r = fr.response.rect;
-    ui.painter().with_clip_rect(Rect::from_min_max(r.min, pos2(r.right(), r.top() + 3.0))).rect_filled(r, rad, accent);
+    let strip = state.map(|(_, c)| c).unwrap_or(accent);
+    ui.painter().with_clip_rect(Rect::from_min_max(r.min, pos2(r.right(), r.top() + 3.0))).rect_filled(r, rad, strip);
 }
 
 /// Frase curta e amigável logo abaixo do hero.
@@ -4209,7 +4460,7 @@ fn side_chip(ui: &mut Ui, text: &str, dot: Option<Color32>, click: bool) -> egui
     }
     let resp = ui.interact(r.rect, ui.id().with(("chip", text)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
     if resp.hovered() {
-        ui.painter().rect_stroke(r.rect, CornerRadius::same(pal::radius().max(2).min(14)), Stroke::new(1.0, pal::cyan().gamma_multiply(0.7)), StrokeKind::Inside);
+        ui.painter().rect_stroke(r.rect, CornerRadius::same(pal::radius().max(2).min(14)), Stroke::new(1.0, pal::sel()), StrokeKind::Inside);
     }
     resp
 }
