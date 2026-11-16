@@ -20,6 +20,7 @@ mod config;
 mod history;
 mod pnp;
 mod psu;
+mod titlebar;
 mod tray;
 mod ui;
 mod util;
