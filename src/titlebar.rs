@@ -1,81 +1,54 @@
 //! Barra de título nativa (Windows 11) na cor do tema, via DWM.
-//! No Windows 10 as chamadas de cor falham: o erro é ignorado e a barra fica a padrão.
+//! O modo claro/escuro da janela é do winit (ViewportCommand::SetTheme); aqui só a cor da
+//! legenda e do texto. No Windows 10 essas duas chamadas falham: o erro é ignorado e a barra
+//! fica a padrão.
 
-use std::sync::atomic::{AtomicIsize, AtomicU8, Ordering};
-use windows::core::BOOL;
-use windows::Win32::Foundation::{HWND, LPARAM};
-use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE};
-use windows::Win32::System::Threading::GetCurrentProcessId;
-use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindow};
+use std::sync::Mutex;
 
-const TITLE: &str = "eGPU Painel";
+use eframe::egui;
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use windows::Win32::Foundation::HWND;
+use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR};
+
 /// DWMWA_COLOR_DEFAULT: devolve a cor ao sistema.
 const DEFAULT: u32 = 0xFFFF_FFFF;
 
-static HWND_CACHE: AtomicIsize = AtomicIsize::new(0);
-/// Último tema aplicado (255 = nenhum ainda).
-static APPLIED: AtomicU8 = AtomicU8::new(255);
-
-unsafe extern "system" fn find(h: HWND, lp: LPARAM) -> BOOL {
-    let mut pid = 0u32;
-    unsafe { GetWindowThreadProcessId(h, Some(&mut pid)) };
-    if pid == unsafe { GetCurrentProcessId() } {
-        let mut buf = [0u16; 64];
-        let n = unsafe { GetWindowTextW(h, &mut buf) }.max(0) as usize;
-        if String::from_utf16_lossy(&buf[..n]) == TITLE {
-            unsafe { *(lp.0 as *mut isize) = h.0 as isize };
-            return BOOL(0);
-        }
-    }
-    BOOL(1)
-}
-
-/// HWND da janela do painel neste processo (em cache enquanto ela existir).
-fn own_window() -> Option<HWND> {
-    let c = HWND_CACHE.load(Ordering::Relaxed);
-    if c != 0 && unsafe { IsWindow(Some(HWND(c as _))) }.as_bool() {
-        return Some(HWND(c as _));
-    }
-    let mut out: isize = 0;
-    let _ = unsafe { EnumWindows(Some(find), LPARAM(&mut out as *mut isize as isize)) };
-    if out == 0 {
-        return None;
-    }
-    if out != c {
-        // janela nova (ou recriada): reaplica a cor
-        APPLIED.store(255, Ordering::Relaxed);
-    }
-    HWND_CACHE.store(out, Ordering::Relaxed);
-    Some(HWND(out as _))
-}
+/// Chave do último estado aplicado: (tema do painel, HWND, tema do sistema).
+/// Reaplica só quando algum dos três muda (janela recriada ou Windows trocou de tema).
+type Key = (u8, isize, Option<egui::Theme>);
+static APPLIED: Mutex<Option<Key>> = Mutex::new(None);
 
 const fn rgb(r: u8, g: u8, b: u8) -> u32 {
     // COLORREF = 0x00BBGGRR
     (r as u32) | ((g as u32) << 8) | ((b as u32) << 16)
 }
 
-/// Aplica a cor da legenda quando o tema muda (ou a janela aparece). `id` = Th as u8.
-/// `caption` = None devolve legenda e texto ao padrão do sistema (tema claro).
-pub fn sync(id: u8, caption: Option<(u8, u8, u8)>) {
-    if APPLIED.load(Ordering::Relaxed) == id && HWND_CACHE.load(Ordering::Relaxed) != 0 {
-        // confere a cada quadro só o cache, sem enumerar janelas
-        let c = HWND_CACHE.load(Ordering::Relaxed);
-        if unsafe { IsWindow(Some(HWND(c as _))) }.as_bool() {
-            return;
-        }
+/// HWND da janela do painel, direto do eframe (sem enumerar janelas).
+fn hwnd(frame: &eframe::Frame) -> Option<HWND> {
+    match frame.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(h) => Some(HWND(h.hwnd.get() as _)),
+        _ => None,
     }
-    let Some(h) = own_window() else { return };
-    if APPLIED.load(Ordering::Relaxed) == id {
+}
+
+/// Chamar a cada quadro: não faz nada enquanto tema, janela e tema do sistema não mudam.
+/// `id` = Th as u8; `caption` = None devolve legenda e texto ao padrão (tema claro).
+pub fn sync(ctx: &egui::Context, frame: &eframe::Frame, id: u8, caption: Option<(u8, u8, u8)>) {
+    let Some(h) = hwnd(frame) else { return };
+    let key = (id, h.0 as isize, ctx.system_theme());
+    let mut applied = APPLIED.lock().unwrap();
+    if *applied == Some(key) {
         return;
     }
-    let (cap, text, dark) = match caption {
-        Some((r, g, b)) => (rgb(r, g, b), rgb(255, 255, 255), 1i32),
-        None => (DEFAULT, DEFAULT, 0i32),
+    let (cap, text, theme) = match caption {
+        Some((r, g, b)) => (rgb(r, g, b), rgb(255, 255, 255), egui::SystemTheme::Dark),
+        None => (DEFAULT, DEFAULT, egui::SystemTheme::Light),
     };
+    // modo claro/escuro (ícones dos botões, borda): pelo winit, que é o dono dele
+    ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(theme));
     unsafe {
-        let _ = DwmSetWindowAttribute(h, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark as *const i32 as *const _, 4);
         let _ = DwmSetWindowAttribute(h, DWMWA_CAPTION_COLOR, &cap as *const u32 as *const _, 4);
         let _ = DwmSetWindowAttribute(h, DWMWA_TEXT_COLOR, &text as *const u32 as *const _, 4);
     }
-    APPLIED.store(id, Ordering::Relaxed);
+    *applied = Some(key);
 }

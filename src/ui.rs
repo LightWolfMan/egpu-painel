@@ -1893,7 +1893,7 @@ a fonte" };
 // ---------------------------------------------------------------------------
 
 impl eframe::App for App {
-    fn ui(&mut self, root: &mut Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, root: &mut Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         let cfg = crate::config::get();
         if (ctx.zoom_factor() - cfg.zoom).abs() > 0.001 {
@@ -1913,8 +1913,8 @@ impl eframe::App for App {
         if th != pal::current() {
             apply_theme(&ctx, th);
         }
-        // barra de título nativa na cor do tema (só age quando o tema muda ou a janela aparece)
-        crate::titlebar::sync(th as u8, caption_rgb(th));
+        // barra de título nativa na cor do tema (só age quando o tema, a janela ou o tema do sistema muda)
+        crate::titlebar::sync(&ctx, frame, th as u8, caption_rgb(th));
         let last = samples.last().copied().unwrap_or_default();
         let flow = Flow { copy: last.copy, d3: last.d3, pd_on: last.power.map(|p| p.online).unwrap_or(true), gpu: last.gpu };
         let bench = self.bench.lock().unwrap().clone();
