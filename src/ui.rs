@@ -988,7 +988,6 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
     let lg = p.layout_no_wrap(label.to_string(), FontId::proportional(13.5), pal::dim());
     let lw0 = lg.size().x;
     p.galley(rect.left_top() + vec2(10.0, 6.0), lg, pal::dim());
-    p.text(rect.right_top() + vec2(-8.0, 4.0), egui::Align2::RIGHT_TOP, format!("máx {maxv:.0} {unit}"), FontId::proportional(12.0), pal::faint());
     let n = collect::HISTORY as f32;
     let mut legend_x = rect.left() + 10.0 + lw0 + 18.0;
     for (color, name, data) in series {
@@ -1019,6 +1018,11 @@ fn chart(ui: &mut Ui, label: &str, series: &[(Color32, &str, Vec<f32>)], max: f3
             p.galley(pos2(legend_x, rect.top() + 6.0), g, *color);
             legend_x += lw + 14.0;
         }
+    }
+    // "máx" só quando sobra lugar depois da legenda (nunca encosta nela)
+    let mg = p.layout_no_wrap(format!("máx {maxv:.0}\u{A0}{}", unit.trim()).trim_end().to_string(),FontId::proportional(12.0), pal::faint());
+    if legend_x + mg.size().x <= rect.right() - 8.0 {
+        p.galley(pos2(rect.right() - 8.0 - mg.size().x, rect.top() + 4.0), mg, pal::faint());
     }
     if data_empty(series) {
         p.text(rect.center(), egui::Align2::CENTER_CENTER, "aguardando amostras…", FontId::proportional(13.5), pal::faint());
@@ -1634,7 +1638,8 @@ fn topo_view(ui: &mut Ui, topo: &Topology, flow: &Flow, gpu_static: Option<&crat
         None => dock_lines.push("Não encontrado".into()),
     }
     if let Some(br) = bench {
-        dock_lines.push(format!("Banda medida: {:.1} GB/s", br.h2d_gbs.max(br.d2h_gbs)).replace('.', ","));
+        // notebook → placa: o sentido que pesa em jogo (o mesmo do medidor "Banda" da visão geral)
+        dock_lines.push(format!("Banda medida: {} GB/s", dec(br.h2d_gbs, 1)));
     }
     let (dkr, lift) = hover(ui, dock, ui.id().with("dock"));
     let dock_state = if !(dock_ok && switch_ok) || dock_lvl >= 2 { pal::red() } else if dock_lvl == 1 { pal::amber() } else { pal::green() };
@@ -1846,7 +1851,7 @@ impl eframe::App for App {
                     pill(ui, th.name(), pal::cyan());
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(pal::faint()).size(12.5))
+                    ui.label(egui::RichText::new(format!("{:.0} MB · {}%", last.ws_mb, dec(last.cpu_pct as f64, 1))).color(pal::faint()).size(12.5))
                         .on_hover_text("Consumo do próprio painel (RAM e CPU). Fechando a janela, ele volta para a bandeja e para de coletar.");
                     ui.add_space(pal::gap());
                     // pílula curta quando o cabeçalho aperta (sem quebrar a linha)
@@ -2124,7 +2129,7 @@ impl App {
         // direita: estado do dock e consumo do painel
         let right = Rect::from_min_max(pos2(x + 10.0, full.top()), full.max - vec2(16.0, 0.0));
         ui.scope_builder(egui::UiBuilder::new().max_rect(right).layout(egui::Layout::right_to_left(egui::Align::Center)), |ui| {
-            ui.label(egui::RichText::new(format!("{:.0} MB · {:.1}%", last.ws_mb, last.cpu_pct)).color(Color32::from_gray(130)).size(12.5))
+            ui.label(egui::RichText::new(format!("{:.0} MB · {}%", last.ws_mb, dec(last.cpu_pct as f64, 1))).color(Color32::from_gray(130)).size(12.5))
                 .on_hover_text("Consumo do próprio painel (RAM e CPU).");
             ui.add_space(12.0);
             self.header_status(ui, &topo, t, compact);
@@ -2309,11 +2314,12 @@ impl App {
                         ));
                     }
                     2 => {
-                        gauge(ui, "🔌", l.wall, w * 1.2, "W", "Na tomada (≈)", pal::data()).on_hover_text(format!("Eficiência estimada {:.0}% ({rating})", l.eff * 100.0));
+                        gauge(ui, "🔌", l.wall, w, "W", "Na tomada (≈)", pal::data()).on_hover_text(format!("Eficiência estimada {:.0}% ({rating})", l.eff * 100.0));
                     }
                     _ => {
                         if rail > 0.0 {
-                            gauge(ui, "⎓", l.amps12, rail, "A", "Linha +12 V (≈)", load_col(l.amps12 / rail)).on_hover_text("Corrente estimada na linha de +12 V, contra o máximo da etiqueta da fonte.");
+                            let gw = gauge_nat(ui, "⎓", "Linha +12 V (≈)");
+                            gauge_wd(ui, gw, "⎓", l.amps12, rail, "A", "Linha +12 V (≈)", load_col(l.amps12 / rail), 1).on_hover_text("Corrente estimada na linha de +12 V, contra o máximo da etiqueta da fonte.");
                         } else {
                             gauge(ui, "⎓", f32::NAN, 1.0, "A", "+12 V: falta informar", pal::faint()).on_hover_text("Preencha a corrente da linha +12 V (está na etiqueta da fonte) para ver este medidor.");
                         }
@@ -2506,7 +2512,7 @@ impl App {
                 let heat = if temp > 85.0 { pal::red() } else if temp > 70.0 { pal::amber() } else { pal::green() };
                 let gs: [(&str, f32, f32, &str, &str, Color32, &str, Tab); 6] = [
                     ("⚡", gbps, 40.0, "Gb/s", "Conexão", link_col, "Velocidade do enlace TB (chaves USB4 20 e 21)", Tab::Enlace),
-                    ("⇅", up, 2.8, "GB/s", "Banda", if up >= 2.4 { pal::green() } else { pal::amber() }, "Banda host→GPU medida no último teste (esperado TB3: 2,5–2,8 GB/s)", Tab::Fluxo),
+                    ("⇅", up, 2.8, "GB/s", "Banda", if up >= 2.4 { pal::green() } else { pal::amber() }, "Banda notebook → placa (o sentido que pesa em jogo: texturas e comandos descem por ele), medida no último teste. Esperado com 40 Gb/s: ≈ 2,5–2,8 GB/s", Tab::Fluxo),
                     ("🔌", pct, 100.0, "%", if online { "Carregando" } else { "Bateria" }, pd_col, "Bateria do note; verde = recebendo energia PD do dock", Tab::Enlace),
                     ("💥", drops24, 10.0, "24 h", "Quedas", if drops24 >= 3.0 { pal::red() } else if drops24 > 0.0 { pal::amber() } else { pal::green() }, "Quedas do dock/GPU nas últimas 24 h", Tab::Historico),
                     ("🌡", temp, 100.0, "°C", "Temperatura", heat, "Temperatura da placa", Tab::Fluxo),
@@ -2515,7 +2521,8 @@ impl App {
                 let labels: Vec<(&str, &str)> = gs.iter().map(|x| (x.0, x.4)).collect();
                 gauge_grid(ui, &labels, |ui, i, w| {
                     let (icon, v, max, u, l, c, tip, tab) = gs[i];
-                    if gauge_w(ui, w, icon, v, max, u, l, c).on_hover_text(tip).clicked() {
+                    let dp = if i == 1 && v > 0.0 { 1 } else { 0 }; // banda: 1 casa, igual ao nó do dock
+                    if gauge_wd(ui, w, icon, v, max, u, l, c, dp).on_hover_text(tip).clicked() {
                         self.tab = tab;
                     }
                 });
@@ -3020,6 +3027,12 @@ fn gauge_grid(ui: &mut Ui, labels: &[(&str, &str)], mut item: impl FnMut(&mut Ui
 /// Medidor com largura `w` (o arco fica no centro da célula); valor NaN = desconhecido ("—").
 #[allow(clippy::too_many_arguments)]
 fn gauge_w(ui: &mut Ui, w: f32, icon: &str, value: f32, max: f32, unit: &str, label: &str, color: Color32) -> egui::Response {
+    gauge_wd(ui, w, icon, value, max, unit, label, color, 0)
+}
+
+/// `gauge_w` com `dp` casas decimais no valor (vírgula, como no resto do painel).
+#[allow(clippy::too_many_arguments)]
+fn gauge_wd(ui: &mut Ui, w: f32, icon: &str, value: f32, max: f32, unit: &str, label: &str, color: Color32, dp: usize) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 92.0), Sense::click());
     let unknown = value.is_nan();
     let v = if unknown { 0.0 } else { ui.ctx().animate_value_with_time(ui.id().with(("g", label)), value, 0.45) };
@@ -3047,7 +3060,7 @@ fn gauge_w(ui: &mut Ui, w: f32, icon: &str, value: f32, max: f32, unit: &str, la
         let a = a0 + sweep * frac;
         p.circle_filled(c + vec2(a.cos(), a.sin()) * r, 4.5, color);
     }
-    p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "—".to_string() } else { format!("{v:.0}") }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
+    p.text(c + vec2(0.0, -3.0), egui::Align2::CENTER_CENTER, if unknown { "—".to_string() } else { dec(v as f64, dp) }, FontId::proportional(19.0), if unknown { pal::dim() } else { pal::fg() });
     p.text(c + vec2(0.0, 14.0), egui::Align2::CENTER_CENTER, unit, FontId::proportional(12.0), pal::dim());
     p.text(pos2(c.x, rect.bottom() - 1.0), egui::Align2::CENTER_BOTTOM, format!("{icon} {label}"), FontId::proportional(12.5), pal::dim());
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -3421,10 +3434,10 @@ impl App {
                 });
             });
             let w = if pw.charge_mw > 0 { pw.charge_mw as f64 / 1000.0 } else { -(pw.discharge_mw as f64) / 1000.0 };
-            let wtxt = if w.abs() < 0.05 { "0".into() } else { format!("{w:+.1}") };
+            let wtxt = if w.abs() < 0.05 { "0".into() } else { format!("{w:+.1}").replace('.', ",") };
             let items = [
                 ti("🔋", wtxt, "W", "Carga da bateria", if w >= 0.0 { pal::bolt() } else { pal::amber() }).tip("Taxa de carga (+) ou descarga (−) da bateria — WMI root\\wmi BatteryStatus"),
-                ti("〰", format!("{:.2}", pw.mv as f64 / 1000.0), "V", "Tensão da bateria", pal::fg()).tip("Tensão da bateria (não é a tensão do PD)"),
+                ti("〰", dec(pw.mv as f64 / 1000.0, 2), "V", "Tensão da bateria", pal::fg()).tip("Tensão da bateria (não é a tensão do PD)"),
                 ti("⚡", "85", "W", "Carregador oferece", pal::dim()).tip("Valor do DROM do dock (\"Module 2 PD 85W\"). O contrato negociado não é exposto."),
             ];
             if tile_row(ui, "energia", &items).is_some() {
@@ -3803,7 +3816,7 @@ impl App {
                     tl("🔌", (!topo.ports.is_empty()).then(|| format!("{active} de {}", topo.ports.len())), "", "Portas ativas", neutral).tip("Portas acordadas (D0). As outras estão dormindo para economizar."),
                 ];
                 if let Some(b) = bench {
-                    tiles.push(tl("📏", Some(dec(b.h2d_gbs.max(b.d2h_gbs), 1)), "GB/s", "Banda medida", pal::data()));
+                    tiles.push(tl("📏", Some(dec(b.h2d_gbs, 1)), "GB/s", "Banda medida", pal::data()).tip("Notebook → placa, o sentido que pesa em jogo"));
                 }
                 if tile_grid(ui, &tiles, sel_at) == Some(2) {
                     self.tab = Tab::Historico;
@@ -4700,7 +4713,7 @@ fn incident_row(ui: &mut Ui, inc: &Incident, open: &mut Option<i64>) {
                     for e in before.iter().rev().take(20) {
                         ui.horizontal_wrapped(|ui| {
                             ui.add_space(40.0);
-                            ui.label(egui::RichText::new(format!("−{:.1} s", (inc.start - e.ts) as f64 / 1000.0)).monospace().size(13.0).color(pal::faint()));
+                            ui.label(egui::RichText::new(format!("−{} s", dec((inc.start - e.ts) as f64 / 1000.0, 1))).monospace().size(13.0).color(pal::faint()));
                             ui.label(egui::RichText::new(kind_icon(e.kind)).color(cat_color(e.kind.cat())));
                             ui.label(egui::RichText::new(&e.msg).size(13.0).color(pal::dim()));
                         });
@@ -4815,19 +4828,25 @@ fn bars(ui: &mut Ui, r: &BenchResult) {
     let (rect, _) = ui.allocate_exact_size(vec2(w, 74.0), Sense::hover());
     let p = ui.painter_at(rect);
     let max = 3.2f32;
-    let x_of = |v: f32| rect.left() + 150.0 + (rect.width() - 230.0) * (v / max).clamp(0.0, 1.0);
+    // valores numa coluna própria à direita: a faixa tracejada nunca passa por cima do número
+    let vals = [r.h2d_gbs, r.d2h_gbs].map(|v| format!("{}\u{A0}GB/s", dec(v, 2)));
+    let vw = vals.iter().map(|t| p.layout_no_wrap(t.clone(), FontId::proportional(14.0), pal::fg()).size().x).fold(0.0, f32::max);
+    let x_end = rect.right() - vw - 12.0;
+    let x_of = |v: f32| rect.left() + 150.0 + (x_end - rect.left() - 150.0).max(20.0) * (v / max).clamp(0.0, 1.0);
     // faixa esperada TB3 40G
     let band = Rect::from_x_y_ranges(x_of(2.5)..=x_of(2.8), rect.top()..=rect.bottom() - 14.0);
     for x in [band.left(), band.right()] {
         p.extend(egui::Shape::dashed_line(&[pos2(x, band.top()), pos2(x, band.bottom())], Stroke::new(1.0, pal::green().gamma_multiply(0.7)), 4.0, 3.0));
     }
-    p.text(pos2(band.center().x, rect.bottom()), egui::Align2::CENTER_BOTTOM, "normal com cabo de 40 Gb/s", FontId::proportional(12.5), pal::green());
+    let lg = p.layout_no_wrap("normal com cabo de 40 Gb/s".into(), FontId::proportional(12.5), pal::green()).size().x;
+    let lx = band.center().x.clamp(rect.left() + lg / 2.0, rect.right() - lg / 2.0);
+    p.text(pos2(lx, rect.bottom()), egui::Align2::CENTER_BOTTOM, "normal com cabo de 40 Gb/s", FontId::proportional(12.5), pal::green());
     for (i, (label, v, c)) in [("Notebook → placa", r.h2d_gbs, pal::data()), ("Placa → notebook", r.d2h_gbs, pal::violet())].iter().enumerate() {
         let y = rect.top() + 8.0 + i as f32 * 26.0;
         p.text(pos2(rect.left(), y + 8.0), egui::Align2::LEFT_CENTER, *label, FontId::proportional(13.5), pal::dim());
         let bar = Rect::from_min_max(pos2(x_of(0.0), y), pos2(x_of(*v as f32), y + 16.0));
         p.rect_filled(bar, CornerRadius::same(3), *c);
-        p.text(pos2(bar.right() + 6.0, y + 8.0), egui::Align2::LEFT_CENTER, format!("{v:.2} GB/s"), FontId::proportional(14.0), pal::fg());
+        p.text(pos2(rect.right(), y + 8.0), egui::Align2::RIGHT_CENTER, &vals[i], FontId::proportional(14.0), pal::fg());
     }
 }
 
