@@ -664,7 +664,7 @@ fn caption_rgb(th: Th) -> Option<(u8, u8, u8)> {
 
 const URL_FEEDBACK: &str = "https://github.com/LightWolfMan/egpu-painel/issues/new";
 const URL_SPONSORS: &str = "https://github.com/sponsors/LightWolfMan";
-const URL_PIX: &str = "https://livepix.gg/lightwolfman";
+const URL_PIX: &str = "https://github.com/LightWolfMan/egpu-painel#apoie";
 
 /// Abre um endereço no navegador padrão.
 fn open_url(url: &str) {
@@ -759,7 +759,7 @@ fn footer(ui: &mut Ui) {
             .on_hover_text("Código aberto sob a GPL-3.0: use, estude, modifique e compartilhe à vontade. Quem distribuir uma versão modificada mantém o código aberto também.");
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            foot_link(ui, FootIcon::Pix, "Pix", "LivePix — Pix, para quem está no Brasil", URL_PIX, compact);
+            foot_link(ui, FootIcon::Pix, "Pix", "Pix (QR Code ou copia e cola), para quem está no Brasil", URL_PIX, compact);
             foot_link(ui, FootIcon::Text("❤"), "Apoiar", "GitHub Sponsors — de qualquer país, cartão internacional", URL_SPONSORS, compact);
             foot_link(ui, FootIcon::Text("💬"), "Feedback", "Feedback — relatar um problema ou sugerir uma melhoria (GitHub)", URL_FEEDBACK, compact);
         });

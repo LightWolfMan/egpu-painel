@@ -158,3 +158,7 @@ tela, medição de RAM/CPU (aberto e na bandeja), README.
   com o e-mail pessoal; apagar quando quiser). Ref local `refs/backup/pre-noreply` idem — não enviar.
 - Falta: clicar **Publish** no GitHub Sponsors + criar faixas; criar conta LivePix com usuário
   `lightwolfman` (se o nome não estiver livre, trocar o link em `src/ui.rs` e `.github/FUNDING.yml`).
+- 2026-11-16: LivePix recusou (só para streamers). Trocado por **Pix direto com chave aleatória**: QR em
+  `assets/pix-qr.png` (BR Code estático gerado e conferido decodificando o QR de volta) e seção "Apoie" no
+  README; o botão Pix do rodapé e o `FUNDING.yml` apontam para `README#apoie`. Falta o dono escanear
+  com o app do banco para confirmar que abre o pagamento.

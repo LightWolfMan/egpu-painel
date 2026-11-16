@@ -179,6 +179,24 @@ A aba **Opções** tem o tema (automático pela placa, claro ou escuro), a escal
 
 O painel só lê: não instala driver, não escreve no sistema além da chave de inicialização opcional e dos arquivos acima.
 
+## Apoie
+
+O eGPU Painel é gratuito e continua sendo. Se ele te ajudou a achar o problema do seu dock, dá pra
+apoiar de dois jeitos:
+
+- **De qualquer país:** [GitHub Sponsors](https://github.com/sponsors/LightWolfMan), mensal ou valor único.
+- **Pix (Brasil):** escaneie o QR Code no app do banco ou use o *copia e cola*, com o valor que quiser.
+
+<img src="assets/pix-qr.png" alt="QR Code Pix" width="200">
+
+```
+00020126580014br.gov.bcb.pix0136eec7ccba-5593-4f47-bf31-a9da4a3826a15204000053039865802BR5912LightWolfMan6006BRASIL62070503***6304A8C9
+```
+
+Chave aleatória: `eec7ccba-5593-4f47-bf31-a9da4a3826a1`
+
+Feedback, bug ou dock diferente do meu? Abra uma [issue](https://github.com/LightWolfMan/egpu-painel/issues/new).
+
 ## Licença
 
 Copyright (C) 2026 LightWolfMan. GPL-3.0 ou (a seu critério) qualquer versão posterior, sem nenhuma garantia; texto completo em [`LICENSE`](LICENSE). Em resumo: você pode usar, estudar, modificar e redistribuir à vontade; quem distribuir o programa, original ou modificado (inclusive só o `.exe`), precisa oferecer o código-fonte correspondente sob a mesma licença.
